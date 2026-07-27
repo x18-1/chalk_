@@ -1,0 +1,7 @@
+# Local environment variables and credentials
+.env
+.env.*
+!.env.example
+
+# Third-party reference repositories
+.reference/
