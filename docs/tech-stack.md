@@ -1,0 +1,251 @@
+# Chalk 技术栈
+
+> 状态：草案，随讨论迭代
+> 配套：[功能定义](functional-spec.md)
+
+## 1. 总原则
+
+1. **后端全 TypeScript。** 业务、agent、DSL 校验、几何、证据账本、数据访问全部在 TS 一侧，不跨语言边界。
+2. **Python 暂不引入。** 需要 sympy 符号验证、IRT/BKT 校准、检索索引构建时再加，且只作为离线 worker 调用的独立服务，不进请求路径。见第 10 节。
+3. **确定性引擎决定「能不能过」，LLM 决定「怎么表达」。** 掌握判定、几何校验、结构 lint 全部是确定性代码，LLM 不持有否决权。
+4. **eval 与功能同期建设。** 系统产出质量（讲解、判题、几何构造）不靠人工抽查。
+
+## 2. 已定选型
+
+| 层 | 选择 | 说明 |
+|---|---|---|
+| 语言 | **TypeScript 全栈** | DSL 校验器需同时跑在浏览器、agent 侧、服务端，一份代码三处共用 |
+| Agent 运行时 | **pi-agent-core** | 见第 3 节 |
+| 前端 / BFF | Next.js（App Router）+ React | 单部署；可直接借用 OpenMAIC 代码 |
+| 客户端状态 | Zustand | |
+| 播放引擎状态机 | XState | 状态多于 OpenMAIC（含 checkpoint 等待态、讨论室进出），手写易错 |
+| 数据库 | Postgres + Drizzle | 证据表 append-only；课件 JSONB；课程图关系表 |
+| 任务队列 | pg-boss（或 Graphile Worker） | 课件编译是分钟级任务。用 Postgres 省掉 Redis |
+| 几何渲染 / 动画 | **manim-web** | TypeScript，见第 4 节 |
+| 几何约束层 | **自建** | 见第 4 节。系统内唯一必须从零写的核心资产 |
+| 数学排版 | KaTeX | manim-web 内部也用它 |
+| 校验 | zod（或 typebox，与 pi 对齐） | 单一来源。将来若引入 Python，由此生成 JSON Schema → Pydantic |
+| 测试 | Vitest + Playwright + LLM eval | 见第 6 节 |
+| 观测 | pi-telemetry + OpenTelemetry | 见第 5 节 |
+
+### 明确不选
+
+| | 原因 |
+|---|---|
+| LangGraph | OpenMAIC 的 director graph 单次最多执行一轮 `director → agent`，多轮靠客户端连续请求驱动。这点事不值一个框架，pi 的 agent loop 更直接 |
+| fork OpenMAIC | 核心对象不同（它以 `Stage` 为中心，我们以学习者与证据为中心）；`SceneType` / `Action` 是闭合联合类型且有编译期穷举检查；Beat 粒度比 Scene 细，DSL 重写不可避免。302k 行里 PPTX/MP4 导出、PBL v2、importer、i18n、Partners 都不需要 |
+| GeoGebra | `evalCommand()` 只返回成功/失败，无结构化错误；宽松解释器可能把错误表达式解释成另一种合法对象 |
+| Python 做主后端 | 跨语言边界会切在最热的调用路径上（checkpoint 判定 → 讨论室 agent → 生成 → 写证据）；DSL 校验器会被迫写两遍（zod + Pydantic）且必须永远等价。**已决定：后端全 TS，后续如需再调整** |
+
+## 3. Agent 运行时：pi-agent
+
+`@earendil-works/pi-agent-core` `0.84.1`（2026-08-07），仓库 `github.com/earendil-works/pi`。同版本号下成套：`pi-ai`（统一 LLM 层，内置 OpenAI/Anthropic/Google/Mistral/Bedrock）、`pi-telemetry`、`pi-coding-agent`、`pi-tui`、`pi-protocol`、`pi-client`、`pi-storage-sqlite-node`、`gondolin`（Alpine 沙箱）。
+
+### 直接可用
+
+| 能力 | 形式 |
+|---|---|
+| Agent 循环 | `Agent` + 注入 `StreamFn` |
+| Tools | `AgentTool` |
+| 权限门 | `beforeToolCall` —— 框架强制经过，不靠调用方自觉 |
+| 配额 / 审计 | `afterToolCall` |
+| **Skills** | 原生 `loadSkills(env, dirs)`：递归加载 `SKILL.md`、frontmatter 解析、ignore 文件、结构化诊断。`loadSourcedSkills` 支持来源标记 |
+| 观测 | `pi-telemetry`：`defineTelemetrySchema` 类型化 span、`AI_TELEMETRY_SCHEMA` / `HARNESS_TELEMETRY_SCHEMA` |
+| 上下文管理 | 自动 compaction（`shouldCompact` / `findCutPoint` / `estimateContextTokens`）、session 管理与搜索、branch summarization |
+
+模型层可绕开：注入自己的 `StreamFn`，pi 只需要一个 metadata 占位模型对象，多供应商路由仍由我们自己控制。
+
+### 需要自己补
+
+- **MCP**：pi 中 grep `mcp` / `modelcontextprotocol` 零匹配。需自行适配（`@modelcontextprotocol/sdk` 起 client，MCP tool 映射为 `AgentTool`）。**第一版留接口位置，实现后置** —— 第一版所有 tool 都是自己的（几何、判题、出题、查证据），没有外部 MCP server 要接
+- **教学语义事件**：见第 5 节
+- **配额实现**：钩子在，逻辑要自己写
+
+### Agent 边界：三个，不是一个
+
+| Agent | 延迟 | 特性 |
+|---|---|---|
+| **课件编译** | 分钟级，离线 | 可重试、幂等；产物必须过校验门才落库 |
+| **课堂讨论** | 秒级，在线 | 多角色；工具面收窄；可中断 |
+| **判题** | 秒级，在线 | 确定性优先、AI 兜底；隔离级别最高，见下 |
+
+拆分依据是延迟要求、可重试性、权限面、失败处理完全不同。
+
+**判题 agent 的额外约束**：它的输出进 append-only 证据账本，判错会永久污染长期数据，并影响下游复习队列、掌握度、学情报告。因此：
+
+- 确定性检查优先，AI 只兜底
+- 每条判定必须记 `scorer` 类型 + 版本 + 置信度
+- **禁止「解析失败给默认分」**（OpenMAIC 的做法是判分失败默认给 50%，会污染证据）
+- 低置信度判定在重算时可降权或剔除
+
+## 4. 几何：渲染用 manim-web，约束层自建
+
+### manim-web
+
+`0.3.24`（2026-07-13 更新，2026-02 首发），MIT，TypeScript，Vite + Vitest + Playwright 工具链，452 stars / 613 commits。提供 browser / React / Vue 入口。
+
+已有能力：几何图元（Circle / Polygon / Arrow / Arc / Brace）、Text / MathTex / Tex、Axes / NumberPlane / FunctionGraph / ParametricFunction / VectorField、3D（Sphere / Cube / Surface3D / ThreeDAxes + orbit controls）、动画（FadeIn / Create / Transform / Write / AnimationGroup / LaggedStart）、GIF 与视频导出、Matrix / Table / 网络图、`tools/py2ts.cjs`（Manim Python → TS）。
+
+两个直接命中需求的特性：
+
+- **`Draggable` / `Hoverable` / `Clickable`** —— 功能文档 6.5 要求学生操作回传给 AI，这是抓手
+- **结构化 logger + `onLog` 订阅**，README 明确面向 "AI agents that write and debug scenes"，转发时脱敏 token / key / email —— 可作为 LLM 修复闭环的结构化错误通道
+
+### 约束层必须自建
+
+manim-web 是动画引擎，**不管理几何约束**。`Draggable` 让点能拖，但拖动 A 之后派生对象（BC 中点、垂足、交点）不会自动重算 —— 那需要依赖图和拓扑排序的更新顺序。
+
+```
+packages/geometry/
+  ├─ 约束与依赖图          纯逻辑，不依赖渲染，可脱离浏览器单测
+  ├─ 派生对象求值器        中点 / 交点 / 垂线 / 平行线 / 角平分线 / 圆上点
+  ├─ 退化检测              三点共线时「交点」不存在等
+  ├─ 后置条件校验          CI 中可断言 "DE == AD"
+  └─ → manim-web 适配层    薄，渲染器可替换
+```
+
+设计约束：
+
+- 约束层**不绑 manim-web 的对象模型**。它是核心资产，渲染器是消耗品
+- manim-web 版本号**锁死**，不用 `^`（`0.3.x`、上线 6 个月、README 无 limitations 章节、无浏览器支持矩阵、无与上游 Manim 的覆盖度对比）
+- 几何正确性必须能进 CI
+
+### LLM 接口：生成受限 DSL，不生成渲染代码
+
+```
+模型产出结构化几何 DSL
+      ↓  JSON Schema 校验
+      ↓  对象类型与依赖检查
+      ↓  隐藏画布预渲染
+      ↓  结构化错误 JSON 回传模型修复
+      ↓  正式播放
+```
+
+结构化错误类型：`OBJECT_NOT_FOUND` / `TYPE_MISMATCH` / `DUPLICATE_ID` / `CYCLIC_DEPENDENCY` / `DEGENERATE_CONSTRUCTION` / `POSTCONDITION_FAILED` / `RENDER_FAILED`。
+
+底层代码质量由经过测试的编译器和运行时保证，不由模型保证。
+
+## 5. 观测
+
+两层不重叠，都要：
+
+| 层 | 内容 | 手段 |
+|---|---|---|
+| **可观测性** | trace、token 成本、tool 调用、延迟 | pi-telemetry + OpenTelemetry，不自己写 |
+| **教学语义事件** | 正在构图 / 等你回答 / 正在判题 / 进入讨论室 / 提示层级升高 | 自己定义，但定义为 pi 的 telemetry schema，不另建一套 bus |
+
+教学语义事件的作用是让前端把状态表现成教学状态，而不是从模型文本里猜。一份 schema 同时喂 UI、日志、证据账本。
+
+必须能算出：**每个学生每节课的 token 成本**。
+
+## 6. Eval（与功能同期建设）
+
+没有 eval 无法判断改一个 prompt 是变好还是变坏。第一天就要有 `packages/eval`，与 telemetry 关联（pi 的 span schema 可把 trace 和 eval 结果连起来）。
+
+### 分两类，不要混
+
+| 类别 | 对象 | 判据 |
+|---|---|---|
+| **assessment** | 学生 | 掌握判定 |
+| **eval** | 系统 | 产出质量是否达标 |
+
+### 第一批 eval 项
+
+**确定性检查（CI 门禁，不过则构建失败）**
+
+- 几何后置条件：构造出的图形是否满足题设（`DE == AD`、垂直、共线…）
+- Beat 结构 lint：**任何非平凡步骤前必须有「动机」Beat**（功能文档 4.2 的硬要求）
+- DSL schema 校验：类型、依赖、重复 id、依赖环
+- 判题一致性：同一份作答重复判定结果是否稳定
+
+**LLM / 视觉模型评分（回归跟踪，不做门禁）**
+
+- 讲解质量：思路来源是否讲清、是否只给了正确步骤
+- 图形与旁白一致性
+- 用词适龄性
+- 图形可读性、遮挡、布局（参考 OpenMAIC `eval/whiteboard-layout/`：真实跑 agent、截图、视觉模型按可读性/遮挡/渲染正确性/布局逻辑打分）
+- **答案泄露率**：提示阶梯是否被绕过
+
+**待建（有真实学生数据后）**
+
+- 前测/后测学习增益
+- 独立完成率与提示层级分布
+- 7 / 30 天保留率
+- 题型识别准确率
+
+### 原则
+
+- 确定性能判的，绝不交给 LLM 判
+- eval 结果与 telemetry trace 关联，可回溯到具体 prompt 版本
+- 记录 prompt 版本、模型版本、scorer 版本
+
+## 7. 仓库结构
+
+```
+packages/
+  courseware-dsl/   零依赖。Beat / Action / Checkpoint 类型 + schema + 结构 lint
+  geometry/         约束与依赖图 + 派生对象 + 后置条件校验 + manim-web 适配
+  agent-runtime/    pi-agent-core 封装 + 权限 / 配额 / 审计 / 观测钩子
+  evidence/         append-only 证据账本 + 纯函数派生掌握度
+  db/               Drizzle schema + 迁移 + 数据访问层（含 owner 校验）
+  domain/           用户 / 课程图 / 题库 / 画像 / 错题本 / 报告的业务逻辑
+  eval/             确定性门禁 + LLM 评分 harness
+apps/
+  web/              Next.js：前端 + 后端 API（认证、CRUD、业务端点）
+  worker/           课件编译 + 复习调度 + 后台任务
+```
+
+**后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）—— 都在 `apps/web` 的服务端 + `packages/domain` + `packages/db`。
+
+`courseware-dsl` 被三方共用（web 播放、worker 编译后校验、eval 跑质量门），因此零依赖 + 高覆盖率。
+
+单人或小团队起步可先合并为 2–3 个包，边界稳定后再拆。若将来后端规模变大，`apps/web` 可拆出独立 API 服务（仍是 TS），前端只留 Next.js。
+
+## 8. 安全与合规（面向未成年人，第一版就要有正确形状）
+
+参考项目的反面教训（来自调研）：DeepTutor 的 memory consolidation run 无 `user_id` 隔离、memory API 无 owner 校验、`PathService` 异常时静默回退到 admin path；OpenMAIC 的服务端认证自标「仅开发用途」，公开 bearer token 不提供用户隔离，调用方可自行提交 learner key。
+
+第一版必须正确的：
+
+- 认证与租户隔离，异常时 **fail closed**，不静默回退
+- 所有数据访问路径带 owner 校验
+- 未成年人数据合规：采集最小化、家长授权、留存与删除策略
+- 生成内容的安全过滤（面向儿童，误差不对称：成人会自行纠正错误类比，12 岁学生会学进去）
+- 模型生成代码/HTML 的执行隔离
+
+## 9. 待验证
+
+1. **几何约束层技术尖刺**（最高优先）：不接 LLM，手写一道倍长中线（△ABC，D 为 BC 中点，延长 AD 到 E 使 DE=AD，连 BE），验证四件事：
+   - 拖动 A 点，派生对象是否正确跟随
+   - 能否从外部读到 E 的当前坐标（AI 观察输入的前提）
+   - 非法构造（三点共线求交点）是否返回结构化错误
+   - 能否写成 CI 断言 `DE == AD`
+
+   不通则后续所有几何教学功能都是空的。
+
+2. **manim-web 的实际覆盖度**：README 无 limitations 章节，需实测 2D 几何教学所需图元与动画是否齐全
+3. **MCP 适配的具体形态**：接口位置先留出
+4. **学生操作事件的回传契约**：`Draggable` 事件 → 证据账本 + AI 观察输入的数据形状
+5. **pi-telemetry 与教学语义事件的结合方式**：是否足以承载 UI 状态驱动
+
+## 10. Python 的位置（暂不引入）
+
+**当前决定：后端全 TypeScript，不引入 Python。** 后续如遇实际阻碍再调整。
+
+### 什么情况下会加回来
+
+只有以下需求出现，且 TS 生态确实没有可用替代时：
+
+| 需求 | TS 侧是否可行 |
+|---|---|
+| 符号计算验证几何命题 / 代数恒等式（sympy） | 无等价库。这是最可能需要 Python 的一项 |
+| IRT / BKT 难度校准 | 数据量不大时 TS 可写；规模上来后 Python 生态更合适 |
+| 向量检索索引构建 | pgvector 在 Postgres 内即可，第一版用不上 |
+| eval 统计分析 | 可先用 TS，复杂分析再考虑 |
+
+### 引入时必须遵守
+
+1. **只做离线 worker**，通过队列调用，不进请求路径
+2. **接口面窄到不需要共享复杂类型**。例如符号验证只收几何 DSL 片段、只回 `{ valid, errors[] }`；Python 侧不需要认识 Beat 结构
+3. **schema 单一来源**：zod 定义 → 生成 JSON Schema → `datamodel-code-generator` 生成 Pydantic 模型，接入 CI。禁止两边手写同一结构
+4. **证据账本和 DSL 校验永不跨界**，始终留在 TS
