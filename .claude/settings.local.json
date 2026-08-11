@@ -4,7 +4,13 @@
       "Bash(git submodule *)",
       "Bash(python3 -c ' *)",
       "Read(//tmp/**)",
-      "Bash(npm search *)"
+      "Bash(npm search *)",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\" && cat \"{}\"')",
+      "Bash(npm pack *)",
+      "Bash(xargs cat)",
+      "Bash(pnpm -v)"
     ]
   },
   "hooks": {
