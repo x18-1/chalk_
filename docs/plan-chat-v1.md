@@ -2,7 +2,7 @@
 
 > 状态：定稿，使用 JSONL session 存储方案  
 > 范围：完整 Chat 功能 + 成熟 Agent Harness：session、memory、tools、MCP、skills、全 LLM 供应商、human-in-loop、鉴权、可观测性。  
-> Session 存储：JSONL 文件（快速开发，单机部署，保留未来迁移到 Postgres 的灵活性）  
+> Session 存储：JSONL 文件（单实例部署 + 持久化磁盘；暂不考虑多实例和 NFS）
 > 不含：几何渲染、Chalkboard 主线、题型识别、worker 任务队列。
 
 ---
@@ -16,21 +16,22 @@ chalk_/
 ├── .env.example
 ├── docker-compose.yml           # Postgres + optional Redis + OTEL collector
 ├── packages/
-│   ├── db/                      # Drizzle schema + 迁移 + DAL（owner 校验）
-│   └── agent-runtime/           # pi-agent-core 封装：providers/tools/skills/MCP/telemetry
+│   ├── agent-runtime/           # pi-agent-core 封装：providers/tools/skills/MCP/telemetry
+│   └── chalkboard/              # OpenMAIC 迁移后的课堂能力（本版只建 seam，不实现主线）
 ├── apps/
 │   └── web/                     # Next.js 15 App Router（前端 + BFF API）
+│       └── src/lib/             # DB、认证、学习领域和具体 adapter
 └── data/
     └── sessions/                # JSONL session 文件存储目录（.gitignore）
 ```
 
-其余包（courseware-dsl、geometry、evidence、eval）建目录占位，本版不填充。
+本版不实现 Chalkboard 主线；几何 Agent、课程图、证据和评测代码在需要时先作为 `apps/web/src/lib` 或仓库根目录 `eval/` 的内部模块加入，不为它们分别创建 workspace package。
 
 ---
 
-## 2. packages/db
+## 2. apps/web/src/lib/server/db
 
-### 2.1 Schema（15 张表）
+### 2.1 Schema（9 张表）
 
 **auth_* 表**（由 `@auth/drizzle-adapter` 自动管理）
 
@@ -110,7 +111,7 @@ tool_approvals                         -- HIL 工具审批，跨进程持久化
 {"kind":"lane","seq":3,"lane":"main","leafId":"msg_002"}
 ```
 
-文件存储在 `data/sessions/` 目录，命名格式：`{YYYY-MM-dd}-{session_id}.jsonl`
+文件存储在 `data/sessions/` 目录。文件名和 cwd 子目录由 `JsonlSessionRepo` 管理，应用只保存 repo 返回的 metadata/path，不自行拼接路径。
 
 ### 2.2 数据访问层原则
 
@@ -128,29 +129,25 @@ tool_approvals                         -- HIL 工具审批，跨进程持久化
 ```
 src/
   providers/
-    registry.ts        createModels() + DrizzleCredentialStore 注入
+    registry.ts        createModels() + 应用注入 CredentialStore
     custom-openai.ts   自定义 OpenAI 兼容：createProvider() + baseUrl
-  credentials/
-    store.ts           DrizzleCredentialStore 实现 CredentialStore 接口
-    encrypt.ts         AES-256-GCM 加密/解密工具
   tools/
-    registry.ts        AgentTool[] 注册表（后续按功能加：geometry, quiz…）
+    registry.ts        AgentTool[] 注册表（领域工具由应用 adapter 注入）
   skills/
     loader.ts          loadSkills / loadSourcedSkills 封装
     registry.ts        Skill[] 注册表（运行时热重载）
   mcp/
     client.ts          @modelcontextprotocol/sdk StdioClient / SSEClient
     adapter.ts         McpTool → AgentTool 转换
-    manager.ts         用户 mcp_servers 配置 → 连接池
+    manager.ts         应用注入的 MCP 配置 → 连接池
   session/
-    index.ts           createSessionRepo() 工厂函数，支持切换 backend
-    jsonl-repo.ts      JsonlSessionRepo 封装（基于 pi-agent-core）
+    manager.ts         接收注入的 SessionRepo，负责 create / open / recover
     recovery.ts        进程重启后的 session 恢复逻辑
     types.ts           Session 相关类型定义
   harness/
     factory.ts         AgentHarness.create() 工厂
-    human-in-loop.ts   steer / followUp / abort；审批写 tool_approvals 表
-    hooks.ts           beforeToolCall（读 tool_approvals 表挂起）/ afterToolCall
+    human-in-loop.ts   steer / followUp / abort；通过审批 port 挂起
+    hooks.ts           beforeToolCall（调用审批 port）/ afterToolCall
     compaction.ts      shouldCompact / compact 策略
   telemetry/
     schema.ts          Chalk 教学语义事件 defineTelemetrySchema
@@ -162,12 +159,14 @@ src/
   index.ts             公开 API
 ```
 
+DrizzleCredentialStore、AES-256-GCM 凭据加密和 DB-backed 审批 adapter 属于 `apps/web/src/lib/server`，不进入通用 Agent runtime。Agent runtime 通过注入的 CredentialStore、审批 port 和资源配置工作。
+
 ### 3.2 LLM 供应商接入
 
 pi-ai 内置了 **30+ 供应商**的完整 model catalog（`MODELS` 常量），不需要手动列举。接入方式：
 
 ```
-createModels({ credentials: new DrizzleCredentialStore(db, userId) })
+createModels({ credentials: appCredentialStore })
   ↓  自动发现所有内置 Provider（Anthropic、OpenAI、Azure、Bedrock、Google、
      Gemini Vertex、Mistral、DeepSeek、Groq、Cerebras、OpenRouter、
      xAI、NVIDIA、Fireworks、Together、Qwen、Moonshot…）
@@ -177,7 +176,7 @@ createModels({ credentials: new DrizzleCredentialStore(db, userId) })
 
 **API key 来源（双轨）**：
 1. 环境变量（`.env`）：pi-ai 内置 provider 默认读取对应 env（`ANTHROPIC_API_KEY` 等），`AuthContext.env()` 从 `process.env` 读取
-2. Web UI 配置：用户在 `/settings/providers` 页填写 API key → 加密存入 `provider_credentials` 表 → `DrizzleCredentialStore.modify(providerId, ...)` → `models.getAuth()` 优先走 credential store，再 fallback 到 env
+2. Web UI 配置：用户在 `/settings/providers` 页填写 API key → Web adapter 加密存入 `provider_credentials` 表 → 注入 `CredentialStore` → `models.getAuth()` 优先走 credential store，再 fallback 到 env
 
 **自定义 OpenAI 兼容供应商**（中转站 / 本地模型）：
 - 存入 `custom_providers` 表（`base_url` + 加密 `api_key_enc` + `model_ids` + `api` 字段）
@@ -191,10 +190,12 @@ createModels({ credentials: new DrizzleCredentialStore(db, userId) })
 - `execute(toolCallId, params, signal, onUpdate, ctx)` — ctx 含 userId + sessionId
 - `executionMode: "sequential" | "parallel"`
 
+Tool 参数 schema 使用 TypeBox，因为这是 `pi-agent-core` / `pi-ai` 的原生边界。Chalkboard、learning/evidence 和 API contract 使用 Zod；工具执行时先通过 TypeBox 校验 LLM 参数，再转换为 Chalk command 并通过 Zod 校验后进入领域逻辑。不要为同一个领域对象在两种库中各维护一份 schema。
+
 `beforeToolCall` hook：
 - 检查工具白名单（per-user 配置）
 - Human-in-loop 模式下暂停，等前端 `/api/agent/[id]/approve` 接口确认
-- 审计日志写 `agent_sessions` 关联表
+- 审计结果通过应用注入的 audit port 持久化
 
 `afterToolCall` hook：
 - 敏感工具结果脱敏再写入上下文
@@ -210,9 +211,9 @@ createModels({ credentials: new DrizzleCredentialStore(db, userId) })
 ### 3.5 MCP 接入
 
 ```
-用户在 /settings/mcp 配置 MCP 服务器（写 mcp_servers 表）
+用户在 /settings/mcp 配置 MCP 服务器（Web 写入 mcp_servers 表）
          ↓
-对话开始时，manager.ts 读取该用户的 enabled mcp_servers
+对话开始时，Web 读取该用户的 enabled mcp_servers 并注入 runtime
          ↓
 按 transport 创建 StdioClient / SSEClient
          ↓
@@ -234,10 +235,10 @@ listTools() → 每个 MCP tool 转为 AgentTool（adapter.ts）
 | **中止重来** | `agent.abort()` + 重建 prompt | 前端 POST `/abort` |
 
 审批流程：
-1. `beforeToolCall` → 写 `tool_approvals(status=pending)` → 返回 Promise 挂起（不 block）
+1. `beforeToolCall` → 调用应用的 approval port，写入 `tool_approvals(status=pending)` → 返回 Promise 挂起（不 block）
 2. SSE 推 `tool_pending` 事件到前端
 3. 前端展示 `PendingApprovalBar`，用户点 Approve/Reject
-4. `/api/chat/[id]/approve` → 更新 `tool_approvals.status` + 唤醒挂起的 Promise
+4. `/api/chat/[id]/approve` → Web DAL 更新 `tool_approvals.status` + 唤醒挂起的 Promise
 5. 进程重启时，`beforeToolCall` 检查 DB 状态；pending 超时自动 reject（fail closed）
 
 ### 3.7 可观测性
@@ -383,8 +384,7 @@ interface ChatStore {
 # Database（业务数据：用户、对话元数据、工具审批等）
 DATABASE_URL=postgresql://chalk:chalk@localhost:5432/chalk
 
-# Session 存储
-SESSION_BACKEND=jsonl  # 'jsonl' | 'postgres'（未来支持）
+# Session 存储（单实例 + 持久化磁盘）
 SESSIONS_ROOT=./data/sessions  # JSONL 文件存储目录
 
 # Auth
@@ -500,9 +500,9 @@ volumes:
 | # | 内容 | 产出 |
 |---|---|---|
 | **M1** | Monorepo 骨架：pnpm workspace + tsconfig + ESLint/Prettier + docker-compose | 空但能跑 `pnpm install` |
-| **M2** | `packages/db`：业务 schema（不含 pi session 表）+ 迁移 + DAL + `DrizzleCredentialStore` | `pnpm db:migrate` 跑通 |
+| **M2** | `apps/web/src/lib/server/db`：业务 schema（不含 pi session 表）+ 迁移 + DAL；Web adapter 实现 `DrizzleCredentialStore` | `pnpm db:migrate` 跑通 |
 | **M3** | `apps/web` Auth：Next.js 骨架 + Auth.js + dev seed + `/settings/providers` API key 配置页 | 能登录、能填 key |
-| **M4** | `packages/agent-runtime` session：`JsonlSessionRepo` 封装 + 进程重启恢复逻辑 + `createModels()` + credential store 联通 | 终端可跑 agent loop + session 落 JSONL |
+| **M4** | `packages/agent-runtime` session：接收注入的 `SessionRepo` + 进程重启恢复逻辑 + `createModels()` + credential store 联通；Web 组合 `JsonlSessionRepo` | 终端可跑 agent loop + session 落 JSONL |
 | **M5** | `agent-runtime` harness + StreamFn 桥 + compaction | harness 可运行 |
 | **M6** | `apps/web` 流式 API + 基础 Chat UI（输入→流→KaTeX） | 端到端跑通 |
 | **M7** | Skills loader + `/settings/skills` 页 + skill 注入 system prompt | Skill 可见、可用 |
@@ -518,10 +518,10 @@ volumes:
 
 ### Session 持久化：JSONL 文件方案
 
-**核心决策**：使用 `JsonlSessionRepo`（pi-agent-core 内置），session 存储为 JSONL 文件。
+**核心决策**：使用 pi-agent-core 内置的 `JsonlSessionRepo`，session 存储为 JSONL 文件。第一版只支持单实例服务和持久化本地磁盘，不考虑多实例共享文件系统或 NFS。
 
 **存储架构**：
-- JSONL 文件位置：`data/sessions/{date}-{session_id}.jsonl`
+- JSONL 文件根目录：`data/sessions/`；具体路径由 `JsonlSessionRepo` 生成
 - Postgres 存业务元数据：`conversations` 表存 `session_file_path` 映射
 - 每个 JSONL 文件包含完整 session 状态：header + mutations（entries、records、lanes）
 
@@ -530,63 +530,62 @@ volumes:
 // 1. 从 Postgres 查文件路径
 const conv = await db.query.conversations.findFirst({ where: eq(conversations.id, convId) });
 
-// 2. JsonlSessionRepo 打开文件，重放所有 mutation
-const session = await repo.open({
-  id: conv.sessionId,
-  path: conv.sessionFilePath,  // 'data/sessions/2024-08-11-abc123.jsonl'
-  createdAt: conv.createdAt.getTime(),
-  cwd: '/workspace',
-});
+// 2. 只使用服务端保存的映射定位 metadata，客户端不能提交文件路径
+const metadata = (await repo.list({ cwd: SESSION_CWD })).find(
+  (item) => item.id === conv.sessionId && item.path === conv.sessionFilePath,
+);
+if (!metadata) throw new SessionNotFoundError(conv.sessionId);
 
-// 3. 恢复完整状态（entries、lanes、stats、compaction history）
-// 4. 创建 harness，继续对话
+// 3. JsonlSessionRepo 打开文件并重放 mutation
+const session = await repo.open(metadata);
+
+// 4. 恢复 entries、lanes、stats、compaction history，创建 harness 后继续对话
 ```
 
-**恢复性能**：100 轮对话 ~10ms（读取 + 重放）
-
 **优势**：
-- ✅ 零实现成本（直接用 pi-agent-core 官方实现）
+- ✅ 无需自建 session 持久化格式，直接使用 pi-agent-core 官方实现
 - ✅ 全功能支持（branch、compaction、lane、thinking）
-- ✅ 单机部署完美（本地文件系统）
+- ✅ 直接适配当前的单实例部署
 - ✅ 调试友好（`cat session.jsonl` 直接查看）
 - ✅ 备份简单（复制 `data/sessions/` 目录）
 
-**适用场景**：单机开发、测试、小规模生产（< 1 万对话）
+**部署前提**：服务进程只有一个 session writer，`SESSIONS_ROOT` 位于持久化磁盘；JSONL 文件不提交 Git，也不放在临时容器文件系统中。
 
 **未来迁移路径**：
-- 多实例部署 → 挂载 NFS 到 `data/sessions/`
-- 大规模生产 → 实现 `DrizzleSessionRepo`，迁移到 Postgres
+- 如果将来需要多实例、跨节点写入或 SQL 级全文检索，再实现 Postgres `SessionRepo` adapter；由 `apps/web` 的 composition root 注入，不放进 `agent-runtime`。
 
 **代码隔离设计**：
 ```typescript
-// packages/agent-runtime/src/session/index.ts
-export function createSessionRepo(): SessionRepo {
-  const backend = process.env.SESSION_BACKEND || 'jsonl';
-  
-  switch (backend) {
-    case 'jsonl':
-      return new JsonlSessionRepo({ fs: nodeFs, sessionsRoot: process.env.SESSIONS_ROOT });
-    case 'postgres':  // 未来支持
-      return new DrizzleSessionRepo({ db });
-    default:
-      throw new Error(`Unknown session backend: ${backend}`);
-  }
+// agent-runtime 只依赖 pi 的 SessionRepo 接口
+export function createAgentRuntime(options: { sessionRepo: SessionRepo }) {
+  return new AgentRuntime(options);
 }
+
+// apps/web 的 composition root 选择当前 adapter
+const nodeEnv = new NodeExecutionEnv({ cwd: process.cwd() });
+const sessionRepo = new JsonlSessionRepo({
+  fs: nodeEnv,
+  sessionsRoot: process.env.SESSIONS_ROOT ?? './data/sessions',
+});
+const runtime = createAgentRuntime({ sessionRepo });
+
+// 测试使用 pi-agent-core 的 InMemorySessionRepo
 ```
 
 **恢复验证清单**：
-- [x] 进程重启后，打开历史对话，消息完整显示
-- [x] 进程重启后，继续发消息，agent 能看到之前的上下文
-- [x] Branch 功能：点"编辑重新生成"，生成新分支，原分支保留
-- [x] Compaction：对话超过 100 轮，自动总结前 80 轮
-- [x] Thinking 持久化：刷新页面后，thinking blocks 仍可展开
-- [x] 工具审批：进程重启时有 pending 审批，启动后自动 reject（超时 1 分钟）
+- [ ] 进程重启后，打开历史对话，消息完整显示
+- [ ] 进程重启后，继续发消息，agent 能看到之前的上下文
+- [ ] Branch 功能：点"编辑重新生成"，生成新分支，原分支保留
+- [ ] Compaction：对话超过 100 轮，自动总结前 80 轮
+- [ ] Thinking 持久化：刷新页面后，thinking blocks 仍可展开
+- [ ] 工具审批：进程重启时有 pending 审批，启动后自动 reject（超时 1 分钟）
 
 ---
 
 ### 其他技术决策
 
-- **LLM 供应商**：`createModels()` 加载 pi-ai 内置所有 30+ provider；`DrizzleCredentialStore` 实现 `CredentialStore` 接口，API key 加密存 `provider_credentials` 表，Web UI 和 env 双轨，credential store 优先。
+- **LLM 供应商**：`createModels()` 加载 pi-ai 内置所有 30+ provider；Web adapter 实现 `CredentialStore` 接口，API key 加密存 `provider_credentials` 表，Web UI 和 env 双轨，credential store 优先。
+- **Schema 边界**：Chalkboard、learning/evidence 和 API contract 使用 Zod；pi AgentTool 的 `parameters` 使用 TypeBox。工具参数经 TypeBox 校验并转换为领域 command，再经 Zod 校验。
 - **自定义 OpenAI 兼容**：`createProvider({ baseUrl, api: openai-completions })` 动态注册；配置存 `custom_providers` 表，加密 `api_key_enc`。
 - **HIL 工具审批**：`tool_approvals` 表持久化审批状态；进程重启后 pending 超时 → reject（fail closed）。
 - **MCP**：`@modelcontextprotocol/sdk`，工具映射为 `AgentTool`，连接池 per user-session。
@@ -606,7 +605,7 @@ export function createSessionRepo(): SessionRepo {
 | 用户上传（图片、PDF、附件） | OSS `chalk-uploads` bucket | CDN 加速、跨地域访问、永久保存 |
 | Agent 生成的 Artifacts（>1MB） | OSS `chalk-uploads` bucket | 避免 Postgres 膨胀 |
 | 小型 Artifacts（<100KB） | Postgres JSONB | 减少 OSS 请求，加速渲染 |
-| **Session JSONL 文件** | **本地文件系统 `data/sessions/`** | **低延迟读写（~1ms vs OSS ~50ms）；多实例时用 NAS** |
+| **Session JSONL 文件** | **本地持久化文件系统 `data/sessions/`** | **每轮追加写入，避免 OSS 网络延迟；第一版仅单实例访问** |
 | 每日备份 | OSS `chalk-backups` bucket | 长期归档，便宜 |
 
 **开发环境：** MinIO（S3 兼容，本地 Docker）  
@@ -618,9 +617,9 @@ export function createSessionRepo(): SessionRepo {
 - Session 文件不需要跨地域访问（只有后端服务读写）
 - 备份时会打包整个 `data/sessions/` 上传到 OSS，不会丢失
 
-**多实例部署方案：**
-- 单机：本地磁盘 `data/sessions/`
-- 多实例：挂载阿里云 NAS 到所有实例的 `data/sessions/`（NFS 协议，延迟 ~5ms）
+**当前部署方案：**
+- 单实例服务：本地持久化磁盘 `data/sessions/`
+- 多实例、NFS 和共享文件系统：暂不在本版范围内；未来需要时切换到数据库 SessionRepo adapter
 
 **上传流程：**
 ```typescript

@@ -20,6 +20,8 @@
 - 几何渲染使用 `manim-web`，版本锁定。几何约束层自建，不绑渲染器的对象模型。
 - 数据库 Postgres + Drizzle。
 - 第一批学科只做数学。
+- `packages/` 只放两个深模块：通用 `agent-runtime` 和承接 OpenMAIC 迁移的 `chalkboard`。DB、认证、学习领域和具体 adapter 先放在 `apps/web/src/lib`；新增 workspace package 前必须先确认存在稳定的独立 seam。
+- 默认由 `apps/web` 组合 `agent-runtime` 与 `chalkboard`。两个 package 不依赖应用内部代码；`agent-runtime` 保持通用，不依赖 `chalkboard`，而 `chalkboard` 可按需单向依赖 `agent-runtime` 的稳定公共接口，但不得形成循环依赖。
 
 ### 不可违反的设计约束
 

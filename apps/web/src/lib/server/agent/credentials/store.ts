@@ -4,8 +4,8 @@ import type {
   CredentialInfo,
   AuthOperationOptions,
 } from '@earendil-works/pi-ai';
-import type { Database } from '@chalk/db';
-import { providerCredentials } from '@chalk/db';
+import type { Database } from '../../db';
+import { providerCredentials } from '../../db';
 import { eq, and } from 'drizzle-orm';
 import { encrypt, decrypt } from './encrypt';
 

@@ -24,9 +24,27 @@
 | 几何渲染 / 动画 | **manim-web** | TypeScript，见第 4 节 |
 | 几何约束层 | **自建** | 见第 4 节。系统内唯一必须从零写的核心资产 |
 | 数学排版 | KaTeX | manim-web 内部也用它 |
-| 校验 | zod（或 typebox，与 pi 对齐） | 单一来源。将来若引入 Python，由此生成 JSON Schema → Pydantic |
+| 校验 | **Zod + TypeBox** | Chalk 领域模型、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。领域 schema 是主来源，工具边界通过明确 adapter 对接。将来若引入 Python，由 Zod 生成 JSON Schema → Pydantic |
 | 测试 | Vitest + Playwright + LLM eval | 见第 6 节 |
 | 观测 | pi-telemetry + OpenTelemetry | 见第 5 节 |
+
+### Schema 边界
+
+项目使用两种校验工具，但职责不重叠：
+
+- **Zod** 是 Chalk 领域层的主 schema：课程课件 DSL、几何 DSL、学习证据、API 输入输出和持久化业务对象都用 Zod 定义。
+- **TypeBox** 只用于 pi AgentTool 边界：`AgentTool.parameters` 直接使用 TypeBox schema，避免在 Agent runtime 内增加转换层。
+- 当一个工具要调用 Chalk 领域逻辑时，边界按以下顺序处理：
+
+```text
+LLM tool arguments
+    ↓ TypeBox 校验
+工具参数 → Chalk command
+    ↓ Zod 校验
+领域逻辑 / 数据库写入
+```
+
+同一个领域结构不在两边手写两份。TypeBox schema 只描述 LLM 可调用的工具参数；领域对象仍以 Zod schema 为准。
 
 ### 明确不选
 
@@ -78,7 +96,7 @@
 - **禁止「解析失败给默认分」**（OpenMAIC 的做法是判分失败默认给 50%，会污染证据）
 - 低置信度判定在重算时可降权或剔除
 
-## 4. 几何：渲染用 manim-web，约束层自建
+## 4. Chalkboard 中的几何能力
 
 ### manim-web
 
@@ -91,12 +109,15 @@
 - **`Draggable` / `Hoverable` / `Clickable`** —— 功能文档 6.5 要求学生操作回传给 AI，这是抓手
 - **结构化 logger + `onLog` 订阅**，README 明确面向 "AI agents that write and debug scenes"，转发时脱敏 token / key / email —— 可作为 LLM 修复闭环的结构化错误通道
 
-### 约束层必须自建
+### 几何 Agent 与约束层
 
 manim-web 是动画引擎，**不管理几何约束**。`Draggable` 让点能拖，但拖动 A 之后派生对象（BC 中点、垂足、交点）不会自动重算 —— 那需要依赖图和拓扑排序的更新顺序。
 
+几何 Agent 是 Chalkboard 内部的小型子 Agent，主要由 prompt、工具和脚本组成，不建立独立 package。它生成受限几何 DSL，约束计算和渲染适配也由 `@chalk/chalkboard` 内部实现：
+
 ```
-packages/geometry/
+packages/chalkboard/src/internal/geometry/
+  ├─ agent/                  prompt + tools + scripts
   ├─ 约束与依赖图          纯逻辑，不依赖渲染，可脱离浏览器单测
   ├─ 派生对象求值器        中点 / 交点 / 垂线 / 平行线 / 角平分线 / 圆上点
   ├─ 退化检测              三点共线时「交点」不存在等
@@ -114,7 +135,7 @@ packages/geometry/
 
 ```
 模型产出结构化几何 DSL
-      ↓  JSON Schema 校验
+      ↓  Zod schema 校验
       ↓  对象类型与依赖检查
       ↓  隐藏画布预渲染
       ↓  结构化错误 JSON 回传模型修复
@@ -140,7 +161,7 @@ packages/geometry/
 
 ## 6. Eval（与功能同期建设）
 
-没有 eval 无法判断改一个 prompt 是变好还是变坏。第一天就要有 `packages/eval`，与 telemetry 关联（pi 的 span schema 可把 trace 和 eval 结果连起来）。
+没有 eval 无法判断改一个 prompt 是变好还是变坏。评测代码放在仓库根目录 `eval/` 或相应模块的测试旁边，不作为运行时 package；它仍需与 telemetry 关联（pi 的 span schema 可把 trace 和 eval 结果连起来）。
 
 ### 分两类，不要混
 
@@ -183,23 +204,23 @@ packages/geometry/
 
 ```
 packages/
-  courseware-dsl/   零依赖。Beat / Action / Checkpoint 类型 + schema + 结构 lint
-  geometry/         约束与依赖图 + 派生对象 + 后置条件校验 + manim-web 适配
   agent-runtime/    pi-agent-core 封装 + 权限 / 配额 / 审计 / 观测钩子
-  evidence/         append-only 证据账本 + 纯函数派生掌握度
-  db/               Drizzle schema + 迁移 + 数据访问层（含 owner 校验）
-  domain/           用户 / 课程图 / 题库 / 画像 / 错题本 / 报告的业务逻辑
-  eval/             确定性门禁 + LLM 评分 harness
+  chalkboard/       从 OpenMAIC 迁移并深化的课件模型、播放、渲染、互动与内部 Agent
 apps/
-  web/              Next.js：前端 + 后端 API（认证、CRUD、业务端点）
+  web/
+    src/lib/server/    认证、DB、DAL、对象存储和 package adapter
+    src/lib/learning/  课程图、题库、画像、证据、掌握度、错题本和报告
   worker/           课件编译 + 复习调度 + 后台任务
+eval/               确定性门禁 + LLM / 视觉评分 harness
 ```
 
-**后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）—— 都在 `apps/web` 的服务端 + `packages/domain` + `packages/db`。
+**后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）都先放在 `apps/web/src/lib`，不为每个概念建立 workspace package。
 
-`courseware-dsl` 被三方共用（web 播放、worker 编译后校验、eval 跑质量门），因此零依赖 + 高覆盖率。
+`@chalk/chalkboard` 是一个深模块：内部拥有 Zod 课件 schema、Beat / Action / Checkpoint、结构 lint、播放状态、渲染和互动；外部只暴露解析、编译、运行和渲染所需的少量稳定接口。它承接 OpenMAIC 能力迁移，并加入 Chalk 的教学语义。
 
-单人或小团队起步可先合并为 2–3 个包，边界稳定后再拆。若将来后端规模变大，`apps/web` 可拆出独立 API 服务（仍是 TS），前端只留 Next.js。
+默认依赖方向为：`apps/web` 作为组合根使用 `@chalk/agent-runtime` 与 `@chalk/chalkboard`。workspace package 不应依赖 `apps/web/src/lib`，因为后者是应用内部实现；数据库、认证和产品集成应通过 Web 的 adapter / composition root 注入。
+
+`@chalk/agent-runtime` 默认保持通用、独立，不依赖 `@chalk/chalkboard`。如果 Chalkboard 需要 Agent 能力，可以单向依赖 `agent-runtime` 暴露的稳定公共接口，但不能反向依赖或形成循环依赖。只有出现新的稳定 seam 和独立调用方时，才考虑新增 package。
 
 ## 8. 安全与合规（面向未成年人，第一版就要有正确形状）
 

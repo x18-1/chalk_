@@ -10,10 +10,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@chalk/db": "workspace:*",
     "@earendil-works/pi-agent-core": "0.84.1",
     "@earendil-works/pi-ai": "0.84.1",
-    "drizzle-orm": "0.44.2"
+    "typebox": "1.3.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",

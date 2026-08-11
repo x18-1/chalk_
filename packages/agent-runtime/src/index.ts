@@ -1,2 +1,3 @@
-export { DrizzleCredentialStore } from './credentials/store';
-export { encrypt, decrypt } from './credentials/encrypt';
+// Generic pi-based Agent runtime.
+// Application-specific adapters live in apps/web/src/lib/server.
+export {};

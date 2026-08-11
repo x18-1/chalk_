@@ -2,15 +2,16 @@
   "name": "chalk",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.20.0",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "db:generate": "pnpm --filter @chalk/db generate",
-    "db:migrate": "pnpm --filter @chalk/db migrate",
-    "db:studio": "pnpm --filter @chalk/db studio"
+    "db:generate": "pnpm --filter @chalk/web db:generate",
+    "db:migrate": "pnpm --filter @chalk/web db:migrate",
+    "db:studio": "pnpm --filter @chalk/web db:studio"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
