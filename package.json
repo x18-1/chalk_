@@ -1,0 +1,20 @@
+{
+  "name": "chalk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @chalk/db generate",
+    "db:migrate": "pnpm --filter @chalk/db migrate",
+    "db:studio": "pnpm --filter @chalk/db studio"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}
