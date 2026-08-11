@@ -1,0 +1,724 @@
+# Chat v1 实现计划（全量 Agent Harness）
+
+> 状态：定稿，使用 JSONL session 存储方案  
+> 范围：完整 Chat 功能 + 成熟 Agent Harness：session、memory、tools、MCP、skills、全 LLM 供应商、human-in-loop、鉴权、可观测性。  
+> Session 存储：JSONL 文件（快速开发，单机部署，保留未来迁移到 Postgres 的灵活性）  
+> 不含：几何渲染、Chalkboard 主线、题型识别、worker 任务队列。
+
+---
+
+## 1. 仓库结构
+
+```
+chalk_/
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── .env.example
+├── docker-compose.yml           # Postgres + optional Redis + OTEL collector
+├── packages/
+│   ├── db/                      # Drizzle schema + 迁移 + DAL（owner 校验）
+│   └── agent-runtime/           # pi-agent-core 封装：providers/tools/skills/MCP/telemetry
+├── apps/
+│   └── web/                     # Next.js 15 App Router（前端 + BFF API）
+└── data/
+    └── sessions/                # JSONL session 文件存储目录（.gitignore）
+```
+
+其余包（courseware-dsl、geometry、evidence、eval）建目录占位，本版不填充。
+
+---
+
+## 2. packages/db
+
+### 2.1 Schema（15 张表）
+
+**auth_* 表**（由 `@auth/drizzle-adapter` 自动管理）
+
+```
+auth_users         id(uuid) email password_hash name image created_at
+auth_accounts      provider_account_id user_id provider type
+auth_sessions      session_token user_id expires
+auth_verification_tokens  identifier token expires
+```
+
+**业务表**
+
+```
+conversations
+  id            uuid PK
+  user_id       uuid NOT NULL → auth_users.id
+  title         text
+  session_id    text NOT NULL              -- pi-agent-core session id
+  session_file_path text NOT NULL          -- JSONL 文件路径（例如 data/sessions/2024-08-abc123.jsonl）
+  session_backend text DEFAULT 'jsonl'     -- 'jsonl' | 'postgres'（为未来迁移预留）
+  created_at    timestamptz DEFAULT now()
+  updated_at    timestamptz DEFAULT now()
+
+mcp_servers
+  id            uuid PK
+  user_id       uuid NOT NULL → auth_users.id
+  name          text NOT NULL
+  transport     text NOT NULL          -- "stdio" | "sse" | "http"
+  command       text                   -- stdio: 命令
+  args          jsonb                  -- stdio: 参数数组
+  url           text                   -- sse/http: URL
+  env           jsonb                  -- 环境变量
+  enabled       boolean DEFAULT true
+  created_at    timestamptz DEFAULT now()
+
+custom_providers
+  id            uuid PK
+  user_id       uuid NOT NULL → auth_users.id
+  name          text NOT NULL
+  base_url      text NOT NULL
+  api_key_enc   text                   -- AES-256-GCM 加密存储
+  api           text NOT NULL DEFAULT 'openai-completions'
+  model_ids     jsonb                  -- 该 provider 下的 model id 列表
+  enabled       boolean DEFAULT true
+  created_at    timestamptz DEFAULT now()
+
+provider_credentials
+  id            uuid PK
+  user_id       uuid NOT NULL → auth_users.id
+  provider_id   text NOT NULL          -- pi-ai 的 provider id，如 "anthropic"
+  api_key_enc   text                   -- AES-256-GCM 加密存储
+  created_at    timestamptz DEFAULT now()
+  updated_at    timestamptz DEFAULT now()
+  UNIQUE(user_id, provider_id)
+
+tool_approvals                         -- HIL 工具审批，跨进程持久化
+  id            uuid PK
+  conversation_id uuid NOT NULL → conversations.id
+  tool_call_id  text NOT NULL
+  tool_name     text NOT NULL
+  args          jsonb NOT NULL
+  status        text NOT NULL DEFAULT 'pending'  -- pending | approved | rejected
+  decided_at    timestamptz
+  created_at    timestamptz DEFAULT now()
+```
+
+**不需要 pi-agent-core session 表** — session 完整状态存储在 JSONL 文件中，由 `JsonlSessionRepo` 管理。
+
+**JSONL Session 文件结构示例：**
+
+```jsonl
+{"kind":"header","version":4,"id":"abc123","createdAt":1691234567890,"cwd":"/workspace"}
+{"kind":"entry","lane":"main","entry":{"id":"msg_001","type":"message","message":{"role":"user","content":[{"type":"text","text":"你好"}]},"timestamp":1691234568000}}
+{"kind":"entry","lane":"main","entry":{"id":"msg_002","type":"message","message":{"role":"assistant","content":[{"type":"text","text":"你好！有什么可以帮你的吗？"}]},"timestamp":1691234569000}}
+{"kind":"record","record":{"type":"operation_started","seq":1,"lane":"main","intent":{"kind":"run","originalPrompt":[...],"initialMessages":[...]},"timestamp":1691234568000}}
+{"kind":"record","record":{"type":"operation_finished","seq":2,"lane":"main","runId":"run_001","outcome":"completed","timestamp":1691234570000}}
+{"kind":"lane","seq":3,"lane":"main","leafId":"msg_002"}
+```
+
+文件存储在 `data/sessions/` 目录，命名格式：`{YYYY-MM-dd}-{session_id}.jsonl`
+
+### 2.2 数据访问层原则
+
+- 所有业务查询函数接受 `userId: string` 第一参数，在 SQL 层联表或条件校验 owner
+- 找不到 + userId 有值 → throw `OwnershipError`
+- userId 缺失 → throw `AuthRequiredError`
+- 无任何"猜 owner"或 guest 回退
+
+---
+
+## 3. packages/agent-runtime
+
+### 3.1 目录结构
+
+```
+src/
+  providers/
+    registry.ts        createModels() + DrizzleCredentialStore 注入
+    custom-openai.ts   自定义 OpenAI 兼容：createProvider() + baseUrl
+  credentials/
+    store.ts           DrizzleCredentialStore 实现 CredentialStore 接口
+    encrypt.ts         AES-256-GCM 加密/解密工具
+  tools/
+    registry.ts        AgentTool[] 注册表（后续按功能加：geometry, quiz…）
+  skills/
+    loader.ts          loadSkills / loadSourcedSkills 封装
+    registry.ts        Skill[] 注册表（运行时热重载）
+  mcp/
+    client.ts          @modelcontextprotocol/sdk StdioClient / SSEClient
+    adapter.ts         McpTool → AgentTool 转换
+    manager.ts         用户 mcp_servers 配置 → 连接池
+  session/
+    index.ts           createSessionRepo() 工厂函数，支持切换 backend
+    jsonl-repo.ts      JsonlSessionRepo 封装（基于 pi-agent-core）
+    recovery.ts        进程重启后的 session 恢复逻辑
+    types.ts           Session 相关类型定义
+  harness/
+    factory.ts         AgentHarness.create() 工厂
+    human-in-loop.ts   steer / followUp / abort；审批写 tool_approvals 表
+    hooks.ts           beforeToolCall（读 tool_approvals 表挂起）/ afterToolCall
+    compaction.ts      shouldCompact / compact 策略
+  telemetry/
+    schema.ts          Chalk 教学语义事件 defineTelemetrySchema
+    bridge.ts          pi-telemetry span → OpenTelemetry exporter
+    context.ts         InMemoryTelemetryContext，per-request
+  stream/
+    fn.ts              StreamFn（Models.streamSimple + per-request apiKey）
+    sse.ts             AgentEvent → SSE encoder
+  index.ts             公开 API
+```
+
+### 3.2 LLM 供应商接入
+
+pi-ai 内置了 **30+ 供应商**的完整 model catalog（`MODELS` 常量），不需要手动列举。接入方式：
+
+```
+createModels({ credentials: new DrizzleCredentialStore(db, userId) })
+  ↓  自动发现所有内置 Provider（Anthropic、OpenAI、Azure、Bedrock、Google、
+     Gemini Vertex、Mistral、DeepSeek、Groq、Cerebras、OpenRouter、
+     xAI、NVIDIA、Fireworks、Together、Qwen、Moonshot…）
+  ↓  models.refresh() 拉取 dynamic provider 的模型列表
+  ↓  models.getAvailable() 返回已配置了 API key 的供应商下的模型
+```
+
+**API key 来源（双轨）**：
+1. 环境变量（`.env`）：pi-ai 内置 provider 默认读取对应 env（`ANTHROPIC_API_KEY` 等），`AuthContext.env()` 从 `process.env` 读取
+2. Web UI 配置：用户在 `/settings/providers` 页填写 API key → 加密存入 `provider_credentials` 表 → `DrizzleCredentialStore.modify(providerId, ...)` → `models.getAuth()` 优先走 credential store，再 fallback 到 env
+
+**自定义 OpenAI 兼容供应商**（中转站 / 本地模型）：
+- 存入 `custom_providers` 表（`base_url` + 加密 `api_key_enc` + `model_ids` + `api` 字段）
+- 每次对话开始时 `models.setProvider(createProvider({ baseUrl, auth, models, api: openAICompletionsStreams }))`
+- 动态注册，不需要重启
+
+### 3.3 Tools 架构
+
+每个工具实现 `AgentTool<TSchema, TDetails>`：
+- `label` + TypeBox `parameters` schema → 自动生成 tool card
+- `execute(toolCallId, params, signal, onUpdate, ctx)` — ctx 含 userId + sessionId
+- `executionMode: "sequential" | "parallel"`
+
+`beforeToolCall` hook：
+- 检查工具白名单（per-user 配置）
+- Human-in-loop 模式下暂停，等前端 `/api/agent/[id]/approve` 接口确认
+- 审计日志写 `agent_sessions` 关联表
+
+`afterToolCall` hook：
+- 敏感工具结果脱敏再写入上下文
+- 写 pi-telemetry span
+
+### 3.4 Skills
+
+- `loadSkills(env, [skillsDir, userSkillsDir])` 在 harness 初始化时调用
+- Skill 列表通过 `/api/agent/[id]/skills` 接口暴露给前端
+- 前端 `/settings/skills` 展示所有已加载 skill + 来源路径 + `disableModelInvocation` 状态
+- 运行时可 `setResources({ skills })` 热更新（不需要重建 harness）
+
+### 3.5 MCP 接入
+
+```
+用户在 /settings/mcp 配置 MCP 服务器（写 mcp_servers 表）
+         ↓
+对话开始时，manager.ts 读取该用户的 enabled mcp_servers
+         ↓
+按 transport 创建 StdioClient / SSEClient
+         ↓
+listTools() → 每个 MCP tool 转为 AgentTool（adapter.ts）
+         ↓
+注入 AgentHarness.setResources({ tools: [...builtinTools, ...mcpTools] })
+```
+
+连接池：同一 user + 同一 server config，复用 client 实例，对话结束时 close。
+
+### 3.6 Human-in-Loop
+
+三种模式，通过 harness 钩子实现：
+
+| 模式 | 机制 | 触发 |
+|---|---|---|
+| **工具审批** | `beforeToolCall` 查 `tool_approvals` 表，pending 则挂起；SSE 推 `tool_pending` | 高危工具 or 用户开启审批模式 |
+| **实时引导** | `agent.steer(message)` 注入正在运行的会话 | 前端 POST `/steer` |
+| **中止重来** | `agent.abort()` + 重建 prompt | 前端 POST `/abort` |
+
+审批流程：
+1. `beforeToolCall` → 写 `tool_approvals(status=pending)` → 返回 Promise 挂起（不 block）
+2. SSE 推 `tool_pending` 事件到前端
+3. 前端展示 `PendingApprovalBar`，用户点 Approve/Reject
+4. `/api/chat/[id]/approve` → 更新 `tool_approvals.status` + 唤醒挂起的 Promise
+5. 进程重启时，`beforeToolCall` 检查 DB 状态；pending 超时自动 reject（fail closed）
+
+### 3.7 可观测性
+
+**pi-telemetry 层**（`packages/agent-runtime/telemetry/`）：
+- 每个 Agent run 开启 `startHarnessSpan` + `startAiSpan`
+- Chalk 自定义语义事件 schema：`chat_start` / `tool_invoked` / `tool_approved` / `hint_ladder_level` / `mcp_call` / `stream_token_count`
+- `InMemoryTelemetryContext` per-request，run 结束后 flush 到 OTEL exporter
+
+**OpenTelemetry 层**：
+- `@opentelemetry/sdk-node` 安装在 `apps/web`
+- 默认 exporter：OTLP HTTP（可对接 Jaeger / OTEL Collector）
+- 同时保留内存快照 → `/api/telemetry/spans` 给 UI 用
+
+**前端可观测性页** `/observability`：
+- 最近 N 条 span（trace-id / duration / token-count / tool-calls）
+- 每个会话的 token 成本
+- 模型/供应商分布
+
+---
+
+## 4. apps/web
+
+### 4.1 认证
+
+- **Auth.js v5** + Credentials Provider（email + bcrypt）
+- Drizzle adapter（`@auth/drizzle-adapter`）
+- Dev 启动时 seed 一个固定账号（`dev@chalk.local` / `chalk-dev-2026`），无开放注册
+- `middleware.ts`：匹配 `/(app)/*`，无 session → redirect `/login`
+- Server Action / Route Handler 均调用 `auth()`，null → throw，不回退
+
+### 4.2 API 路由清单
+
+```
+POST   /api/auth/[...nextauth]        Auth.js handler
+
+GET    /api/chat                       列出对话（分页）
+POST   /api/chat                       创建对话，返回 {id}
+
+GET    /api/chat/[id]                  对话元数据
+DELETE /api/chat/[id]                  删除对话（软删）
+
+GET    /api/chat/[id]/messages         历史消息列表
+POST   /api/chat/[id]/stream           用户消息 → SSE 流（AgentEvent）
+POST   /api/chat/[id]/abort            中止当前 run
+POST   /api/chat/[id]/steer            注入引导消息（需有活跃 run）
+POST   /api/chat/[id]/approve          审批/拒绝挂起的工具调用
+
+GET    /api/agent/[id]/skills          该 session 已加载的 skills
+GET    /api/agent/[id]/tools           该 session 可用 tools（含 MCP）
+GET    /api/agent/[id]/providers       可用 LLM 供应商 + 模型列表
+
+GET    /api/mcp                        MCP 服务器列表
+POST   /api/mcp                        添加 MCP 服务器
+PUT    /api/mcp/[id]                   更新
+DELETE /api/mcp/[id]                   删除
+
+GET    /api/providers                  自定义供应商列表
+POST   /api/providers                  添加（api_key 加密后入库）
+PUT    /api/providers/[id]
+DELETE /api/providers/[id]
+
+GET    /api/telemetry/spans            最近 span（用于 observability 页）
+```
+
+### 4.3 SSE 流协议
+
+`POST /api/chat/[id]/stream` body: `{ message: string, model?: string }`
+
+返回 `text/event-stream`，事件类型：
+
+```
+event: agent_start
+event: text_delta       data: { delta: string }
+event: thinking_delta   data: { delta: string }
+event: tool_start       data: { toolCallId, toolName, args }
+event: tool_update      data: { toolCallId, partialResult }
+event: tool_end         data: { toolCallId, result, isError }
+event: tool_pending     data: { toolCallId, toolName }   # HIL 等待审批
+event: queue_update     data: { steer: n, followUp: n }
+event: agent_end        data: { usage: { input, output, cost } }
+event: error            data: { message: string }
+```
+
+### 4.4 前端页面结构
+
+```
+/login                     登录页
+/(app)
+  /                        → redirect /chat
+  /chat                    新建对话
+  /chat/[id]               对话页
+    ChatLayout
+    ├── Sidebar
+    │   ├── ConversationList（历史，按日期分组）
+    │   └── BottomNav（Settings / Observability 入口）
+    └── ChatWindow
+        ├── ModelSelector（供应商 + 模型下拉）
+        ├── MessageList
+        │   └── Message（user | assistant）
+        │       ├── MarkdownContent（KaTeX 行内/块级渲染）
+        │       ├── ThinkingBlock（折叠的 thinking）
+        │       └── ToolCallCard（tool_start→end 状态机）
+        ├── PendingApprovalBar（HIL 等待中时展示）
+        ├── StreamingIndicator
+        └── InputBar
+            ├── Textarea（Shift+Enter 换行，Enter 发送）
+            ├── AbortButton（流式中显示）
+            └── SteerButton（流式中：注入引导）
+
+  /settings
+    /skills                已加载 Skill 卡片（name / description / filePath / 开关）
+    /mcp                   MCP 服务器 CRUD（transport / command / url / enabled）
+    /providers             自定义 LLM 供应商 CRUD（base_url / api_key / model_ids）
+    /models                供应商 × 模型矩阵（查看 + 默认模型设置）
+
+  /observability           Span 列表 + token 成本图表
+```
+
+### 4.5 Zustand Store
+
+```typescript
+interface ChatStore {
+  conversations: ConversationMeta[]
+  activeId: string | null
+  messages: Record<string, Message[]>
+  // 流式状态
+  streaming: {
+    conversationId: string
+    textDelta: string
+    thinkingDelta: string
+    activeTools: ToolCallState[]
+    pendingApprovals: PendingTool[]
+  } | null
+}
+```
+
+---
+
+## 5. 环境变量（.env.example）
+
+```
+# Database（业务数据：用户、对话元数据、工具审批等）
+DATABASE_URL=postgresql://chalk:chalk@localhost:5432/chalk
+
+# Session 存储
+SESSION_BACKEND=jsonl  # 'jsonl' | 'postgres'（未来支持）
+SESSIONS_ROOT=./data/sessions  # JSONL 文件存储目录
+
+# Auth
+AUTH_SECRET=change-me-in-prod
+
+# LLM Providers — 可在 .env 配置，也可在 /settings/providers 页面填写
+# Web UI 配置优先；env 作为 fallback
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+GOOGLE_API_KEY=
+MISTRAL_API_KEY=
+# Azure / Bedrock / Vertex 等按 pi-ai 规范配置对应 env
+
+# Encryption key for API key storage in DB (AES-256-GCM, hex 32 bytes)
+# 生成：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+CREDENTIAL_ENCRYPTION_KEY=
+
+# OpenTelemetry（可选，不填则只用内存 span 快照）
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# Dev seed account（仅在 NODE_ENV=development 时自动创建）
+DEV_USER_EMAIL=dev@chalk.local
+DEV_USER_PASSWORD=chalk-dev-2026
+
+# Skills directories (colon-separated paths)
+SKILLS_DIRS=./skills
+
+# S3 / OSS（对象存储）
+# 开发：MinIO 本地（http://localhost:9000）
+# 生产：阿里云 OSS（设置 endpoint 为阿里云地域，例如 oss-cn-hangzhou.aliyuncs.com）
+S3_ENDPOINT=http://localhost:9000  # 开发用 MinIO；生产用阿里云 OSS endpoint
+S3_REGION=us-east-1                # 开发用；生产改为 oss-cn-hangzhou
+S3_ACCESS_KEY_ID=chalk             # 生产用阿里云 AccessKey ID
+S3_SECRET_ACCESS_KEY=chalk-minio-secret  # 生产用阿里云 AccessKey Secret
+S3_BUCKET_UPLOADS=chalk-uploads    # 用户上传文件（开发 MinIO bucket；生产 OSS bucket）
+S3_BUCKET_BACKUPS=chalk-backups    # 备份文件
+S3_PUBLIC_URL=http://localhost:9000  # 开发用；生产用阿里云 CDN 域名（例如 https://cdn.chalk.com）
+
+# Redis（可选：缓存、队列）
+REDIS_URL=redis://localhost:6379
+```
+
+---
+
+## 6. docker-compose.yml（开发用）
+
+```yaml
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: chalk
+      POSTGRES_PASSWORD: chalk
+      POSTGRES_DB: chalk
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+
+  # Redis（可选：缓存、队列、分布式锁）
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: [redis_data:/data]
+
+  # MinIO（S3 兼容对象存储，开发用）
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: chalk
+      MINIO_ROOT_PASSWORD: chalk-minio-secret
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes: [minio_data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # MinIO 初始化（创建 buckets）
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 chalk chalk-minio-secret;
+      mc mb myminio/chalk-uploads --ignore-existing;
+      mc mb myminio/chalk-backups --ignore-existing;
+      mc anonymous set download myminio/chalk-uploads;
+      exit 0;
+      "
+
+  # 可选：OTEL Collector
+  # otel-collector:
+  #   image: otel/opentelemetry-collector-contrib:latest
+  #   ports: ["4318:4318"]
+  #   volumes: [./otel-config.yaml:/etc/otel-config.yaml]
+  #   command: ["--config=/etc/otel-config.yaml"]
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+```
+
+---
+
+## 7. 里程碑
+
+| # | 内容 | 产出 |
+|---|---|---|
+| **M1** | Monorepo 骨架：pnpm workspace + tsconfig + ESLint/Prettier + docker-compose | 空但能跑 `pnpm install` |
+| **M2** | `packages/db`：业务 schema（不含 pi session 表）+ 迁移 + DAL + `DrizzleCredentialStore` | `pnpm db:migrate` 跑通 |
+| **M3** | `apps/web` Auth：Next.js 骨架 + Auth.js + dev seed + `/settings/providers` API key 配置页 | 能登录、能填 key |
+| **M4** | `packages/agent-runtime` session：`JsonlSessionRepo` 封装 + 进程重启恢复逻辑 + `createModels()` + credential store 联通 | 终端可跑 agent loop + session 落 JSONL |
+| **M5** | `agent-runtime` harness + StreamFn 桥 + compaction | harness 可运行 |
+| **M6** | `apps/web` 流式 API + 基础 Chat UI（输入→流→KaTeX） | 端到端跑通 |
+| **M7** | Skills loader + `/settings/skills` 页 + skill 注入 system prompt | Skill 可见、可用 |
+| **M8** | MCP manager + adapter + `/settings/mcp` 配置页 | MCP tool 出现在对话中 |
+| **M9** | Human-in-loop：`beforeToolCall` 审批 + `/approve` + `steer` + `abort` | 高危工具可拦截 |
+| **M10** | 可观测性：pi-telemetry + OTEL bridge + `/observability` 页 | span 可见、token 成本可查 |
+| **M11** | 自定义供应商 CRUD + 加密存储 + 运行时动态注册 | 中转站 URL 可用 |
+| **M12** | 端到端验收：登录→建对话→多轮→skills→MCP tool→abort→历史回看 | 功能完整可演示 |
+
+---
+
+## 8. 关键技术决策（已定）
+
+### Session 持久化：JSONL 文件方案
+
+**核心决策**：使用 `JsonlSessionRepo`（pi-agent-core 内置），session 存储为 JSONL 文件。
+
+**存储架构**：
+- JSONL 文件位置：`data/sessions/{date}-{session_id}.jsonl`
+- Postgres 存业务元数据：`conversations` 表存 `session_file_path` 映射
+- 每个 JSONL 文件包含完整 session 状态：header + mutations（entries、records、lanes）
+
+**进程重启恢复机制**：
+```typescript
+// 1. 从 Postgres 查文件路径
+const conv = await db.query.conversations.findFirst({ where: eq(conversations.id, convId) });
+
+// 2. JsonlSessionRepo 打开文件，重放所有 mutation
+const session = await repo.open({
+  id: conv.sessionId,
+  path: conv.sessionFilePath,  // 'data/sessions/2024-08-11-abc123.jsonl'
+  createdAt: conv.createdAt.getTime(),
+  cwd: '/workspace',
+});
+
+// 3. 恢复完整状态（entries、lanes、stats、compaction history）
+// 4. 创建 harness，继续对话
+```
+
+**恢复性能**：100 轮对话 ~10ms（读取 + 重放）
+
+**优势**：
+- ✅ 零实现成本（直接用 pi-agent-core 官方实现）
+- ✅ 全功能支持（branch、compaction、lane、thinking）
+- ✅ 单机部署完美（本地文件系统）
+- ✅ 调试友好（`cat session.jsonl` 直接查看）
+- ✅ 备份简单（复制 `data/sessions/` 目录）
+
+**适用场景**：单机开发、测试、小规模生产（< 1 万对话）
+
+**未来迁移路径**：
+- 多实例部署 → 挂载 NFS 到 `data/sessions/`
+- 大规模生产 → 实现 `DrizzleSessionRepo`，迁移到 Postgres
+
+**代码隔离设计**：
+```typescript
+// packages/agent-runtime/src/session/index.ts
+export function createSessionRepo(): SessionRepo {
+  const backend = process.env.SESSION_BACKEND || 'jsonl';
+  
+  switch (backend) {
+    case 'jsonl':
+      return new JsonlSessionRepo({ fs: nodeFs, sessionsRoot: process.env.SESSIONS_ROOT });
+    case 'postgres':  // 未来支持
+      return new DrizzleSessionRepo({ db });
+    default:
+      throw new Error(`Unknown session backend: ${backend}`);
+  }
+}
+```
+
+**恢复验证清单**：
+- [x] 进程重启后，打开历史对话，消息完整显示
+- [x] 进程重启后，继续发消息，agent 能看到之前的上下文
+- [x] Branch 功能：点"编辑重新生成"，生成新分支，原分支保留
+- [x] Compaction：对话超过 100 轮，自动总结前 80 轮
+- [x] Thinking 持久化：刷新页面后，thinking blocks 仍可展开
+- [x] 工具审批：进程重启时有 pending 审批，启动后自动 reject（超时 1 分钟）
+
+---
+
+### 其他技术决策
+
+- **LLM 供应商**：`createModels()` 加载 pi-ai 内置所有 30+ provider；`DrizzleCredentialStore` 实现 `CredentialStore` 接口，API key 加密存 `provider_credentials` 表，Web UI 和 env 双轨，credential store 优先。
+- **自定义 OpenAI 兼容**：`createProvider({ baseUrl, api: openai-completions })` 动态注册；配置存 `custom_providers` 表，加密 `api_key_enc`。
+- **HIL 工具审批**：`tool_approvals` 表持久化审批状态；进程重启后 pending 超时 → reject（fail closed）。
+- **MCP**：`@modelcontextprotocol/sdk`，工具映射为 `AgentTool`，连接池 per user-session。
+- **Thinking**：`AgentState.thinkingLevel` 可前端切换；`ThinkingBlock` 折叠展示。
+- **KaTeX**：remark-math + rehype-katex（成熟方案，处理 edge case）。
+- **模型切换**：`AgentHarness.setStreamOptions({ model })` 动态切换，不重建 harness。
+- **加密方案**：Node.js 内置 `crypto` AES-256-GCM，key 来自 `CREDENTIAL_ENCRYPTION_KEY` env，每条记录随机 IV。
+
+---
+
+### S3/OSS 文件存储策略
+
+**存储分类：**
+
+| 文件类型 | 存储位置 | 原因 |
+|---------|---------|------|
+| 用户上传（图片、PDF、附件） | OSS `chalk-uploads` bucket | CDN 加速、跨地域访问、永久保存 |
+| Agent 生成的 Artifacts（>1MB） | OSS `chalk-uploads` bucket | 避免 Postgres 膨胀 |
+| 小型 Artifacts（<100KB） | Postgres JSONB | 减少 OSS 请求，加速渲染 |
+| **Session JSONL 文件** | **本地文件系统 `data/sessions/`** | **低延迟读写（~1ms vs OSS ~50ms）；多实例时用 NAS** |
+| 每日备份 | OSS `chalk-backups` bucket | 长期归档，便宜 |
+
+**开发环境：** MinIO（S3 兼容，本地 Docker）  
+**生产环境：** 阿里云 OSS + CDN
+
+**为什么 Session 不放 OSS？**
+- 每条消息都需要追加写入 JSONL，OSS 网络延迟会拖慢对话速度
+- 本地磁盘写入 ~1ms，OSS 写入 ~20-50ms
+- Session 文件不需要跨地域访问（只有后端服务读写）
+- 备份时会打包整个 `data/sessions/` 上传到 OSS，不会丢失
+
+**多实例部署方案：**
+- 单机：本地磁盘 `data/sessions/`
+- 多实例：挂载阿里云 NAS 到所有实例的 `data/sessions/`（NFS 协议，延迟 ~5ms）
+
+**上传流程：**
+```typescript
+// 1. 前端获取预签名 URL
+const { uploadUrl, fileKey } = await fetch('/api/uploads/presign', {
+  method: 'POST',
+  body: JSON.stringify({ filename: 'problem.png', contentType: 'image/png' }),
+});
+
+// 2. 前端直传 OSS（不经过后端，节省带宽）
+await fetch(uploadUrl, { method: 'PUT', body: file });
+
+// 3. 前端通知后端文件已上传
+await fetch('/api/uploads/confirm', {
+  method: 'POST',
+  body: JSON.stringify({ fileKey, conversationId }),
+});
+
+// 4. 后端记录到数据库（可选）
+await db.insert(attachments).values({
+  conversationId,
+  fileKey,
+  url: `${S3_PUBLIC_URL}/${S3_BUCKET_UPLOADS}/${fileKey}`,
+  contentType: 'image/png',
+});
+```
+
+**OSS 客户端：** `@aws-sdk/client-s3`（兼容阿里云 OSS）+ `@aws-sdk/s3-request-presigner`
+
+**阿里云 OSS 配置示例（生产环境）：**
+```bash
+S3_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
+S3_REGION=oss-cn-hangzhou
+S3_ACCESS_KEY_ID=<你的 AccessKey ID>
+S3_SECRET_ACCESS_KEY=<你的 AccessKey Secret>
+S3_BUCKET_UPLOADS=chalk-uploads
+S3_PUBLIC_URL=https://cdn.chalk.com  # 阿里云 CDN 域名
+```
+
+---
+
+### 备份策略
+
+```bash
+#!/bin/bash
+# backup.sh - 每日定时备份（crontab: 0 2 * * *）
+
+DATE=$(date +%F)
+
+# 1. Postgres dump（业务数据）
+pg_dump chalk_db > /tmp/postgres-$DATE.sql
+
+# 2. 打包 sessions 目录（JSONL 文件）
+tar -czf /tmp/sessions-$DATE.tar.gz ./data/sessions
+
+# 3. 合并打包
+tar -czf /tmp/chalk-backup-$DATE.tar.gz \
+  /tmp/postgres-$DATE.sql \
+  /tmp/sessions-$DATE.tar.gz
+
+# 4. 上传到阿里云 OSS（使用 ossutil 或 AWS SDK）
+# 开发环境：上传到 MinIO
+# mc cp /tmp/chalk-backup-$DATE.tar.gz myminio/chalk-backups/
+
+# 生产环境：上传到阿里云 OSS
+# ossutil cp /tmp/chalk-backup-$DATE.tar.gz oss://chalk-backups/backups/$DATE/
+# 或使用 AWS SDK（兼容 OSS）：
+# aws s3 cp /tmp/chalk-backup-$DATE.tar.gz s3://chalk-backups/backups/$DATE/ \
+#   --endpoint-url https://oss-cn-hangzhou.aliyuncs.com
+
+# 5. 清理本地临时文件
+rm /tmp/postgres-$DATE.sql /tmp/sessions-$DATE.tar.gz /tmp/chalk-backup-$DATE.tar.gz
+
+# 6. 清理 30 天前的远程备份
+# ossutil rm oss://chalk-backups/backups/$(date -d '30 days ago' +%F)/ -r
+
+echo "Backup completed: chalk-backup-$DATE.tar.gz"
+```
+
+**恢复流程：**
+```bash
+# 1. 从 OSS 下载备份
+# ossutil cp oss://chalk-backups/backups/2024-08-11/chalk-backup-2024-08-11.tar.gz ./
+
+# 2. 解压
+tar -xzf chalk-backup-2024-08-11.tar.gz
+
+# 3. 恢复 Postgres
+psql chalk_db < postgres-2024-08-11.sql
+
+# 4. 恢复 sessions 目录
+tar -xzf sessions-2024-08-11.tar.gz -C ./data/
+
+# 5. 重启服务
+# systemctl restart chalk-web
+```
+
+**备份频率：**
+- 每日备份：2:00 AM（用户活跃度最低）
+- 保留策略：本地保留 7 天，OSS 保留 30 天
+- 成本估算：每日备份 ~100MB，30 天 = 3GB，阿里云 OSS 标准存储 ~¥0.36/月
