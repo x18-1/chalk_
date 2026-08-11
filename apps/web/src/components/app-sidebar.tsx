@@ -1,0 +1,221 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import {
+  BookMarked,
+  BrainCircuit,
+  Check,
+  ChevronRight,
+  ChevronUp,
+  CircleHelp,
+  FileText,
+  KeyRound,
+  ListFilter,
+  MessageCircle,
+  MoreHorizontal,
+  PanelTop,
+  Pencil,
+  Save,
+  Server,
+  Settings2,
+  SquarePen,
+  Trash2,
+  Wrench,
+  X,
+  Sparkles,
+} from "lucide-react";
+
+import styles from "./app-sidebar.module.css";
+
+export type ConversationGroup = "今天" | "昨天" | "过去 7 天" | "过去 30 天";
+
+export type SidebarConversation = {
+  id: string;
+  title: string;
+  group: ConversationGroup;
+};
+
+export const defaultSidebarConversations: SidebarConversation[] = [
+  { id: "geometry", title: "为什么这里要作辅助线？", group: "今天" },
+  { id: "fractions", title: "分数方程的检验", group: "昨天" },
+  { id: "quadratic", title: "二次函数图像", group: "过去 7 天" },
+  { id: "proof", title: "证明三角形全等", group: "过去 7 天" },
+  { id: "vectors", title: "向量的数量积", group: "过去 30 天" },
+];
+
+const conversationGroupOrder: ConversationGroup[] = ["今天", "昨天", "过去 7 天", "过去 30 天"];
+
+type AppSidebarProps = {
+  activeSection?: "chats" | "chalkboard";
+  conversations?: SidebarConversation[];
+  selectedConversationId?: string;
+  onNewConversation?: () => void;
+  onSelectConversation?: (id: string) => void;
+  onRenameConversation?: (id: string, title: string) => void;
+  onDeleteConversation?: (id: string) => void;
+};
+
+export function AppSidebar({
+  activeSection,
+  conversations: controlledConversations,
+  selectedConversationId,
+  onNewConversation,
+  onSelectConversation,
+  onRenameConversation,
+  onDeleteConversation,
+}: AppSidebarProps) {
+  const [localConversations, setLocalConversations] = useState(defaultSidebarConversations);
+  const [recentOpen, setRecentOpen] = useState(true);
+  const [groupByTime, setGroupByTime] = useState(false);
+  const [groupMenuOpen, setGroupMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [openConversationMenu, setOpenConversationMenu] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const conversations = controlledConversations ?? localConversations;
+
+  const conversationGroups = useMemo(() => {
+    if (!groupByTime) return [{ group: null, items: conversations }];
+    return conversationGroupOrder
+      .map((group) => ({ group, items: conversations.filter((conversation) => conversation.group === group) }))
+      .filter((section) => section.items.length);
+  }, [conversations, groupByTime]);
+
+  function closeTransientMenus() {
+    setGroupMenuOpen(false);
+    setUserMenuOpen(false);
+    setOpenConversationMenu(null);
+    setPendingDeleteId(null);
+  }
+
+  function startRenameConversation(conversation: SidebarConversation) {
+    setOpenConversationMenu(null);
+    setPendingDeleteId(null);
+    setRenamingConversationId(conversation.id);
+    setRenameValue(conversation.title);
+  }
+
+  function commitRenameConversation(id: string) {
+    const title = renameValue.trim();
+    if (title) {
+      if (onRenameConversation) onRenameConversation(id, title);
+      else setLocalConversations((current) => current.map((conversation) => conversation.id === id ? { ...conversation, title } : conversation));
+    }
+    setRenamingConversationId(null);
+    setRenameValue("");
+  }
+
+  function deleteConversation(id: string) {
+    if (onDeleteConversation) onDeleteConversation(id);
+    else setLocalConversations((current) => current.filter((conversation) => conversation.id !== id));
+    setPendingDeleteId(null);
+  }
+
+  function selectConversation(id: string) {
+    closeTransientMenus();
+    onSelectConversation?.(id);
+  }
+
+  return <>
+    <aside className={styles.sidebar} aria-label="主导航">
+      <div className={styles.brand}><span className={styles.brandMark}>C</span><span>Chalk</span></div>
+
+      {onNewConversation
+        ? <button className={styles.newConversation} type="button" onClick={() => { closeTransientMenus(); onNewConversation(); }}><SquarePen size={16} /><span>新建对话</span></button>
+        : <Link className={styles.newConversation} href="/chat?new=1"><SquarePen size={16} /><span>新建对话</span></Link>}
+
+      <nav className={styles.primaryNav} aria-label="产品功能">
+        <Link className={activeSection === "chats" ? styles.activeNavItem : ""} href="/chats"><MessageCircle size={16} /><span>Chats</span></Link>
+        <Link className={activeSection === "chalkboard" ? styles.activeNavItem : ""} href="/chalkboard"><PanelTop size={16} /><span>Chalkboard</span></Link>
+      </nav>
+
+      <div className={styles.recentHeader}>
+        <button className={styles.recentToggle} type="button" aria-expanded={recentOpen} onClick={() => { setRecentOpen((open) => !open); setGroupMenuOpen(false); }}><ChevronRight size={15} className={recentOpen ? styles.recentExpanded : ""} /><span>最近</span></button>
+        <div className={styles.recentActions}>
+          <button className={`${styles.groupByButton} ${groupByTime ? styles.groupByActive : ""}`} type="button" aria-label="按时间分组" title="按时间分组" aria-expanded={groupMenuOpen} onClick={() => { setGroupMenuOpen((open) => !open); setUserMenuOpen(false); }}><ListFilter size={15} /></button>
+          {groupMenuOpen && <div className={styles.groupMenuPopover} role="menu">
+            <button type="button" role="menuitemcheckbox" aria-checked={groupByTime} onClick={() => { setGroupByTime((active) => !active); setGroupMenuOpen(false); }}><span>按时间</span>{groupByTime && <Check size={14} />}</button>
+          </div>}
+        </div>
+      </div>
+
+      {recentOpen && <nav className={styles.conversationList} aria-label="最近对话">
+        {conversationGroups.length ? conversationGroups.map(({ group, items }) => <section className={styles.conversationGroup} key={group ?? "all"}>
+          {groupByTime && <h2>{group}</h2>}
+          {items.map((conversation) => <div key={conversation.id} className={`${styles.conversationItem} ${selectedConversationId === conversation.id ? styles.selectedConversation : ""}`}>
+            {renamingConversationId === conversation.id
+              ? <input className={styles.conversationRename} value={renameValue} autoFocus aria-label="重命名会话" onChange={(event) => setRenameValue(event.target.value)} onBlur={() => commitRenameConversation(conversation.id)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameConversation(conversation.id); if (event.key === "Escape") { setRenamingConversationId(null); setRenameValue(""); } }} />
+              : onSelectConversation
+                ? <button className={styles.conversationSelect} type="button" aria-current={selectedConversationId === conversation.id ? "page" : undefined} onClick={() => selectConversation(conversation.id)}><strong>{conversation.title}</strong></button>
+                : <Link className={styles.conversationSelect} href={`/chat?conversation=${conversation.id}`}><strong>{conversation.title}</strong></Link>}
+            <button className={styles.conversationMenu} type="button" aria-label={`${conversation.title} 的更多操作`} title="更多操作" onClick={() => { setOpenConversationMenu((current) => current === conversation.id ? null : conversation.id); setPendingDeleteId(null); }}><MoreHorizontal size={15} /></button>
+            {openConversationMenu === conversation.id && <div className={styles.conversationMenuPopover} role="menu"><button type="button" role="menuitem" onClick={() => startRenameConversation(conversation)}><Pencil size={14} />重命名</button><button type="button" role="menuitem" onClick={() => { setOpenConversationMenu(null); setPendingDeleteId(conversation.id); }}><Trash2 size={14} />删除</button></div>}
+            {pendingDeleteId === conversation.id && <div className={styles.deleteConfirm} role="alert"><span>删除此对话？</span><button type="button" onClick={() => setPendingDeleteId(null)}>取消</button><button type="button" onClick={() => deleteConversation(conversation.id)}>删除</button></div>}
+          </div>)}
+        </section>) : <p className={styles.emptyConversations}>暂无会话</p>}
+      </nav>}
+
+      <div className={styles.userArea}>
+        {userMenuOpen && <div className={styles.userMenu} role="menu">
+          <button type="button" role="menuitem" onClick={() => { setUserMenuOpen(false); setSettingsOpen(true); }}><Settings2 size={16} /><span>设置</span></button>
+          <button type="button" role="menuitem" disabled title="帮助与反馈暂不可用"><CircleHelp size={16} /><span>帮助与反馈</span></button>
+        </div>}
+        <button className={styles.userButton} type="button" aria-expanded={userMenuOpen} aria-label="打开用户菜单" onClick={() => { setUserMenuOpen((open) => !open); setGroupMenuOpen(false); }}>
+          <span className={styles.avatar}>林</span>
+          <span className={styles.userCopy}><strong>林同学</strong><small>自学空间</small></span>
+          <ChevronUp size={16} className={userMenuOpen ? styles.userChevronOpen : ""} />
+        </button>
+      </div>
+    </aside>
+    {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+  </>;
+}
+
+type SettingsTab = "api" | "skills" | "mcp" | "tools";
+
+function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<SettingsTab>("api");
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.anthropic.com");
+  const [apiKey, setApiKey] = useState("sk-demo••••••••••••");
+  const [defaultModel, setDefaultModel] = useState("claude-sonnet-4");
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onClose]);
+
+  return <div className={styles.settingsOverlay} role="presentation" onMouseDown={onClose}>
+    <section className={styles.settingsDialog} role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
+      <header className={styles.settingsHeader}><div><span>工作区配置</span><h2 id="settings-title">设置</h2></div><button className={styles.closeButton} type="button" aria-label="关闭设置" title="关闭设置" onClick={onClose}><X size={18} /></button></header>
+      <div className={styles.settingsBody}>
+        <nav className={styles.settingsNav} aria-label="设置分类">
+          <button className={tab === "api" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("api")}><KeyRound size={16} /><span>API</span></button>
+          <button className={tab === "skills" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("skills")}><BrainCircuit size={16} /><span>Skills</span></button>
+          <button className={tab === "mcp" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("mcp")}><Server size={16} /><span>MCP</span></button>
+          <button className={tab === "tools" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("tools")}><Wrench size={16} /><span>Tools</span></button>
+        </nav>
+        <div className={styles.settingsContent}>
+          {tab === "api" && <form onSubmit={(event) => { event.preventDefault(); onClose(); }}><div className={styles.settingsTitle}><div><h3>API 连接</h3><p>为当前工作区选择模型服务。</p></div><span className={styles.settingsStatus}><span></span>已配置</span></div><label className={styles.settingsField}><span>API Base URL</span><input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} /></label><label className={styles.settingsField}><span>API Key</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></label><label className={styles.settingsField}><span>默认模型</span><select value={defaultModel} onChange={(event) => setDefaultModel(event.target.value)}><option value="claude-sonnet-4">Claude Sonnet 4</option><option value="claude-opus-4">Claude Opus 4</option><option value="gpt-4.1">GPT-4.1</option></select></label><div className={styles.settingsFooter}><span>密钥只保存在当前演示设置中。</span><button className={styles.saveButton} type="submit"><Save size={14} />保存设置</button></div></form>}
+          {tab === "skills" && <SettingsList title="Skills" description="控制 Chalk 在回答中使用的教学能力。" items={[{ icon: <BrainCircuit size={16} />, name: "提示阶梯", detail: "按学生反馈逐级给出线索", status: "已启用" }, { icon: <BookMarked size={16} />, name: "几何推理", detail: "识别图形关系并检查证明", status: "已启用" }]} />}
+          {tab === "mcp" && <SettingsList title="MCP 连接" description="查看当前工作区可访问的外部上下文。" items={[{ icon: <Server size={16} />, name: "数学题库", detail: "本地课程题目与知识点", status: "已连接" }, { icon: <FileText size={16} />, name: "文件解析", detail: "题目图片与作业文件", status: "待连接" }]} />}
+          {tab === "tools" && <SettingsList title="Tools" description="查看可被 Agent 请求调用的工具。" items={[{ icon: <Wrench size={16} />, name: "几何关系检查", detail: "比对边、角和对应关系", status: "已启用" }, { icon: <Sparkles size={16} />, name: "变式题生成", detail: "从当前问题生成同类练习", status: "已启用" }, { icon: <FileText size={16} />, name: "题目提取", detail: "从图片中识别题面文字", status: "已启用" }]} />}
+        </div>
+      </div>
+    </section>
+  </div>;
+}
+
+function SettingsList({ title, description, items }: { title: string; description: string; items: Array<{ icon: React.ReactNode; name: string; detail: string; status: string }> }) {
+  return <div><div className={styles.settingsTitle}><div><h3>{title}</h3><p>{description}</p></div></div><div className={styles.settingsList}>{items.map((item) => <div className={styles.settingsRow} key={item.name}><span className={styles.settingsRowIcon}>{item.icon}</span><span className={styles.settingsRowCopy}><strong>{item.name}</strong><small>{item.detail}</small></span><span className={styles.rowStatus}>{item.status}</span></div>)}</div></div>;
+}

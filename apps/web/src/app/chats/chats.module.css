@@ -1,0 +1,21 @@
+.page { display: grid; width: 100%; height: 100vh; grid-template-columns: 248px minmax(0, 1fr); color: var(--chalk-ink); background: var(--chalk-canvas); }
+.content { min-width: 0; overflow-y: auto; background: var(--chalk-paper); }
+.contentInner { width: min(820px, calc(100% - 96px)); padding: 58px 0 80px; margin: 0 auto; }
+.header { display: flex; min-height: 72px; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid var(--chalk-border); }
+.kicker { color: var(--chalk-clay-hover); font-size: 11px; font-weight: 600; }
+.header h1 { margin: 7px 0 0; color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 30px; font-weight: 600; line-height: 1.25; }
+.header p { margin: 5px 0 0; color: var(--chalk-stone); font-size: 13px; }
+.count { display: inline-grid; min-width: 28px; height: 28px; padding: 0 7px; align-items: center; justify-content: center; color: var(--chalk-stone); font-size: 12px; background: var(--chalk-paper-soft); border-radius: 999px; }
+.conversationRows { margin-top: 8px; }
+.conversationRow { display: grid; min-height: 68px; padding: 10px 8px; grid-template-columns: 34px minmax(0, 1fr) 24px; align-items: center; gap: 12px; color: var(--chalk-ink); text-decoration: none; border-bottom: 1px solid var(--chalk-border-light); }
+.conversationRow:hover { background: var(--chalk-paper-soft); }
+.rowIcon { display: grid; width: 30px; height: 30px; color: var(--chalk-clay); place-items: center; background: #f7ede7; border-radius: 6px; }
+.rowCopy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.rowCopy strong { overflow: hidden; color: var(--chalk-ink); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.rowCopy small { color: var(--chalk-stone); font-size: 12px; }
+.rowArrow { color: var(--chalk-stone-light); transition: transform 160ms ease, color 160ms ease; }
+.conversationRow:hover .rowArrow { color: var(--chalk-clay); transform: translateX(2px); }
+.emptyState { display: flex; padding: 70px 0; align-items: center; flex-direction: column; gap: 10px; color: var(--chalk-stone); }
+.emptyState p { margin: 0; font-size: 14px; }
+.emptyState a { color: var(--chalk-clay-hover); font-size: 13px; font-weight: 600; text-decoration: none; }
+.emptyState a:hover { color: var(--chalk-ink); }
