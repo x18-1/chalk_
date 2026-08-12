@@ -14,7 +14,7 @@ chalk_/
 ├── pnpm-workspace.yaml
 ├── tsconfig.base.json
 ├── .env.example
-├── docker-compose.yml           # Postgres + optional Redis + OTEL collector
+├── docker-compose.yml           # Postgres + MinIO + optional OTEL collector
 ├── packages/
 │   ├── agent-runtime/           # pi-agent-core 封装：providers/tools/skills/MCP/telemetry
 │   └── chalkboard/              # OpenMAIC 迁移后的课堂能力（本版只建 seam，不实现主线）
@@ -449,9 +449,6 @@ S3_SECRET_ACCESS_KEY=chalk-minio-secret  # 生产用阿里云 AccessKey Secret
 S3_BUCKET_UPLOADS=chalk-uploads    # 用户上传文件（开发 MinIO bucket；生产 OSS bucket）
 S3_BUCKET_BACKUPS=chalk-backups    # 备份文件
 S3_PUBLIC_URL=                     # 可选：仅在明确配置私有 CDN/访问策略时填写
-
-# Redis（可选：缓存、队列）
-REDIS_URL=redis://localhost:6379
 ```
 
 ---
@@ -468,12 +465,6 @@ services:
       POSTGRES_DB: chalk
     ports: ["5432:5432"]
     volumes: [postgres_data:/var/lib/postgresql/data]
-
-  # Redis（可选：缓存、队列、分布式锁）
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-    volumes: [redis_data:/data]
 
   # MinIO（S3 兼容对象存储，开发用）
   minio:
@@ -516,7 +507,6 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   minio_data:
 ```
 
