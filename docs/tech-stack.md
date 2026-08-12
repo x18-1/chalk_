@@ -16,7 +16,8 @@
 |---|---|---|
 | 语言 | **TypeScript 全栈** | DSL 校验器需同时跑在浏览器、agent 侧、服务端，一份代码三处共用 |
 | Agent 运行时 | **pi-agent-core** | 见第 3 节 |
-| 前端 / BFF | Next.js（App Router）+ React | 单部署；可直接借用 OpenMAIC 代码 |
+| 前端 | Next.js（App Router）+ React | 只负责页面、浏览器状态和 HTTP/SSE 客户端，不承载业务 API |
+| 后端 API | Fastify + TypeScript | 独立进程和部署单元；认证、业务 API、Agent 装配、SSE、上传和数据库访问集中在此 |
 | 客户端状态 | Zustand | |
 | 播放引擎状态机 | XState | 状态多于 OpenMAIC（含 checkpoint 等待态、讨论室进出），手写易错 |
 | 数据库 | Postgres + Drizzle | 证据表 append-only；课件 JSONB；课程图关系表 |
@@ -207,18 +208,21 @@ packages/
   agent-runtime/    pi-agent-core 封装 + 权限 / 配额 / 审计 / 观测钩子
   chalkboard/       从 OpenMAIC 迁移并深化的课件模型、播放、渲染、互动与内部 Agent
 apps/
-  web/
-    src/lib/server/    认证、DB、DAL、对象存储和 package adapter
-    src/lib/learning/  课程图、题库、画像、证据、掌握度、错题本和报告
+  web/                 Next.js 前端；只含页面、组件和 API client
+  api/                 Fastify 后端；认证、DB、DAL、对象存储、Agent 装配和业务路由
   worker/           课件编译 + 复习调度 + 后台任务
+tests/
+  e2e/                跨 Web/API 的 Playwright 测试
 eval/               确定性门禁 + LLM / 视觉评分 harness
 ```
 
-**后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）都先放在 `apps/web/src/lib`，不为每个概念建立 workspace package。
+**后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）都放在 `apps/api`。`apps/web` 不能导入 Drizzle、Postgres、Pi runtime、认证实现或对象存储 SDK。
 
 `@chalk/chalkboard` 是一个深模块：内部拥有 Zod 课件 schema、Beat / Action / Checkpoint、结构 lint、播放状态、渲染和互动；外部只暴露解析、编译、运行和渲染所需的少量稳定接口。它承接 OpenMAIC 能力迁移，并加入 Chalk 的教学语义。
 
-默认依赖方向为：`apps/web` 作为组合根使用 `@chalk/agent-runtime` 与 `@chalk/chalkboard`。workspace package 不应依赖 `apps/web/src/lib`，因为后者是应用内部实现；数据库、认证和产品集成应通过 Web 的 adapter / composition root 注入。
+默认依赖方向为：`apps/web` 通过 `NEXT_PUBLIC_API_URL` 调用 `apps/api` 的 HTTP/SSE 接口；`apps/api` 作为组合根使用 `@chalk/agent-runtime` 与 `@chalk/chalkboard`。workspace package 不应依赖任何 app 路径；数据库、认证和产品集成由 API 的 adapter / composition root 注入。
+
+`apps/api` 与 `apps/web` 是两个独立部署单元。API 使用 HttpOnly session cookie、精确 CORS 来源和 unsafe method 的 Origin 检查；Web 只保存内存中的界面状态，不保存 API key 或业务数据。开发环境默认 Web `:3000`、API `:3001`，由 `NEXT_PUBLIC_API_URL` 和 `WEB_ORIGIN` 连接。
 
 `@chalk/agent-runtime` 默认保持通用、独立，不依赖 `@chalk/chalkboard`。如果 Chalkboard 需要 Agent 能力，可以单向依赖 `agent-runtime` 暴露的稳定公共接口，但不能反向依赖或形成循环依赖。只有出现新的稳定 seam 和独立调用方时，才考虑新增 package。
 

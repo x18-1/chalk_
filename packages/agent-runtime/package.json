@@ -4,18 +4,34 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./session": {
+      "types": "./src/session/session-repository.ts",
+      "import": "./dist/session/session-repository.js",
+      "default": "./dist/session/session-repository.js"
+    }
   },
   "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/index.js && esbuild src/session/session-repository.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/session/session-repository.js",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.84.1",
     "@earendil-works/pi-ai": "0.84.1",
-    "typebox": "1.3.7"
+    "@earendil-works/pi-telemetry": "0.84.1",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "typebox": "1.3.7",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "typescript": "^5.7.3"
+    "esbuild": "0.28.2",
+    "typescript": "^5.7.3",
+    "vitest": "4.1.9"
   }
 }

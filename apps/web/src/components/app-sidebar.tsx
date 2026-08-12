@@ -1,32 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  BookMarked,
-  BrainCircuit,
   Check,
   ChevronRight,
   ChevronUp,
   CircleHelp,
-  FileText,
-  KeyRound,
   ListFilter,
+  LogOut,
   MessageCircle,
   MoreHorizontal,
   PanelTop,
   Pencil,
-  Save,
-  Server,
   Settings2,
   SquarePen,
   Trash2,
-  Wrench,
-  X,
-  Sparkles,
 } from "lucide-react";
 
 import styles from "./app-sidebar.module.css";
+import { SettingsDialog } from "./settings-dialog";
+import { apiJson } from "../lib/client/api";
 
 export type ConversationGroup = "今天" | "昨天" | "过去 7 天" | "过去 30 天";
 
@@ -119,6 +113,12 @@ export function AppSidebar({
     onSelectConversation?.(id);
   }
 
+  async function logout() {
+    setUserMenuOpen(false);
+    await apiJson("/auth/logout", { method: "POST" }).catch(() => undefined);
+    window.location.assign("/login");
+  }
+
   return <>
     <aside className={styles.sidebar} aria-label="主导航">
       <div className={styles.brand}><span className={styles.brandMark}>C</span><span>Chalk</span></div>
@@ -162,6 +162,7 @@ export function AppSidebar({
         {userMenuOpen && <div className={styles.userMenu} role="menu">
           <button type="button" role="menuitem" onClick={() => { setUserMenuOpen(false); setSettingsOpen(true); }}><Settings2 size={16} /><span>设置</span></button>
           <button type="button" role="menuitem" disabled title="帮助与反馈暂不可用"><CircleHelp size={16} /><span>帮助与反馈</span></button>
+          <button type="button" role="menuitem" onClick={() => void logout()}><LogOut size={16} /><span>退出登录</span></button>
         </div>}
         <button className={styles.userButton} type="button" aria-expanded={userMenuOpen} aria-label="打开用户菜单" onClick={() => { setUserMenuOpen((open) => !open); setGroupMenuOpen(false); }}>
           <span className={styles.avatar}>林</span>
@@ -172,50 +173,4 @@ export function AppSidebar({
     </aside>
     {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
   </>;
-}
-
-type SettingsTab = "api" | "skills" | "mcp" | "tools";
-
-function SettingsDialog({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<SettingsTab>("api");
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.anthropic.com");
-  const [apiKey, setApiKey] = useState("sk-demo••••••••••••");
-  const [defaultModel, setDefaultModel] = useState("claude-sonnet-4");
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [onClose]);
-
-  return <div className={styles.settingsOverlay} role="presentation" onMouseDown={onClose}>
-    <section className={styles.settingsDialog} role="dialog" aria-modal="true" aria-labelledby="settings-title" onMouseDown={(event) => event.stopPropagation()}>
-      <header className={styles.settingsHeader}><div><span>工作区配置</span><h2 id="settings-title">设置</h2></div><button className={styles.closeButton} type="button" aria-label="关闭设置" title="关闭设置" onClick={onClose}><X size={18} /></button></header>
-      <div className={styles.settingsBody}>
-        <nav className={styles.settingsNav} aria-label="设置分类">
-          <button className={tab === "api" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("api")}><KeyRound size={16} /><span>API</span></button>
-          <button className={tab === "skills" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("skills")}><BrainCircuit size={16} /><span>Skills</span></button>
-          <button className={tab === "mcp" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("mcp")}><Server size={16} /><span>MCP</span></button>
-          <button className={tab === "tools" ? styles.settingsTabActive : ""} type="button" onClick={() => setTab("tools")}><Wrench size={16} /><span>Tools</span></button>
-        </nav>
-        <div className={styles.settingsContent}>
-          {tab === "api" && <form onSubmit={(event) => { event.preventDefault(); onClose(); }}><div className={styles.settingsTitle}><div><h3>API 连接</h3><p>为当前工作区选择模型服务。</p></div><span className={styles.settingsStatus}><span></span>已配置</span></div><label className={styles.settingsField}><span>API Base URL</span><input value={apiBaseUrl} onChange={(event) => setApiBaseUrl(event.target.value)} /></label><label className={styles.settingsField}><span>API Key</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></label><label className={styles.settingsField}><span>默认模型</span><select value={defaultModel} onChange={(event) => setDefaultModel(event.target.value)}><option value="claude-sonnet-4">Claude Sonnet 4</option><option value="claude-opus-4">Claude Opus 4</option><option value="gpt-4.1">GPT-4.1</option></select></label><div className={styles.settingsFooter}><span>密钥只保存在当前演示设置中。</span><button className={styles.saveButton} type="submit"><Save size={14} />保存设置</button></div></form>}
-          {tab === "skills" && <SettingsList title="Skills" description="控制 Chalk 在回答中使用的教学能力。" items={[{ icon: <BrainCircuit size={16} />, name: "提示阶梯", detail: "按学生反馈逐级给出线索", status: "已启用" }, { icon: <BookMarked size={16} />, name: "几何推理", detail: "识别图形关系并检查证明", status: "已启用" }]} />}
-          {tab === "mcp" && <SettingsList title="MCP 连接" description="查看当前工作区可访问的外部上下文。" items={[{ icon: <Server size={16} />, name: "数学题库", detail: "本地课程题目与知识点", status: "已连接" }, { icon: <FileText size={16} />, name: "文件解析", detail: "题目图片与作业文件", status: "待连接" }]} />}
-          {tab === "tools" && <SettingsList title="Tools" description="查看可被 Agent 请求调用的工具。" items={[{ icon: <Wrench size={16} />, name: "几何关系检查", detail: "比对边、角和对应关系", status: "已启用" }, { icon: <Sparkles size={16} />, name: "变式题生成", detail: "从当前问题生成同类练习", status: "已启用" }, { icon: <FileText size={16} />, name: "题目提取", detail: "从图片中识别题面文字", status: "已启用" }]} />}
-        </div>
-      </div>
-    </section>
-  </div>;
-}
-
-function SettingsList({ title, description, items }: { title: string; description: string; items: Array<{ icon: React.ReactNode; name: string; detail: string; status: string }> }) {
-  return <div><div className={styles.settingsTitle}><div><h3>{title}</h3><p>{description}</p></div></div><div className={styles.settingsList}>{items.map((item) => <div className={styles.settingsRow} key={item.name}><span className={styles.settingsRowIcon}>{item.icon}</span><span className={styles.settingsRowCopy}><strong>{item.name}</strong><small>{item.detail}</small></span><span className={styles.rowStatus}>{item.status}</span></div>)}</div></div>;
 }

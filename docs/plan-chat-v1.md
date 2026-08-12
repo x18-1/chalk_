@@ -1,6 +1,6 @@
 # Chat v1 实现计划（全量 Agent Harness）
 
-> 状态：定稿，使用 JSONL session 存储方案  
+> 状态：定稿，使用 JSONL session 存储方案；Web/API 已按前后端分离落地
 > 范围：完整 Chat 功能 + 成熟 Agent Harness：session、memory、tools、MCP、skills、全 LLM 供应商、human-in-loop、鉴权、可观测性。  
 > Session 存储：JSONL 文件（单实例部署 + 持久化磁盘；暂不考虑多实例和 NFS）
 > 不含：几何渲染、Chalkboard 主线、题型识别、worker 任务队列。
@@ -19,17 +19,21 @@ chalk_/
 │   ├── agent-runtime/           # pi-agent-core 封装：providers/tools/skills/MCP/telemetry
 │   └── chalkboard/              # OpenMAIC 迁移后的课堂能力（本版只建 seam，不实现主线）
 ├── apps/
-│   └── web/                     # Next.js 15 App Router（前端 + BFF API）
-│       └── src/lib/             # DB、认证、学习领域和具体 adapter
+│   ├── web/                     # Next.js 15 App Router（纯前端）
+│   └── api/                     # Fastify（独立后端 API）
+│       ├── src/db/              # Drizzle schema、DAL、迁移
+│       ├── src/agent/           # API 侧 runtime composition / adapters
+│       └── src/modules/         # auth、chat、settings、MCP、uploads、telemetry 路由
+├── tests/                       # 跨应用 e2e；各 app/package 的 unit/integration tests 独立存放
 └── data/
     └── sessions/                # JSONL session 文件存储目录（.gitignore）
 ```
 
-本版不实现 Chalkboard 主线；几何 Agent、课程图、证据和评测代码在需要时先作为 `apps/web/src/lib` 或仓库根目录 `eval/` 的内部模块加入，不为它们分别创建 workspace package。
+本版不实现 Chalkboard 主线；几何 Agent、课程图、证据和评测代码在需要时先作为 `apps/api` 的内部模块或仓库根目录 `eval/` 加入，不为它们分别创建 workspace package。
 
 ---
 
-## 2. apps/web/src/lib/server/db
+## 2. apps/api/src/db
 
 ### 2.1 Schema（9 张表）
 
@@ -159,7 +163,7 @@ src/
   index.ts             公开 API
 ```
 
-DrizzleCredentialStore、AES-256-GCM 凭据加密和 DB-backed 审批 adapter 属于 `apps/web/src/lib/server`，不进入通用 Agent runtime。Agent runtime 通过注入的 CredentialStore、审批 port 和资源配置工作。
+DrizzleCredentialStore、AES-256-GCM 凭据加密和 DB-backed 审批 adapter 属于 `apps/api/src/agent` 与 `apps/api/src/db`，不进入通用 Agent runtime。Agent runtime 通过注入的 CredentialStore、审批 port 和资源配置工作。
 
 ### 3.2 LLM 供应商接入
 
@@ -176,7 +180,7 @@ createModels({ credentials: appCredentialStore })
 
 **API key 来源（双轨）**：
 1. 环境变量（`.env`）：pi-ai 内置 provider 默认读取对应 env（`ANTHROPIC_API_KEY` 等），`AuthContext.env()` 从 `process.env` 读取
-2. Web UI 配置：用户在 `/settings/providers` 页填写 API key → Web adapter 加密存入 `provider_credentials` 表 → 注入 `CredentialStore` → `models.getAuth()` 优先走 credential store，再 fallback 到 env
+2. Web UI 配置：用户在 Chat 侧栏的设置弹窗填写 API key → Web 调用 `apps/api` → API 加密存入 `provider_credentials` 表 → 注入 `CredentialStore` → `models.getAuth()` 优先走 credential store，再 fallback 到 env
 
 **自定义 OpenAI 兼容供应商**（中转站 / 本地模型）：
 - 存入 `custom_providers` 表（`base_url` + 加密 `api_key_enc` + `model_ids` + `api` 字段）
@@ -194,7 +198,7 @@ Tool 参数 schema 使用 TypeBox，因为这是 `pi-agent-core` / `pi-ai` 的�
 
 `beforeToolCall` hook：
 - 检查工具白名单（per-user 配置）
-- Human-in-loop 模式下暂停，等前端 `/api/agent/[id]/approve` 接口确认
+- Human-in-loop 模式下暂停，等前端 `/chat/:id/approve` 接口确认
 - 审计结果通过应用注入的 audit port 持久化
 
 `afterToolCall` hook：
@@ -204,16 +208,16 @@ Tool 参数 schema 使用 TypeBox，因为这是 `pi-agent-core` / `pi-ai` 的�
 ### 3.4 Skills
 
 - `loadSkills(env, [skillsDir, userSkillsDir])` 在 harness 初始化时调用
-- Skill 列表通过 `/api/agent/[id]/skills` 接口暴露给前端
-- 前端 `/settings/skills` 展示所有已加载 skill + 来源路径 + `disableModelInvocation` 状态
+- Skill 列表通过 `/skills` 接口暴露给前端
+- Chat 侧栏的设置弹窗展示所有已加载 skill + 来源路径 + `disableModelInvocation` 状态
 - 运行时可 `setResources({ skills })` 热更新（不需要重建 harness）
 
 ### 3.5 MCP 接入
 
 ```
-用户在 /settings/mcp 配置 MCP 服务器（Web 写入 mcp_servers 表）
+用户在 Chat 侧栏的设置弹窗配置 MCP 服务器（Web 调用 API）
          ↓
-对话开始时，Web 读取该用户的 enabled mcp_servers 并注入 runtime
+对话开始时，API 读取该用户的 enabled mcp_servers 并注入 runtime
          ↓
 按 transport 创建 StdioClient / SSEClient
          ↓
@@ -238,7 +242,7 @@ listTools() → 每个 MCP tool 转为 AgentTool（adapter.ts）
 1. `beforeToolCall` → 调用应用的 approval port，写入 `tool_approvals(status=pending)` → 返回 Promise 挂起（不 block）
 2. SSE 推 `tool_pending` 事件到前端
 3. 前端展示 `PendingApprovalBar`，用户点 Approve/Reject
-4. `/api/chat/[id]/approve` → Web DAL 更新 `tool_approvals.status` + 唤醒挂起的 Promise
+4. `/chat/:id/approve` → API DAL 更新 `tool_approvals.status` + 唤醒挂起的 Promise
 5. 进程重启时，`beforeToolCall` 检查 DB 状态；pending 超时自动 reject（fail closed）
 
 ### 3.7 可观测性
@@ -249,9 +253,9 @@ listTools() → 每个 MCP tool 转为 AgentTool（adapter.ts）
 - `InMemoryTelemetryContext` per-request，run 结束后 flush 到 OTEL exporter
 
 **OpenTelemetry 层**：
-- `@opentelemetry/sdk-node` 安装在 `apps/web`
+- `@opentelemetry/sdk-node` 安装在 `apps/api`
 - 默认 exporter：OTLP HTTP（可对接 Jaeger / OTEL Collector）
-- 同时保留内存快照 → `/api/telemetry/spans` 给 UI 用
+- 同时保留内存快照 → `/telemetry/spans` 给 UI 用
 
 **前端可观测性页** `/observability`：
 - 最近 N 条 span（trace-id / duration / token-count / tool-calls）
@@ -260,53 +264,72 @@ listTools() → 每个 MCP tool 转为 AgentTool（adapter.ts）
 
 ---
 
-## 4. apps/web
+## 4. apps/api 与 apps/web
 
 ### 4.1 认证
 
-- **Auth.js v5** + Credentials Provider（email + bcrypt）
-- Drizzle adapter（`@auth/drizzle-adapter`）
+- `apps/api` 提供 email + bcrypt 登录，并在 `auth_sessions` 保存 hash 后的 opaque token
+- session 通过 HttpOnly、SameSite cookie 返回；Web 不接触 token 内容
 - Dev 启动时 seed 一个固定账号（`dev@chalk.local` / `chalk-dev-2026`），无开放注册
-- `middleware.ts`：匹配 `/(app)/*`，无 session → redirect `/login`
-- Server Action / Route Handler 均调用 `auth()`，null → throw，不回退
+- API 每个业务 route 都调用 `AuthModule.requireUser()`，认证失败 fail closed
+- Web 的 `AuthBoundary` 调用 `/auth/session`，401 跳转 `/login`；这只是 UX 守卫，不能替代 API 鉴权
 
 ### 4.2 API 路由清单
 
+以下路径以独立 `apps/api` 的 origin 为准。Web 端保留 `/api/...` 的逻辑前缀，浏览器客户端会将其转换为 `NEXT_PUBLIC_API_URL` 下的对应路径；API 本身不依赖 Next.js 路由。
+
 ```
-POST   /api/auth/[...nextauth]        Auth.js handler
+GET    /health                       服务健康检查
 
-GET    /api/chat                       列出对话（分页）
-POST   /api/chat                       创建对话，返回 {id}
+POST   /auth/login                    创建 HttpOnly session cookie
+GET    /auth/session                  当前用户（无 session 返回 user=null）
+POST   /auth/logout                   删除当前 session
 
-GET    /api/chat/[id]                  对话元数据
-DELETE /api/chat/[id]                  删除对话（软删）
+GET    /chat                          列出对话（分页）
+POST   /chat                          创建对话，返回 {conversation}
 
-GET    /api/chat/[id]/messages         历史消息列表
-POST   /api/chat/[id]/stream           用户消息 → SSE 流（AgentEvent）
-POST   /api/chat/[id]/abort            中止当前 run
-POST   /api/chat/[id]/steer            注入引导消息（需有活跃 run）
-POST   /api/chat/[id]/approve          审批/拒绝挂起的工具调用
+GET    /chat/:id                       对话元数据
+PATCH  /chat/:id                       重命名对话
+DELETE /chat/:id                       删除对话及其 JSONL session
 
-GET    /api/agent/[id]/skills          该 session 已加载的 skills
-GET    /api/agent/[id]/tools           该 session 可用 tools（含 MCP）
-GET    /api/agent/[id]/providers       可用 LLM 供应商 + 模型列表
+GET    /chat/:id/messages              历史消息列表
+POST   /chat/:id/stream                用户消息 → SSE 流（AgentEvent）
+POST   /chat/:id/abort                 中止当前 run
+POST   /chat/:id/steer                 注入引导消息（需有活跃 run）
+POST   /chat/:id/approve               审批/拒绝挂起的工具调用
 
-GET    /api/mcp                        MCP 服务器列表
-POST   /api/mcp                        添加 MCP 服务器
-PUT    /api/mcp/[id]                   更新
-DELETE /api/mcp/[id]                   删除
+GET    /providers                      内置/自定义供应商及默认模型
+PUT    /providers/:providerId/credential  保存供应商 API key（加密入库）
+DELETE /providers/:providerId/credential  删除供应商 API key
+GET    /providers/custom               自定义供应商列表
+POST   /providers/custom               添加自定义供应商
+PATCH  /providers/custom/:id           更新自定义供应商
+DELETE /providers/custom/:id            删除自定义供应商
+GET    /models                         可用模型列表
+POST   /models                         刷新模型目录
+GET    /settings                       当前 Agent 设置
+PUT    /settings/model                 设置默认模型
 
-GET    /api/providers                  自定义供应商列表
-POST   /api/providers                  添加（api_key 加密后入库）
-PUT    /api/providers/[id]
-DELETE /api/providers/[id]
+GET    /skills                         已加载 Skill 及诊断信息
+PATCH  /skills                         启用/停用 Skill
+GET    /tools                          工具及审批策略
+PATCH  /tools                          更新工具设置
 
-GET    /api/telemetry/spans            最近 span（用于 observability 页）
+GET    /mcp                            MCP 服务器列表
+POST   /mcp                            添加 MCP 服务器
+GET    /mcp/:id                        MCP 服务器详情
+PATCH  /mcp/:id                        更新 MCP 服务器
+DELETE /mcp/:id                        删除 MCP 服务器
+POST   /mcp/:id/test                   测试 MCP 连接
+
+GET    /telemetry/spans                最近 span（用于 observability 页）
+POST   /uploads/presign                获取对象存储直传 URL
+POST   /uploads/confirm                确认对象已上传
 ```
 
 ### 4.3 SSE 流协议
 
-`POST /api/chat/[id]/stream` body: `{ message: string, model?: string }`
+`POST /chat/:id/stream` body: `{ message: string, model?: { providerId: string, modelId: string }, attachmentIds?: string[] }`
 
 返回 `text/event-stream`，事件类型：
 
@@ -329,8 +352,9 @@ event: error            data: { message: string }
 /login                     登录页
 /(app)
   /                        → redirect /chat
-  /chat                    新建对话
-  /chat/[id]               对话页
+  /chat                    当前对话页（没有 id 时创建/选择对话）
+  /chats                   全部对话列表
+  /chalkboard              Chalkboard 工作区
     ChatLayout
     ├── Sidebar
     │   ├── ConversationList（历史，按日期分组）
@@ -349,13 +373,10 @@ event: error            data: { message: string }
             ├── AbortButton（流式中显示）
             └── SteerButton（流式中：注入引导）
 
-  /settings
-    /skills                已加载 Skill 卡片（name / description / filePath / 开关）
-    /mcp                   MCP 服务器 CRUD（transport / command / url / enabled）
-    /providers             自定义 LLM 供应商 CRUD（base_url / api_key / model_ids）
-    /models                供应商 × 模型矩阵（查看 + 默认模型设置）
+  Chat 侧栏用户菜单 → 设置弹窗
+    API / Skills / MCP / Tools 配置面板
 
-  /observability           Span 列表 + token 成本图表
+  /observability（后续）   Span 列表 + token 成本图表
 ```
 
 ### 4.5 Zustand Store
@@ -384,13 +405,19 @@ interface ChatStore {
 # Database（业务数据：用户、对话元数据、工具审批等）
 DATABASE_URL=postgresql://chalk:chalk@localhost:5432/chalk
 
-# Session 存储（单实例 + 持久化磁盘）
-SESSIONS_ROOT=./data/sessions  # JSONL 文件存储目录
+# 独立 API 服务与 Web 来源
+API_HOST=127.0.0.1
+API_PORT=3001
+WEB_ORIGIN=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3001
 
-# Auth
-AUTH_SECRET=change-me-in-prod
+# Session 存储（单实例 + 持久化磁盘；只存 Pi 对话 JSONL）
+SESSIONS_ROOT=./data/sessions  # 相对于 apps/api 工作目录
 
-# LLM Providers — 可在 .env 配置，也可在 /settings/providers 页面填写
+# Auth（生产环境必须启用 HTTPS cookie）
+SESSION_COOKIE_SECURE=false
+
+# LLM Providers — 可在 .env 配置，也可在设置弹窗填写
 # Web UI 配置优先；env 作为 fallback
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
@@ -421,7 +448,7 @@ S3_ACCESS_KEY_ID=chalk             # 生产用阿里云 AccessKey ID
 S3_SECRET_ACCESS_KEY=chalk-minio-secret  # 生产用阿里云 AccessKey Secret
 S3_BUCKET_UPLOADS=chalk-uploads    # 用户上传文件（开发 MinIO bucket；生产 OSS bucket）
 S3_BUCKET_BACKUPS=chalk-backups    # 备份文件
-S3_PUBLIC_URL=http://localhost:9000  # 开发用；生产用阿里云 CDN 域名（例如 https://cdn.chalk.com）
+S3_PUBLIC_URL=                     # 可选：仅在明确配置私有 CDN/访问策略时填写
 
 # Redis（可选：缓存、队列）
 REDIS_URL=redis://localhost:6379
@@ -500,11 +527,11 @@ volumes:
 | # | 内容 | 产出 |
 |---|---|---|
 | **M1** | Monorepo 骨架：pnpm workspace + tsconfig + ESLint/Prettier + docker-compose | 空但能跑 `pnpm install` |
-| **M2** | `apps/web/src/lib/server/db`：业务 schema（不含 pi session 表）+ 迁移 + DAL；Web adapter 实现 `DrizzleCredentialStore` | `pnpm db:migrate` 跑通 |
-| **M3** | `apps/web` Auth：Next.js 骨架 + Auth.js + dev seed + `/settings/providers` API key 配置页 | 能登录、能填 key |
+| **M2** | `apps/api/src/db`：业务 schema（不含 pi session 表）+ 迁移 + DAL；API 实现 `DrizzleCredentialStore` | `pnpm db:migrate` 跑通 |
+| **M3** | `apps/api` Auth：Fastify + opaque cookie session + dev seed；Web 登录页调用 API | 能登录、能填 key |
 | **M4** | `packages/agent-runtime` session：接收注入的 `SessionRepo` + 进程重启恢复逻辑 + `createModels()` + credential store 联通；Web 组合 `JsonlSessionRepo` | 终端可跑 agent loop + session 落 JSONL |
 | **M5** | `agent-runtime` harness + StreamFn 桥 + compaction | harness 可运行 |
-| **M6** | `apps/web` 流式 API + 基础 Chat UI（输入→流→KaTeX） | 端到端跑通 |
+| **M6** | `apps/api` 流式 API + `apps/web` Chat UI（输入→流→KaTeX） | 端到端跑通 |
 | **M7** | Skills loader + `/settings/skills` 页 + skill 注入 system prompt | Skill 可见、可用 |
 | **M8** | MCP manager + adapter + `/settings/mcp` 配置页 | MCP tool 出现在对话中 |
 | **M9** | Human-in-loop：`beforeToolCall` 审批 + `/approve` + `steer` + `abort` | 高危工具可拦截 |
@@ -552,7 +579,7 @@ const session = await repo.open(metadata);
 **部署前提**：服务进程只有一个 session writer，`SESSIONS_ROOT` 位于持久化磁盘；JSONL 文件不提交 Git，也不放在临时容器文件系统中。
 
 **未来迁移路径**：
-- 如果将来需要多实例、跨节点写入或 SQL 级全文检索，再实现 Postgres `SessionRepo` adapter；由 `apps/web` 的 composition root 注入，不放进 `agent-runtime`。
+- 如果将来需要多实例、跨节点写入或 SQL 级全文检索，再实现 Postgres `SessionRepo` adapter；由 `apps/api` 的 composition root 注入，不放进 `agent-runtime`。
 
 **代码隔离设计**：
 ```typescript
@@ -561,7 +588,7 @@ export function createAgentRuntime(options: { sessionRepo: SessionRepo }) {
   return new AgentRuntime(options);
 }
 
-// apps/web 的 composition root 选择当前 adapter
+// apps/api 的 composition root 选择当前 adapter
 const nodeEnv = new NodeExecutionEnv({ cwd: process.cwd() });
 const sessionRepo = new JsonlSessionRepo({
   fs: nodeEnv,
@@ -584,7 +611,7 @@ const runtime = createAgentRuntime({ sessionRepo });
 
 ### 其他技术决策
 
-- **LLM 供应商**：`createModels()` 加载 pi-ai 内置所有 30+ provider；Web adapter 实现 `CredentialStore` 接口，API key 加密存 `provider_credentials` 表，Web UI 和 env 双轨，credential store 优先。
+- **LLM 供应商**：`createModels()` 加载 pi-ai 内置所有 30+ provider；API adapter 实现 `CredentialStore` 接口，API key 加密存 `provider_credentials` 表，Web UI 和 env 双轨，credential store 优先。
 - **Schema 边界**：Chalkboard、learning/evidence 和 API contract 使用 Zod；pi AgentTool 的 `parameters` 使用 TypeBox。工具参数经 TypeBox 校验并转换为领域 command，再经 Zod 校验。
 - **自定义 OpenAI 兼容**：`createProvider({ baseUrl, api: openai-completions })` 动态注册；配置存 `custom_providers` 表，加密 `api_key_enc`。
 - **HIL 工具审批**：`tool_approvals` 表持久化审批状态；进程重启后 pending 超时 → reject（fail closed）。
@@ -624,9 +651,9 @@ const runtime = createAgentRuntime({ sessionRepo });
 **上传流程：**
 ```typescript
 // 1. 前端获取预签名 URL
-const { uploadUrl, fileKey } = await fetch('/api/uploads/presign', {
+const { uploadUrl, attachmentId } = await fetch('/api/uploads/presign', {
   method: 'POST',
-  body: JSON.stringify({ filename: 'problem.png', contentType: 'image/png' }),
+  body: JSON.stringify({ conversationId, filename: 'problem.png', contentType: 'image/png', size: file.size }),
 });
 
 // 2. 前端直传 OSS（不经过后端，节省带宽）
@@ -635,15 +662,7 @@ await fetch(uploadUrl, { method: 'PUT', body: file });
 // 3. 前端通知后端文件已上传
 await fetch('/api/uploads/confirm', {
   method: 'POST',
-  body: JSON.stringify({ fileKey, conversationId }),
-});
-
-// 4. 后端记录到数据库（可选）
-await db.insert(attachments).values({
-  conversationId,
-  fileKey,
-  url: `${S3_PUBLIC_URL}/${S3_BUCKET_UPLOADS}/${fileKey}`,
-  contentType: 'image/png',
+  body: JSON.stringify({ attachmentId }),
 });
 ```
 

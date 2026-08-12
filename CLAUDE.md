@@ -20,8 +20,9 @@
 - 几何渲染使用 `manim-web`，版本锁定。几何约束层自建，不绑渲染器的对象模型。
 - 数据库 Postgres + Drizzle。
 - 第一批学科只做数学。
-- `packages/` 只放两个深模块：通用 `agent-runtime` 和承接 OpenMAIC 迁移的 `chalkboard`。DB、认证、学习领域和具体 adapter 先放在 `apps/web/src/lib`；新增 workspace package 前必须先确认存在稳定的独立 seam。
-- 默认由 `apps/web` 组合 `agent-runtime` 与 `chalkboard`。两个 package 不依赖应用内部代码；`agent-runtime` 保持通用，不依赖 `chalkboard`，而 `chalkboard` 可按需单向依赖 `agent-runtime` 的稳定公共接口，但不得形成循环依赖。
+- `packages/` 只放两个深模块：通用 `agent-runtime` 和承接 OpenMAIC 迁移的 `chalkboard`。数据库、认证、学习领域和具体 adapter 属于后端，先放在 `apps/api/src`；新增 workspace package 前必须先确认存在稳定的独立 seam。
+- `apps/web` 是独立的 Next.js 前端，只包含页面、组件、浏览器状态和 HTTP/SSE client；它不能导入 Drizzle、Postgres、Pi runtime、认证实现或对象存储 SDK。`apps/api` 是独立的 Fastify 后端，负责认证、业务流程、数据访问、Agent 装配和外部资源访问。
+- 默认依赖方向是 `apps/web` 通过 HTTP/SSE 调用 `apps/api`，`apps/api` 组合 `agent-runtime` 与 `chalkboard`。两个 package 不依赖任何 app；`agent-runtime` 保持通用，不依赖 `chalkboard`，而 `chalkboard` 可按需单向依赖 `agent-runtime` 的稳定公共接口，但不得形成循环依赖。
 
 ### 不可违反的设计约束
 

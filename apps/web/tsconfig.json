@@ -19,8 +19,7 @@
   "include": [
     "next-env.d.ts",
     ".next/types/**/*.ts",
-    "src/**/*",
-    "drizzle.config.ts"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules"

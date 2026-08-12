@@ -1,0 +1,52 @@
+.statePage {
+  min-width: 1100px;
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: #514c47;
+  background: #f7f4ef;
+  font-size: 14px;
+}
+
+.statePage strong {
+  color: #2b2926;
+  font-size: 16px;
+}
+
+.statePage button {
+  height: 34px;
+  margin-top: 8px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  color: #fffdf9;
+  background: #2b2926;
+  font: inherit;
+  cursor: pointer;
+}
+
+.statePage button:hover {
+  background: #a94f32;
+}
+
+.statePage button:focus-visible {
+  outline: 2px solid #c15f3c;
+  outline-offset: 2px;
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+}
