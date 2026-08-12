@@ -447,8 +447,7 @@ export default function ChatPage() {
         <div ref={messageViewportRef} className={styles.messageViewport}>
           <div className={styles.messageColumn}>
             {messages.length === 0 && <div className={styles.emptyConversation}><div className={styles.emptyIcon}><SquarePen size={19} /></div><h1>把问题写下来</h1><p>从一道题、一个概念，或你卡住的某一步开始。</p></div>}
-            {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
-            {isStreaming && <div className={styles.tutorMessage}><div className={styles.messageAuthor}><span className={styles.tutorAvatar}>C</span><strong>Chalk</strong><span>正在思考</span></div><div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />正在整理下一步提示</div></div>}
+            {messages.map((message, index) => <MessageBubble key={message.id} message={message} pending={isStreaming && index === messages.length - 1 && message.role === "tutor" && !message.text} />)}
             {activeTool && <div className={styles.inlineToolActivity}><ToolActivity state={activeTool.state} title={activeTool.label} onApprove={() => void decideTool(true)} onDeny={() => void decideTool(false)} /></div>}
           </div>
         </div>
@@ -489,9 +488,9 @@ export default function ChatPage() {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message, pending = false }: { message: Message; pending?: boolean }) {
   if (message.role === "student") return <div className={styles.studentMessage}><div className={styles.studentBubble}>{message.attachment && <div className={styles.attachmentPreview}><FileText size={14} /><span>{message.attachment}</span></div>}<p>{message.text}</p></div><time>{message.time}</time></div>;
-  return <div className={styles.tutorMessage}><div className={styles.messageAuthor}><span className={styles.tutorAvatar}>C</span><strong>Chalk</strong><span>{message.time}</span></div><div className={styles.tutorCopy}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{message.text}</ReactMarkdown></div></div>;
+  return <div className={styles.tutorMessage}><div className={styles.messageAuthor}><span className={styles.tutorAvatar}>C</span><strong>Chalk</strong><span>{pending ? "正在思考" : message.time}</span></div>{pending ? <div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />正在整理下一步提示</div> : <div className={styles.tutorCopy}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{message.text}</ReactMarkdown></div>}</div>;
 }
 
 function ToolActivity({ state, title, onApprove, onDeny }: { state: Exclude<ToolState, "idle">; title: string; onApprove: () => void; onDeny: () => void }) {

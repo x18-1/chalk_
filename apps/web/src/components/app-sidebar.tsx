@@ -66,6 +66,7 @@ export function AppSidebar({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openConversationMenu, setOpenConversationMenu] = useState<string | null>(null);
+  const [conversationMenuAbove, setConversationMenuAbove] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -113,6 +114,23 @@ export function AppSidebar({
     onSelectConversation?.(id);
   }
 
+  function toggleConversationMenu(id: string, button: HTMLButtonElement) {
+    const opening = openConversationMenu !== id;
+    if (opening) {
+      const list = button.closest('[aria-label="最近对话"]');
+      const buttonRect = button.getBoundingClientRect();
+      const listRect = list?.getBoundingClientRect();
+      const menuHeight = 72;
+      setConversationMenuAbove(Boolean(
+        listRect &&
+        listRect.bottom - buttonRect.bottom < menuHeight &&
+        buttonRect.top - listRect.top >= menuHeight
+      ));
+    }
+    setOpenConversationMenu(opening ? id : null);
+    setPendingDeleteId(null);
+  }
+
   async function logout() {
     setUserMenuOpen(false);
     await authApi.logout().catch(() => undefined);
@@ -151,9 +169,9 @@ export function AppSidebar({
               : onSelectConversation
                 ? <button className={styles.conversationSelect} type="button" aria-current={selectedConversationId === conversation.id ? "page" : undefined} onClick={() => selectConversation(conversation.id)}><strong>{conversation.title}</strong></button>
                 : <Link className={styles.conversationSelect} href={`/chat?conversation=${conversation.id}`}><strong>{conversation.title}</strong></Link>}
-            <button className={styles.conversationMenu} type="button" aria-label={`${conversation.title} 的更多操作`} title="更多操作" onClick={() => { setOpenConversationMenu((current) => current === conversation.id ? null : conversation.id); setPendingDeleteId(null); }}><MoreHorizontal size={15} /></button>
-            {openConversationMenu === conversation.id && <div className={styles.conversationMenuPopover} role="menu"><button type="button" role="menuitem" onClick={() => startRenameConversation(conversation)}><Pencil size={14} />重命名</button><button type="button" role="menuitem" onClick={() => { setOpenConversationMenu(null); setPendingDeleteId(conversation.id); }}><Trash2 size={14} />删除</button></div>}
-            {pendingDeleteId === conversation.id && <div className={styles.deleteConfirm} role="alert"><span>删除此对话？</span><button type="button" onClick={() => setPendingDeleteId(null)}>取消</button><button type="button" onClick={() => deleteConversation(conversation.id)}>删除</button></div>}
+            <button className={styles.conversationMenu} type="button" aria-label={`${conversation.title} 的更多操作`} title="更多操作" aria-expanded={openConversationMenu === conversation.id} onClick={(event) => toggleConversationMenu(conversation.id, event.currentTarget)}><MoreHorizontal size={15} /></button>
+            {openConversationMenu === conversation.id && <div className={`${styles.conversationMenuPopover} ${conversationMenuAbove ? styles.conversationPopoverAbove : ""}`} role="menu"><button type="button" role="menuitem" onClick={() => startRenameConversation(conversation)}><Pencil size={14} />重命名</button><button type="button" role="menuitem" onClick={() => { setOpenConversationMenu(null); setPendingDeleteId(conversation.id); }}><Trash2 size={14} />删除</button></div>}
+            {pendingDeleteId === conversation.id && <div className={`${styles.deleteConfirm} ${conversationMenuAbove ? styles.conversationPopoverAbove : ""}`} role="alert"><span>删除此对话？</span><button type="button" onClick={() => setPendingDeleteId(null)}>取消</button><button type="button" onClick={() => deleteConversation(conversation.id)}>删除</button></div>}
           </div>)}
         </section>) : <p className={styles.emptyConversations}>暂无会话</p>}
       </nav>}
