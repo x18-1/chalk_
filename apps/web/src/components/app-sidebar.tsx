@@ -20,7 +20,7 @@ import {
 
 import styles from "./app-sidebar.module.css";
 import { SettingsDialog } from "./settings-dialog";
-import { apiJson } from "../lib/client/api";
+import { authApi } from "../api";
 
 export type ConversationGroup = "今天" | "昨天" | "过去 7 天" | "过去 30 天";
 
@@ -115,7 +115,7 @@ export function AppSidebar({
 
   async function logout() {
     setUserMenuOpen(false);
-    await apiJson("/auth/logout", { method: "POST" }).catch(() => undefined);
+    await authApi.logout().catch(() => undefined);
     window.location.assign("/login");
   }
 

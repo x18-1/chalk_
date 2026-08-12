@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LoaderCircle, RotateCw } from "lucide-react";
 
-import { apiJson, ApiRequestError } from "../lib/client/api";
+import { ApiRequestError, authApi } from "../api";
 import styles from "./auth-boundary.module.css";
 
 const protectedPrefixes = ["/chat", "/chats", "/chalkboard"];
@@ -23,7 +23,7 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
 
     const controller = new AbortController();
     setState("loading");
-    void apiJson<{ user: { id: string } | null }>("/auth/session", { signal: controller.signal })
+    void authApi.session(controller.signal)
       .then(({ user }) => {
         if (!user) {
           window.location.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);

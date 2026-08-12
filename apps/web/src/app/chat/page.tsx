@@ -29,7 +29,8 @@ import {
 } from "lucide-react";
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
-import { apiJson, apiUrl, conversationGroup, formatConversationTitle, type Conversation, type ModelRef } from "../../lib/client/api";
+import { chatApi, settingsApi, uploadsApi, type Conversation, type ModelRef } from "../../api";
+import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chat.module.css";
 
 type Role = "student" | "tutor";
@@ -66,30 +67,6 @@ function formatMessageTime(timestamp: unknown) {
   return new Date(timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
-async function consumeEventStream(body: ReadableStream<Uint8Array>, onEvent: (type: string, data: Record<string, any>) => void) {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const result = await reader.read();
-    if (result.done) break;
-    buffer += decoder.decode(result.value, { stream: true });
-    const chunks = buffer.split("\n\n");
-    buffer = chunks.pop() ?? "";
-    for (const chunk of chunks) {
-      const event = chunk.match(/^event: ([^\n]+)\ndata: ([\s\S]+)$/);
-      if (!event) continue;
-      try { onEvent(event[1]!, JSON.parse(event[2]!) as Record<string, any>); } catch { /* ignore malformed keep-alive chunks */ }
-    }
-  }
-  if (buffer.trim()) {
-    const event = buffer.match(/^event: ([^\n]+)\ndata: ([\s\S]+)$/);
-    if (event) {
-      try { onEvent(event[1]!, JSON.parse(event[2]!) as Record<string, any>); } catch { /* ignore */ }
-    }
-  }
-}
-
 const initialConversations: typeof defaultSidebarConversations = [];
 
 export default function ChatPage() {
@@ -120,9 +97,9 @@ export default function ChatPage() {
     async function loadWorkspace() {
       try {
         const [conversationData, providerData, modelData] = await Promise.all([
-          apiJson<{ conversations: Conversation[] }>("/api/chat"),
-          apiJson<{ defaultModel: ModelRef | null }>("/api/providers"),
-          apiJson<{ models: Array<{ providerId: string; id: string; name: string }> }>("/api/models"),
+          chatApi.list(),
+          settingsApi.providers().then((data) => ({ defaultModel: data.defaultModel })),
+          settingsApi.models(),
         ]);
         if (cancelled) return;
         const nextConversations = conversationData.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }));
@@ -184,7 +161,7 @@ export default function ChatPage() {
   }
 
   async function loadConversationMessages(id: string) {
-    const data = await apiJson<{ messages: Array<Record<string, unknown>> }>(`/api/chat/${id}/messages`);
+    const data = await chatApi.messages(id);
     setMessages(data.messages.flatMap((message, index) => {
       const role = message.role === "user" ? "student" : message.role === "assistant" ? "tutor" : null;
       if (!role) return [];
@@ -203,7 +180,7 @@ export default function ChatPage() {
   async function startConversation() {
     resetTransientConversationState();
     try {
-      const data = await apiJson<{ conversation: Conversation }>("/api/chat", { method: "POST", body: JSON.stringify({}) });
+      const data = await chatApi.create();
       const next = { id: data.conversation.id, title: formatConversationTitle(data.conversation), group: conversationGroup(data.conversation.updatedAt) };
       setConversations((current) => [next, ...current]);
       setSelectedId(next.id);
@@ -220,7 +197,7 @@ export default function ChatPage() {
   function stopStreaming() {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    if (selectedId) void fetch(apiUrl(`/api/chat/${selectedId}/abort`), { method: "POST", credentials: "include" });
+    if (selectedId) void chatApi.abort(selectedId).catch(() => undefined);
     setIsStreaming(false);
     setActiveTool(null);
   }
@@ -249,9 +226,7 @@ export default function ChatPage() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     try {
-      const response = await fetch(apiUrl(`/api/chat/${conversationId}/stream`), { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({ message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }), signal: controller.signal });
-      if (!response.ok || !response.body) throw new Error("对话请求失败");
-      await consumeEventStream(response.body, (type, data) => {
+      await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
         if (type === "text_delta") setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: `${message.text}${String(data.delta ?? "")}` } : message));
         if (type === "tool_started") setActiveTool({ toolCallId: String(data.toolCallId ?? ""), toolName: String(data.toolName ?? "tool"), label: String(data.toolName ?? "工具"), state: "running" });
         if (type === "tool_pending") setActiveTool({ toolCallId: String(data.toolCallId ?? ""), toolName: String(data.toolName ?? "tool"), label: String(data.label ?? data.toolName ?? "工具"), state: "approval" });
@@ -262,9 +237,12 @@ export default function ChatPage() {
           }
         }
         if (type === "tool_finished") setActiveTool((current) => current ? { ...current, state: data.isError ? "error" : "complete" } : current);
-        if (type === "message_completed" && data.message?.role === "assistant") setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: messageText(data.message.content) } : message));
+        if (type === "message_completed" && data.message?.role === "assistant") {
+          const completedMessage = data.message;
+          setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: messageText(completedMessage.content) } : message));
+        }
         if (type === "error") setNotice(String(data.error ?? "模型请求失败"));
-      });
+      }, controller.signal);
     } catch (streamError) {
       if (!controller.signal.aborted) setNotice(streamError instanceof Error ? streamError.message : "对话请求失败");
     } finally {
@@ -284,10 +262,9 @@ export default function ChatPage() {
     try {
       const contentType = file.type === "application/pdf" ? "application/pdf" : file.type;
       if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(contentType)) throw new Error("仅支持 JPG、PNG、WebP 图片或 PDF 文件");
-      const presign = await apiJson<{ attachmentId: string; uploadUrl: string }>("/api/uploads/presign", { method: "POST", body: JSON.stringify({ conversationId, filename: file.name, contentType, size: file.size }) });
-      const upload = await fetch(presign.uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: file });
-      if (!upload.ok) throw new Error("文件上传失败");
-      await apiJson("/api/uploads/confirm", { method: "POST", body: JSON.stringify({ attachmentId: presign.attachmentId }) });
+      const presign = await uploadsApi.presign({ conversationId, filename: file.name, contentType, size: file.size });
+      await uploadsApi.upload(presign.uploadUrl, file, contentType);
+      await uploadsApi.confirm(presign.attachmentId);
       setAttachedFile({ id: presign.attachmentId, name: file.name, status: "ready" });
       setNotice(`${file.name} 已添加到这条消息`);
     } catch (uploadError) {
@@ -299,7 +276,7 @@ export default function ChatPage() {
   async function decideTool(approved: boolean) {
     if (!selectedId || !activeTool?.toolCallId) return;
     try {
-      await apiJson(`/api/chat/${selectedId}/approve`, { method: "POST", body: JSON.stringify({ toolCallId: activeTool.toolCallId, approved }) });
+      await chatApi.approve(selectedId, activeTool.toolCallId, approved);
       setActiveTool((current) => current ? { ...current, state: approved ? "running" : "error" } : current);
       setNotice(approved ? "已允许这次工具调用" : "已拒绝这次工具调用");
     } catch (approvalError) {
@@ -311,7 +288,7 @@ export default function ChatPage() {
     const text = draft.trim();
     if (!selectedId || !text || !isStreaming) return;
     try {
-      await apiJson(`/api/chat/${selectedId}/steer`, { method: "POST", body: JSON.stringify({ message: text }) });
+      await chatApi.steer(selectedId, text);
       setDraft("");
       setNotice("引导已加入当前运行");
     } catch (steerError) {
@@ -320,13 +297,13 @@ export default function ChatPage() {
   }
 
   function renameConversation(id: string, title: string) {
-    void apiJson(`/api/chat/${id}`, { method: "PATCH", body: JSON.stringify({ title }) }).then(() => {
+    void chatApi.rename(id, title).then(() => {
       setConversations((current) => current.map((conversation) => conversation.id === id ? { ...conversation, title } : conversation));
     }).catch((renameError) => setNotice(renameError instanceof Error ? renameError.message : "重命名失败"));
   }
 
   function deleteConversation(id: string) {
-    void apiJson(`/api/chat/${id}`, { method: "DELETE" }).then(() => {
+    void chatApi.delete(id).then(() => {
       const remaining = conversations.filter((conversation) => conversation.id !== id);
       setConversations(remaining);
       if (selectedId === id) {

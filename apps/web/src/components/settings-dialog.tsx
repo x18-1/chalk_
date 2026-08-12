@@ -15,58 +15,18 @@ import {
   X,
 } from "lucide-react";
 
-import { apiJson, type ModelRef } from "../lib/client/api";
+import {
+  settingsApi,
+  type CustomProvider,
+  type McpServer,
+  type ModelRef,
+  type Provider,
+  type Skill,
+  type Tool,
+} from "../api";
 import styles from "./app-sidebar.module.css";
 
 type SettingsTab = "api" | "skills" | "mcp" | "tools";
-
-type Provider = {
-  id: string;
-  name: string;
-  configured: boolean;
-  modelCount: number;
-  authSource?: string;
-};
-
-type CustomProvider = {
-  id: string;
-  name: string;
-  baseUrl: string;
-  api: string;
-  modelIds: unknown;
-  enabled: boolean;
-  configured: boolean;
-};
-
-type Skill = {
-  name: string;
-  description: string;
-  filePath: string;
-  enabled: boolean;
-  source: { id: string; label: string; trusted: boolean };
-  disableModelInvocation: boolean;
-};
-
-type McpServer = {
-  id: string;
-  name: string;
-  transport: "stdio" | "sse" | "http";
-  command: string | null;
-  args: unknown;
-  url: string | null;
-  enabled: boolean;
-  configuredEnv: boolean;
-};
-
-type Tool = {
-  name: string;
-  label: string;
-  description: string;
-  source: string;
-  requiresApproval: boolean;
-  enabled: boolean;
-  approval: "default" | "always" | "never";
-};
 
 type McpDraft = {
   id?: string;
@@ -127,20 +87,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const [providerData, skillData, mcpData, toolData] = await Promise.all([
-        apiJson<{ providers: Provider[]; customProviders: CustomProvider[]; defaultModel: ModelRef | null }>("/api/providers"),
-        apiJson<{ skills: Skill[]; diagnostics: Array<{ message: string; code: string }> }>("/api/skills"),
-        apiJson<{ servers: McpServer[] }>("/api/mcp"),
-        apiJson<{ tools: Tool[] }>("/api/tools"),
-      ]);
-      setProviders(providerData.providers);
-      setCustomProviders(providerData.customProviders ?? []);
-      setProviderId(providerData.defaultModel?.providerId ?? providerData.providers.find((provider) => provider.configured)?.id ?? "");
-      setDefaultModel(providerData.defaultModel);
-      setSkills(skillData.skills);
-      setDiagnostics(skillData.diagnostics ?? []);
-      setMcpServers(mcpData.servers);
-      setTools(toolData.tools);
+      const data = await settingsApi.load();
+      setProviders(data.providers);
+      setCustomProviders(data.customProviders ?? []);
+      setProviderId(data.defaultModel?.providerId ?? data.providers.find((provider) => provider.configured)?.id ?? "");
+      setDefaultModel(data.defaultModel);
+      setSkills(data.skills);
+      setDiagnostics(data.diagnostics ?? []);
+      setMcpServers(data.servers);
+      setTools(data.tools);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载工作区配置失败");
     } finally {
@@ -157,7 +112,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       setModels([]);
       return;
     }
-    void apiJson<{ models: Array<{ id: string; name: string; providerId: string }> }>(`/api/models?provider=${encodeURIComponent(providerId)}`)
+    void settingsApi.models(providerId)
       .then((data) => setModels(data.models))
       .catch(() => setModels([]));
   }, [providerId]);
@@ -169,13 +124,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       if (apiKey.trim()) {
-        await apiJson(`/api/providers/${encodeURIComponent(providerId)}/credential`, {
-          method: "PUT",
-          body: JSON.stringify({ apiKey: apiKey.trim() }),
-        });
+        await settingsApi.saveCredential(providerId, apiKey.trim());
       }
       if (defaultModel) {
-        await apiJson("/api/settings/model", { method: "PUT", body: JSON.stringify(defaultModel) });
+        await settingsApi.saveDefaultModel(defaultModel);
       }
       setApiKey("");
       setProviders((current) => current.map((provider) => provider.id === providerId ? { ...provider, configured: true } : provider));
@@ -191,7 +143,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     if (!providerId) return;
     setBusy(`credential:${providerId}`);
     try {
-      await apiJson(`/api/providers/${encodeURIComponent(providerId)}/credential`, { method: "DELETE" });
+      await settingsApi.removeCredential(providerId);
       setProviders((current) => current.map((provider) => provider.id === providerId ? { ...provider, configured: false } : provider));
       setNotice("API Key 已移除");
     } catch (removeError) {
@@ -205,14 +157,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     event.preventDefault();
     setBusy("custom");
     try {
-      const data = await apiJson<{ provider: CustomProvider }>("/api/providers/custom", {
-        method: "POST",
-        body: JSON.stringify({
-          name: customDraft.name,
-          baseUrl: customDraft.baseUrl,
-          modelIds: customDraft.modelIds.split(/[\n,]/).map((value) => value.trim()).filter(Boolean),
-          ...(customDraft.apiKey ? { apiKey: customDraft.apiKey } : {}),
-        }),
+      const data = await settingsApi.createCustomProvider({
+        name: customDraft.name,
+        baseUrl: customDraft.baseUrl,
+        modelIds: customDraft.modelIds.split(/[\n,]/).map((value) => value.trim()).filter(Boolean),
+        ...(customDraft.apiKey ? { apiKey: customDraft.apiKey } : {}),
       });
       setCustomProviders((current) => [data.provider, ...current]);
       setCustomDraft({ name: "", baseUrl: "", modelIds: "", apiKey: "" });
@@ -227,7 +176,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   async function deleteCustomProvider(id: string) {
     setBusy(`custom:${id}`);
     try {
-      await apiJson(`/api/providers/custom/${id}`, { method: "DELETE" });
+      await settingsApi.deleteCustomProvider(id);
       setCustomProviders((current) => current.filter((provider) => provider.id !== id));
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "删除 Provider 失败");
@@ -239,7 +188,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   async function toggleSkill(skill: Skill) {
     setBusy(`skill:${skill.name}`);
     try {
-      await apiJson("/api/skills", { method: "PATCH", body: JSON.stringify({ skillName: skill.name, enabled: !skill.enabled }) });
+      await settingsApi.setSkillEnabled(skill.name, !skill.enabled);
       setSkills((current) => current.map((item) => item.name === skill.name ? { ...item, enabled: !item.enabled } : item));
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "更新 Skill 失败");
@@ -267,8 +216,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         } : { url: mcpDraft.url }),
         ...(Object.keys(env).length ? { env } : {}),
       };
-      const path = mcpDraft.id ? `/api/mcp/${mcpDraft.id}` : "/api/mcp";
-      const data = await apiJson<{ server: McpServer }>(path, { method: mcpDraft.id ? "PATCH" : "POST", body: JSON.stringify(payload) });
+      const data = await settingsApi.saveMcp(payload, mcpDraft.id);
       setMcpServers((current) => mcpDraft.id ? current.map((server) => server.id === data.server.id ? data.server : server) : [data.server, ...current]);
       setMcpDraft(null);
       setNotice("MCP 配置已保存");
@@ -282,7 +230,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   async function toggleMcp(server: McpServer) {
     setBusy(`mcp:${server.id}`);
     try {
-      const data = await apiJson<{ server: McpServer }>(`/api/mcp/${server.id}`, { method: "PATCH", body: JSON.stringify({ enabled: !server.enabled }) });
+      const data = await settingsApi.toggleMcp(server.id, !server.enabled);
       setMcpServers((current) => current.map((item) => item.id === server.id ? data.server : item));
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "更新 MCP 状态失败");
@@ -294,7 +242,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   async function testMcp(server: McpServer) {
     setBusy(`test:${server.id}`);
     try {
-      const data = await apiJson<{ status: { state: string; toolCount: number } }>(`/api/mcp/${server.id}/test`, { method: "POST" });
+      const data = await settingsApi.testMcp(server.id);
       setNotice(`${server.name} 已连接，发现 ${data.status.toolCount} 个工具`);
     } catch (testError) {
       setError(testError instanceof Error ? testError.message : `${server.name} 连接失败`);
@@ -306,7 +254,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   async function deleteMcp(server: McpServer) {
     setBusy(`delete:${server.id}`);
     try {
-      await apiJson(`/api/mcp/${server.id}`, { method: "DELETE" });
+      await settingsApi.deleteMcp(server.id);
       setMcpServers((current) => current.filter((item) => item.id !== server.id));
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "删除 MCP 配置失败");
@@ -319,7 +267,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     setBusy(`tool:${tool.name}`);
     try {
       const next = { enabled: patch.enabled ?? tool.enabled, approval: patch.approval ?? tool.approval };
-      await apiJson("/api/tools", { method: "PATCH", body: JSON.stringify({ toolName: tool.name, ...next }) });
+      await settingsApi.updateTool(tool.name, next);
       setTools((current) => current.map((item) => item.name === tool.name ? { ...item, ...next } : item));
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : "更新工具设置失败");

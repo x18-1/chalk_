@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { apiJson } from '../../lib/client/api';
+import { authApi } from '../../api';
 import styles from './login.module.css';
 
 export default function LoginPage() {
@@ -16,7 +16,7 @@ export default function LoginPage() {
     setError(null);
     setPending(true);
     try {
-      await apiJson('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      await authApi.login(email, password);
     } catch {
       setError('邮箱或密码不正确。');
       setPending(false);

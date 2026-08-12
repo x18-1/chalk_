@@ -5,7 +5,8 @@ import { ArrowRight, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
-import { apiJson, conversationGroup, formatConversationTitle, type Conversation } from "../../lib/client/api";
+import { chatApi } from "../../api";
+import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chats.module.css";
 
 export default function ChatsPage() {
@@ -14,17 +15,17 @@ export default function ChatsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiJson<{ conversations: Conversation[] }>("/api/chat").then((data) => {
+    void chatApi.list().then((data) => {
       setConversations(data.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) })));
     }).catch((loadError) => setError(loadError instanceof Error ? loadError.message : "加载对话失败")).finally(() => setLoading(false));
   }, []);
 
   function renameConversation(id: string, title: string) {
-    void apiJson(`/api/chat/${id}`, { method: "PATCH", body: JSON.stringify({ title }) }).then(() => setConversations((current) => current.map((conversation) => conversation.id === id ? { ...conversation, title } : conversation))).catch((renameError) => setError(renameError instanceof Error ? renameError.message : "重命名失败"));
+    void chatApi.rename(id, title).then(() => setConversations((current) => current.map((conversation) => conversation.id === id ? { ...conversation, title } : conversation))).catch((renameError) => setError(renameError instanceof Error ? renameError.message : "重命名失败"));
   }
 
   function deleteConversation(id: string) {
-    void apiJson(`/api/chat/${id}`, { method: "DELETE" }).then(() => setConversations((current) => current.filter((conversation) => conversation.id !== id))).catch((deleteError) => setError(deleteError instanceof Error ? deleteError.message : "删除失败"));
+    void chatApi.delete(id).then(() => setConversations((current) => current.filter((conversation) => conversation.id !== id))).catch((deleteError) => setError(deleteError instanceof Error ? deleteError.message : "删除失败"));
   }
 
   return <main className={styles.page}>
