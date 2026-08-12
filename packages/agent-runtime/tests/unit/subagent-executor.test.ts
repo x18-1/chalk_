@@ -47,6 +47,7 @@ describe("ForegroundSubagentExecutor", () => {
           model: {
             providerId: faux.provider.id,
             modelId: faux.getModel().id,
+            thinkingLevel: "off",
           },
           systemPrompt: "只分析指定条件。",
         }),

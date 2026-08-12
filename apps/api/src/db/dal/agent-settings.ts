@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '../client';
 import { AuthRequiredError, OwnershipError } from '../errors';
 import { agentSettings, conversations, skillSettings, subagentRuns, toolSettings } from '../schema';
+import type { ModelSelection } from '@chalk/agent-runtime';
 
 function requireUserId(userId: string) {
   if (!userId) throw new AuthRequiredError();
@@ -22,7 +23,7 @@ export function createAgentSettingsDal(db: Database) {
 
     async setDefaultModel(
       userId: string,
-      model: { providerId: string; modelId: string },
+      model: ModelSelection,
     ) {
       requireUserId(userId);
       const rows = await db
@@ -31,12 +32,14 @@ export function createAgentSettingsDal(db: Database) {
           userId,
           defaultProviderId: model.providerId,
           defaultModelId: model.modelId,
+          defaultThinkingLevel: model.thinkingLevel,
         })
         .onConflictDoUpdate({
           target: agentSettings.userId,
           set: {
             defaultProviderId: model.providerId,
             defaultModelId: model.modelId,
+            defaultThinkingLevel: model.thinkingLevel,
             updatedAt: new Date(),
           },
         })

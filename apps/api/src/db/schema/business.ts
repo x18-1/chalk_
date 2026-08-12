@@ -89,6 +89,7 @@ export const agentSettings = pgTable('agent_settings', {
     .references(() => authUsers.id, { onDelete: 'cascade' }),
   defaultProviderId: text('default_provider_id'),
   defaultModelId: text('default_model_id'),
+  defaultThinkingLevel: text('default_thinking_level').default('off').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -1,5 +1,8 @@
+import { PassThrough } from 'node:stream';
+
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { MODEL_THINKING_LEVELS } from '@chalk/agent-runtime';
 
 import type { AuthModule } from '../../auth/auth-module';
 import { getDb } from '../../db/client';
@@ -11,6 +14,7 @@ const updateSchema = z.object({ title: z.string().trim().min(1).max(160) });
 const modelSchema = z.object({
   providerId: z.string().min(1).max(100),
   modelId: z.string().min(1).max(200),
+  thinkingLevel: z.enum(MODEL_THINKING_LEVELS),
 });
 const streamSchema = z.object({
   message: z.string().trim().min(1).max(20_000),
@@ -108,23 +112,24 @@ export function registerChatRoutes(app: FastifyInstance, auth: AuthModule) {
     const { id } = idParams.parse(request.params);
     const run = await chat.createMessageRun(user.id, id, streamSchema.parse(request.body));
 
-    reply.hijack();
-    reply.raw.writeHead(200, {
+    const stream = new PassThrough();
+    reply.headers({
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
+    reply.send(stream);
 
     let closed = false;
     const send = (type: string, data: unknown) => {
-      if (!closed && !reply.raw.destroyed) reply.raw.write(sse(type, data));
+      if (!closed && !stream.destroyed) stream.write(sse(type, data));
     };
     const abort = () => {
       if (!closed) run.abort();
     };
     request.raw.once('aborted', abort);
-    reply.raw.once('close', abort);
+    stream.once('close', abort);
 
     void run.start((event) => send(event.type, event))
       .then(async (result) => {
@@ -139,8 +144,9 @@ export function registerChatRoutes(app: FastifyInstance, auth: AuthModule) {
       .finally(() => {
         closed = true;
         request.raw.removeListener('aborted', abort);
-        reply.raw.removeListener('close', abort);
-        if (!reply.raw.destroyed) reply.raw.end();
+        stream.removeListener('close', abort);
+        if (!stream.destroyed) stream.end();
       });
+    return reply;
   });
 }

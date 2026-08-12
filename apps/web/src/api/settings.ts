@@ -1,16 +1,45 @@
 import { apiJson } from './client';
-import type { ModelRef } from './chat';
+import type { ModelSelection, ThinkingLevel } from './chat';
 
-export type Provider = { id: string; name: string; configured: boolean; modelCount: number; authSource?: string };
-export type CustomProvider = { id: string; name: string; baseUrl: string; api: string; modelIds: unknown; enabled: boolean; configured: boolean };
+export type Provider = {
+  id: string;
+  name: string;
+  configured: boolean;
+  canRemoveCredential: boolean;
+  modelCount: number;
+  custom: boolean;
+  baseUrl?: string;
+  api?: 'openai-completions';
+  models?: CustomModel[];
+  enabled?: boolean;
+};
+export type CustomModel = {
+  id: string;
+  name: string;
+  reasoning: boolean;
+  input: Array<'text' | 'image'>;
+  contextWindow: number;
+  maxTokens: number;
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+};
 export type Skill = { name: string; description: string; filePath: string; enabled: boolean; source: { id: string; label: string; trusted: boolean }; disableModelInvocation: boolean };
 export type McpServer = { id: string; name: string; transport: 'stdio' | 'sse' | 'http'; command: string | null; args: unknown; url: string | null; enabled: boolean; configuredEnv: boolean };
 export type Tool = { name: string; label: string; description: string; source: string; requiresApproval: boolean; enabled: boolean; approval: 'default' | 'always' | 'never' };
-export type Model = { id: string; name: string; providerId: string };
+export type Model = {
+  id: string;
+  name: string;
+  providerId: string;
+  reasoning: boolean;
+  thinkingLevels: ThinkingLevel[];
+  input: string[];
+  contextWindow: number;
+  maxTokens: number;
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+};
 
 export const settingsApi = {
   providers() {
-    return apiJson<{ providers: Provider[]; customProviders: CustomProvider[]; defaultModel: ModelRef | null }>('/providers');
+    return apiJson<{ providers: Provider[]; defaultModel: ModelSelection | null }>('/providers');
   },
 
   async load() {
@@ -29,19 +58,27 @@ export const settingsApi = {
   },
 
   saveCredential(providerId: string, apiKey: string) {
-    return apiJson(`/providers/${encodeURIComponent(providerId)}/credential`, { method: 'PUT', body: JSON.stringify({ apiKey }) });
+    return apiJson<{ providerId: string; configured: boolean }>(`/providers/${encodeURIComponent(providerId)}/credential`, { method: 'PUT', body: JSON.stringify({ apiKey }) });
   },
 
   removeCredential(providerId: string) {
-    return apiJson(`/providers/${encodeURIComponent(providerId)}/credential`, { method: 'DELETE' });
+    return apiJson<{ providerId: string; configured: boolean; canRemoveCredential: false }>(`/providers/${encodeURIComponent(providerId)}/credential`, { method: 'DELETE' });
   },
 
-  saveDefaultModel(model: ModelRef) {
+  testProvider(providerId: string, modelId: string) {
+    return apiJson<{ ok: boolean; providerId: string; modelId: string; durationMs?: number; error?: string }>(`/providers/${encodeURIComponent(providerId)}/test`, { method: 'POST', body: JSON.stringify({ modelId }) });
+  },
+
+  saveDefaultModel(model: ModelSelection) {
     return apiJson('/settings/model', { method: 'PUT', body: JSON.stringify(model) });
   },
 
-  createCustomProvider(input: { name: string; baseUrl: string; modelIds: string[]; apiKey?: string }) {
-    return apiJson<{ provider: CustomProvider }>('/providers/custom', { method: 'POST', body: JSON.stringify(input) });
+  createCustomProvider(input: { name: string; baseUrl: string; models: CustomModel[]; apiKey?: string }) {
+    return apiJson<{ provider: Provider }>('/providers/custom', { method: 'POST', body: JSON.stringify(input) });
+  },
+
+  updateCustomProvider(id: string, input: { name: string; baseUrl: string; models: CustomModel[]; apiKey?: string }) {
+    return apiJson<{ provider: Provider }>(`/providers/custom/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
   },
 
   deleteCustomProvider(id: string) {

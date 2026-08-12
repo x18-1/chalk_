@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
@@ -15,6 +15,7 @@ import {
   Activity,
   ArrowUp,
   BookOpen,
+  BrainCircuit,
   Check,
   ChevronDown,
   FileText,
@@ -23,13 +24,15 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pause,
+  Search,
   Sparkles,
   SquarePen,
   X,
 } from "lucide-react";
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
-import { chatApi, settingsApi, uploadsApi, type Conversation, type ModelRef } from "../../api";
+import { SettingsDialog } from "../../components/settings-dialog";
+import { chatApi, settingsApi, uploadsApi, type Conversation, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chat.module.css";
 
@@ -67,6 +70,33 @@ function formatMessageTime(timestamp: unknown) {
   return new Date(timestamp).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
+function defaultThinkingLevel(model: Model): ThinkingLevel {
+  return model.thinkingLevels.includes("medium") ? "medium" : model.thinkingLevels[0] ?? "off";
+}
+
+function resolveModelSelection(models: Model[], requested: ModelSelection | null): ModelSelection | null {
+  const requestedModel = requested
+    ? models.find((model) => model.providerId === requested.providerId && model.id === requested.modelId)
+    : undefined;
+  if (requested && requestedModel) {
+    return {
+      providerId: requested.providerId,
+      modelId: requested.modelId,
+      thinkingLevel: requestedModel.thinkingLevels.includes(requested.thinkingLevel)
+        ? requested.thinkingLevel
+        : defaultThinkingLevel(requestedModel),
+    };
+  }
+  const firstModel = models[0];
+  return firstModel
+    ? { providerId: firstModel.providerId, modelId: firstModel.id, thinkingLevel: defaultThinkingLevel(firstModel) }
+    : null;
+}
+
+function thinkingLevelLabel(level: ThinkingLevel) {
+  return ({ off: "关闭", minimal: "极简", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最大" } as Record<ThinkingLevel, string>)[level];
+}
+
 const initialConversations: typeof defaultSidebarConversations = [];
 
 export default function ChatPage() {
@@ -74,10 +104,13 @@ export default function ChatPage() {
   const [selectedId, setSelectedId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
-  const [model, setModel] = useState("自动选择");
-  const [selectedModel, setSelectedModel] = useState<ModelRef | null>(null);
-  const [modelOptions, setModelOptions] = useState<Array<{ providerId: string; id: string; name: string }>>([]);
+  const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
+  const [modelOptions, setModelOptions] = useState<Model[]>([]);
+  const [modelProviders, setModelProviders] = useState<Provider[]>([]);
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [activeModelProviderId, setActiveModelProviderId] = useState("");
+  const [modelSearch, setModelSearch] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
@@ -87,6 +120,7 @@ export default function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const modelPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => {
     abortControllerRef.current?.abort();
@@ -98,15 +132,17 @@ export default function ChatPage() {
       try {
         const [conversationData, providerData, modelData] = await Promise.all([
           chatApi.list(),
-          settingsApi.providers().then((data) => ({ defaultModel: data.defaultModel })),
+          settingsApi.providers(),
           settingsApi.models(),
         ]);
         if (cancelled) return;
         const nextConversations = conversationData.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }));
         setConversations(nextConversations);
-        setSelectedModel(providerData.defaultModel);
-        setModel(providerData.defaultModel ? `${providerData.defaultModel.providerId} · ${providerData.defaultModel.modelId}` : "自动选择");
+        const nextSelection = resolveModelSelection(modelData.models, providerData.defaultModel);
+        setSelectedModel(nextSelection);
         setModelOptions(modelData.models);
+        setModelProviders(providerData.providers);
+        setActiveModelProviderId(nextSelection?.providerId ?? "");
         const queryId = new URLSearchParams(window.location.search).get("conversation");
         const nextId = queryId && nextConversations.some((conversation) => conversation.id === queryId) ? queryId : nextConversations[0]?.id ?? "";
         if (nextId) {
@@ -123,6 +159,22 @@ export default function ChatPage() {
     // The initial workspace load intentionally runs once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!showModelMenu) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!modelPickerRef.current?.contains(event.target as Node)) setShowModelMenu(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowModelMenu(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showModelMenu]);
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
@@ -143,6 +195,17 @@ export default function ChatPage() {
   }, [messages, isStreaming, selectedId]);
 
   const selectedConversation = conversations.find((conversation) => conversation.id === selectedId) ?? conversations[0];
+  const selectedModelOption = modelOptions.find((option) => option.providerId === selectedModel?.providerId && option.id === selectedModel.modelId);
+  const availableProviderGroups = useMemo(() => modelProviders
+    .filter((provider) => provider.configured)
+    .map((provider) => ({ provider, models: modelOptions.filter((model) => model.providerId === provider.id) }))
+    .filter((group) => group.models.length > 0), [modelOptions, modelProviders]);
+  const activeProviderGroup = availableProviderGroups.find((group) => group.provider.id === activeModelProviderId) ?? availableProviderGroups[0];
+  const visibleModelOptions = useMemo(() => {
+    const query = modelSearch.trim().toLocaleLowerCase();
+    const models = activeProviderGroup?.models ?? [];
+    return query ? models.filter((model) => `${model.name} ${model.id}`.toLocaleLowerCase().includes(query)) : models;
+  }, [activeProviderGroup, modelSearch]);
   const latestStudentMessage = [...messages].reverse().find((message) => message.role === "student");
   const learningContext = {
     label: "数学 · 当前对话",
@@ -213,6 +276,7 @@ export default function ChatPage() {
     let conversationId = selectedId;
     if (!conversationId) conversationId = (await startConversation()) ?? "";
     if (!conversationId) return;
+    setNotice(null);
     const now = new Date();
     const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
     const studentMessage: Message = { id: `student-${Date.now()}`, role: "student", text, time, attachment: attachedFile?.name };
@@ -241,10 +305,14 @@ export default function ChatPage() {
           const completedMessage = data.message;
           setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: messageText(completedMessage.content) } : message));
         }
-        if (type === "error") setNotice(String(data.error ?? "模型请求失败"));
+        if (type === "error") {
+          setMessages((current) => current.filter((message) => message.id !== tutorId || message.text.trim()));
+          setNotice("模型未能完成回答，请稍后重试");
+        }
       }, controller.signal);
     } catch (streamError) {
-      if (!controller.signal.aborted) setNotice(streamError instanceof Error ? streamError.message : "对话请求失败");
+      setMessages((current) => current.filter((message) => message.id !== tutorId || message.text.trim()));
+      if (!controller.signal.aborted) setNotice("连接中断，请重新发送这条消息");
     } finally {
       abortControllerRef.current = null;
       setIsStreaming(false);
@@ -316,6 +384,56 @@ export default function ChatPage() {
     }).catch((deleteError) => setNotice(deleteError instanceof Error ? deleteError.message : "删除失败"));
   }
 
+  function toggleModelMenu() {
+    if (!modelOptions.length) {
+      setSettingsOpen(true);
+      return;
+    }
+    setShowModelMenu((open) => {
+      if (!open) {
+        setActiveModelProviderId(selectedModel?.providerId ?? availableProviderGroups[0]?.provider.id ?? "");
+        setModelSearch("");
+      }
+      return !open;
+    });
+  }
+
+  function selectModel(option: Model) {
+    const selection = {
+      providerId: option.providerId,
+      modelId: option.id,
+      thinkingLevel: defaultThinkingLevel(option),
+    } satisfies ModelSelection;
+    setSelectedModel(selection);
+    setActiveModelProviderId(option.providerId);
+    void settingsApi.saveDefaultModel(selection).catch((saveError) => {
+      setNotice(saveError instanceof Error ? saveError.message : "保存模型选择失败");
+    });
+  }
+
+  function selectModelThinking(option: Model, thinkingLevel: ThinkingLevel) {
+    const selection = { providerId: option.providerId, modelId: option.id, thinkingLevel } satisfies ModelSelection;
+    setSelectedModel(selection);
+    setActiveModelProviderId(option.providerId);
+    void settingsApi.saveDefaultModel(selection).catch((saveError) => {
+      setNotice(saveError instanceof Error ? saveError.message : "保存思考强度失败");
+    });
+  }
+
+  async function reloadModelCatalog() {
+    setSettingsOpen(false);
+    try {
+      const [providerData, modelData] = await Promise.all([settingsApi.providers(), settingsApi.models()]);
+      const nextSelection = resolveModelSelection(modelData.models, selectedModel ?? providerData.defaultModel);
+      setModelProviders(providerData.providers);
+      setModelOptions(modelData.models);
+      setSelectedModel(nextSelection);
+      setActiveModelProviderId(nextSelection?.providerId ?? "");
+    } catch (loadError) {
+      setNotice(loadError instanceof Error ? loadError.message : "刷新模型目录失败");
+    }
+  }
+
   return (
     <main className={`${styles.workspace} ${contextCollapsed ? styles.contextCollapsed : ""}`}>
       <AppSidebar activeSection="chats" conversations={conversations} selectedConversationId={selectedId} onNewConversation={() => { void startConversation(); }} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
@@ -344,7 +462,16 @@ export default function ChatPage() {
               <div className={styles.composerTools}>
                 <input ref={fileInputRef} className="srOnly" type="file" accept="image/*,.pdf" onChange={handleAttachment} />
                 <button className={styles.toolButton} type="button" aria-label="添加附件" title="添加附件" onClick={() => fileInputRef.current?.click()}><Paperclip size={16} /></button>
-                <div className={styles.modelPicker}><button className={styles.modelButton} type="button" aria-expanded={showModelMenu} onClick={() => setShowModelMenu((open) => !open)}><Sparkles size={14} /><span>{model}</span><ChevronDown size={14} /></button>{showModelMenu && <div className={styles.modelMenu}><button type="button" onClick={() => { setSelectedModel(null); setModel("自动选择"); setShowModelMenu(false); }}><span>自动选择</span>{!selectedModel && <Check size={14} />}</button>{modelOptions.map((option) => { const value = `${option.providerId} · ${option.id}`; return <button key={`${option.providerId}/${option.id}`} type="button" onClick={() => { setSelectedModel({ providerId: option.providerId, modelId: option.id }); setModel(value); setShowModelMenu(false); }}><span>{option.name}</span>{model === value && <Check size={14} />}</button>; })}</div>}</div>
+                <div ref={modelPickerRef} className={styles.modelPicker}>
+                  <button className={styles.modelButton} type="button" aria-expanded={showModelMenu} onClick={toggleModelMenu}><Sparkles size={14} /><span>{selectedModelOption?.name ?? (modelOptions.length ? "选择模型" : "配置模型")}</span>{selectedModelOption?.reasoning && <small>{thinkingLevelLabel(selectedModel?.thinkingLevel ?? "off")}</small>}<ChevronDown size={14} /></button>
+                  {showModelMenu && <div className={styles.modelMenu} role="dialog" aria-label="选择模型">
+                    <label className={styles.modelSearch}><Search size={14} /><input value={modelSearch} onChange={(event) => setModelSearch(event.target.value)} placeholder="搜索模型" aria-label="搜索模型" autoFocus /></label>
+                    <div className={styles.modelMenuBody}>
+                      <nav className={styles.modelProviderList} aria-label="已配置 Provider">{availableProviderGroups.map((group) => <button key={group.provider.id} type="button" className={group.provider.id === activeProviderGroup?.provider.id ? styles.modelProviderActive : ""} onClick={() => setActiveModelProviderId(group.provider.id)}><span>{group.provider.name}</span><small>{group.models.length}</small></button>)}</nav>
+                      <div className={styles.modelOptionList}>{visibleModelOptions.length ? visibleModelOptions.map((option) => { const selected = selectedModel?.providerId === option.providerId && selectedModel.modelId === option.id; const level = selected ? selectedModel.thinkingLevel : defaultThinkingLevel(option); return <article key={`${option.providerId}/${option.id}`} className={`${styles.modelOptionRow} ${selected ? styles.modelOptionActive : ""}`}><button type="button" className={styles.modelChoice} aria-pressed={selected} onClick={() => selectModel(option)}><span><strong>{option.name}</strong><small>{option.id}</small></span>{selected && <Check size={15} />}</button><select className={styles.modelReasoningSelect} value={level} onChange={(event) => selectModelThinking(option, event.target.value as ThinkingLevel)} disabled={!option.reasoning} aria-label={`${option.name} 思考强度`}>{option.thinkingLevels.map((thinkingLevel) => <option key={thinkingLevel} value={thinkingLevel}>{thinkingLevelLabel(thinkingLevel)}</option>)}</select></article>; }) : <p>没有匹配的模型</p>}</div>
+                    </div>
+                  </div>}
+                </div>
               </div>
               {isStreaming ? <span className={styles.streamingActions}><button className={styles.steerButton} type="button" onClick={() => void steerMessage()} disabled={!draft.trim()}><ArrowUp size={14} />引导</button><button className={styles.stopButton} type="button" onClick={stopStreaming}><Pause size={15} />停止</button></span> : <button className={styles.sendButton} type="submit" disabled={!draft.trim()} aria-label="发送消息" title="发送消息"><ArrowUp size={17} /></button>}
             </div>
@@ -357,6 +484,7 @@ export default function ChatPage() {
         <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>当前问题</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
         <section className={styles.problemSection}><div className={styles.problemTopline}><span className={styles.problemLabel}>{learningContext.label}</span><span className={styles.contextStatus}><span className={styles.statusDot}></span>{messages.length ? "进行中" : "待开始"}</span></div><p>{learningContext.problem}</p>{showProblemSource && <div className={styles.problemSource}><strong>当前题目</strong><span>{learningContext.problem}</span></div>}<div className={styles.contextActions}><button className={styles.textAction} type="button" onClick={() => setShowProblemSource((visible) => !visible)}><BookOpen size={14} />{showProblemSource ? "收起题目" : "查看题目"}</button></div></section>
       </aside>
+      {settingsOpen && <SettingsDialog onClose={() => { void reloadModelCatalog(); }} />}
     </main>
   );
 }

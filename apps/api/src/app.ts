@@ -27,6 +27,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   await app.register(cors, {
     origin: [...config.webOrigins],
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
   app.addHook('onRequest', async (request, reply) => {

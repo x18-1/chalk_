@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createJsonlSessionRepository } from "../../src/session/session-repository";
 import { createAgentRuntime } from "../../src/runtime/agent-runtime";
@@ -36,7 +36,7 @@ describe("AgentRuntime", () => {
     const runtime = await createAgentRuntime({
       session,
       models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id },
+      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
       systemPrompt: "你是 Chalk 数学老师。",
     });
     const deltas: string[] = [];
@@ -68,9 +68,69 @@ describe("AgentRuntime", () => {
       createAgentRuntime({
         session,
         models: createModels(),
-        model: { providerId: "missing", modelId: "missing" },
+        model: { providerId: "missing", modelId: "missing", thinkingLevel: "off" },
         systemPrompt: "test",
       }),
     ).rejects.toThrow("Model missing/missing is not available");
+  });
+
+  it("applies the selected thinking level to the provider request", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({
+      sessionsRoot: join(directory, "sessions"),
+      cwd: directory,
+    });
+    const session = await sessions.create();
+    const observeReasoning = vi.fn();
+    const faux = fauxProvider({
+      models: [{ id: "reasoning-model", reasoning: true }],
+    });
+    faux.setResponses([
+      (_context, options) => {
+        observeReasoning(options?.reasoning);
+        return fauxAssistantMessage("先列出已知条件。");
+      },
+    ]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const runtime = await createAgentRuntime({
+      session,
+      models,
+      model: {
+        providerId: faux.provider.id,
+        modelId: faux.getModel().id,
+        thinkingLevel: "high",
+      },
+      systemPrompt: "你是 Chalk 数学老师。",
+    });
+
+    await runtime.run("怎么开始？");
+
+    expect(observeReasoning).toHaveBeenCalledWith("high");
+  });
+
+  it("rejects a thinking level unsupported by the selected model", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({
+      sessionsRoot: join(directory, "sessions"),
+      cwd: directory,
+    });
+    const session = await sessions.create();
+    const faux = fauxProvider({ models: [{ id: "plain-model", reasoning: false }] });
+    const models = createModels();
+    models.setProvider(faux.provider);
+
+    await expect(createAgentRuntime({
+      session,
+      models,
+      model: {
+        providerId: faux.provider.id,
+        modelId: faux.getModel().id,
+        thinkingLevel: "high",
+      },
+      systemPrompt: "test",
+    })).rejects.toThrow("Thinking level high is not supported");
   });
 });

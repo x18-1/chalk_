@@ -8,13 +8,15 @@ export type Conversation = {
   updatedAt: string;
 };
 
+export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type ModelRef = { providerId: string; modelId: string };
+export type ModelSelection = ModelRef & { thinkingLevel: ThinkingLevel };
 export type ChatModel = { providerId: string; id: string; name: string };
 export type ChatMessage = Record<string, unknown>;
 export type CompletedChatMessage = { role?: unknown; content?: unknown };
 export type ChatStreamInput = {
   message: string;
-  model?: ModelRef;
+  model?: ModelSelection;
   attachmentIds?: string[];
 };
 export type ChatStreamEvent = { type: string; data: Record<string, unknown> & { message?: CompletedChatMessage } };

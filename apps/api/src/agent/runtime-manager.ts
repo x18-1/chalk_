@@ -5,12 +5,14 @@ import {
   createAgentRuntime,
   createJsonlSessionRepository,
   createModelCatalog,
+  parseModelThinkingLevel,
   McpManager,
   ForegroundSubagentExecutor,
   createSubagentTool,
   SkillRegistry,
   type ApprovalPort,
-  type ModelRef,
+  type CustomOpenAiModel,
+  type ModelSelection,
   type RuntimeSession,
   type ToolApprovalMode,
 } from '@chalk/agent-runtime';
@@ -148,7 +150,7 @@ type RuntimeEntry = {
   session: RuntimeSession;
   approvals: ApprovalBroker;
   mcp: McpManager;
-  model: ModelRef;
+  model: ModelSelection;
 };
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
@@ -178,15 +180,43 @@ async function createCatalog(userId: string) {
         id: provider.id,
         name: provider.name,
         baseUrl: provider.baseUrl,
-        modelIds: Array.isArray(provider.modelIds)
-          ? provider.modelIds.filter((model): model is string => typeof model === 'string')
-          : [],
+        models: parseCustomModels(provider.modelIds),
         ...(provider.apiKeyEnc ? { apiKey: decrypt(provider.apiKeyEnc) } : {}),
       })),
   });
 }
 
-export async function selectModel(userId: string, requested?: ModelRef) {
+function parseCustomModels(value: unknown): CustomOpenAiModel[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((model) => {
+    if (typeof model === 'string') {
+      return [{ id: model, name: model, reasoning: false, input: ['text', 'image'], contextWindow: 128_000, maxTokens: 8_192, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }];
+    }
+    if (!model || typeof model !== 'object') return [];
+    const candidate = model as Record<string, unknown>;
+    if (typeof candidate.id !== 'string' || typeof candidate.name !== 'string') return [];
+    const cost = candidate.cost && typeof candidate.cost === 'object' ? candidate.cost as Record<string, unknown> : {};
+    return [{
+      id: candidate.id,
+      name: candidate.name,
+      reasoning: candidate.reasoning === true,
+      input: (Array.isArray(candidate.input) && candidate.input.includes('image') ? ['text', 'image'] : ['text']) as ('text' | 'image')[],
+      contextWindow: typeof candidate.contextWindow === 'number' ? candidate.contextWindow : 128_000,
+      maxTokens: typeof candidate.maxTokens === 'number' ? candidate.maxTokens : 8_192,
+      cost: {
+        input: typeof cost.input === 'number' ? cost.input : 0,
+        output: typeof cost.output === 'number' ? cost.output : 0,
+        cacheRead: typeof cost.cacheRead === 'number' ? cost.cacheRead : 0,
+        cacheWrite: typeof cost.cacheWrite === 'number' ? cost.cacheWrite : 0,
+      },
+    }];
+  });
+}
+
+export async function selectModel(
+  userId: string,
+  requested?: ModelSelection,
+): Promise<{ catalog: Awaited<ReturnType<typeof createCatalog>>; model: ModelSelection }> {
   const catalog = await createCatalog(userId);
   if (requested) return { catalog, model: requested };
 
@@ -197,6 +227,7 @@ export async function selectModel(userId: string, requested?: ModelRef) {
       model: {
         providerId: settings.defaultProviderId,
         modelId: settings.defaultModelId,
+        thinkingLevel: parseModelThinkingLevel(settings.defaultThinkingLevel),
       },
     };
   }
@@ -208,7 +239,7 @@ export async function selectModel(userId: string, requested?: ModelRef) {
   if (!preferred) throw new Error('No configured model is available');
   return {
     catalog,
-    model: { providerId: preferred.providerId, modelId: preferred.id },
+    model: { providerId: preferred.providerId, modelId: preferred.id, thinkingLevel: 'off' },
   };
 }
 
@@ -233,19 +264,24 @@ export async function loadUserSkills(userId: string) {
 export async function getOrCreateRuntime(
   userId: string,
   conversation: { id: string; sessionId: string },
-  requestedModel?: ModelRef,
+  requestedModel?: ModelSelection,
 ) {
   const db = getDb();
   const settings = await createAgentSettingsDal(db).get(userId);
   const selectedModel = requestedModel ?? (
     settings?.defaultProviderId && settings.defaultModelId
-      ? { providerId: settings.defaultProviderId, modelId: settings.defaultModelId }
+      ? {
+          providerId: settings.defaultProviderId,
+          modelId: settings.defaultModelId,
+          thinkingLevel: parseModelThinkingLevel(settings.defaultThinkingLevel),
+        }
       : undefined
   );
   const existing = activeRuntimes.get(conversation.id);
   if (existing && (!selectedModel ||
     existing.model.providerId === selectedModel.providerId &&
-    existing.model.modelId === selectedModel.modelId)) {
+    existing.model.modelId === selectedModel.modelId &&
+    existing.model.thinkingLevel === selectedModel.thinkingLevel)) {
     return existing;
   }
   if (existing) await closeRuntime(conversation.id);
@@ -326,6 +362,7 @@ export async function getOrCreateRuntime(
             ...(context.conversationId ? { conversationId: context.conversationId } : {}),
             modelProviderId: model.providerId,
             modelId: model.modelId,
+            thinkingLevel: model.thinkingLevel,
           },
         },
       }),
@@ -363,6 +400,7 @@ export async function getOrCreateRuntime(
         conversationId: conversation.id,
         modelProviderId: model.providerId,
         modelId: model.modelId,
+        thinkingLevel: model.thinkingLevel,
       },
     },
   });

@@ -3,10 +3,11 @@ import type {
   AuthContext,
   CredentialStore,
   Model,
+  ModelThinkingLevel,
   Models,
   MutableModels,
 } from "@earendil-works/pi-ai";
-import { createProvider } from "@earendil-works/pi-ai";
+import { createProvider, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 
@@ -15,11 +16,45 @@ export type ModelRef = {
   modelId: string;
 };
 
+export const MODEL_THINKING_LEVELS = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const satisfies readonly ModelThinkingLevel[];
+
+export const EXCLUDED_MODEL_PROVIDER_IDS = [
+  "amazon-bedrock",
+  "baseten",
+  "cerebras",
+  "cloudflare-ai-gateway",
+  "cloudflare-workers-ai",
+  "fireworks",
+  "github-copilot",
+  "huggingface",
+] as const;
+
+export function parseModelThinkingLevel(value: unknown): ModelThinkingLevel {
+  if (
+    typeof value === "string" &&
+    (MODEL_THINKING_LEVELS as readonly string[]).includes(value)
+  ) {
+    return value as ModelThinkingLevel;
+  }
+  throw new Error(`Invalid model thinking level: ${String(value)}`);
+}
+
+export type ModelSelection = ModelRef & {
+  thinkingLevel: ModelThinkingLevel;
+};
+
 export type ProviderSummary = {
   id: string;
   name: string;
   configured: boolean;
-  authSource?: string;
   modelCount: number;
 };
 
@@ -28,17 +63,51 @@ export type ModelSummary = {
   name: string;
   providerId: string;
   reasoning: boolean;
+  thinkingLevels: readonly ModelThinkingLevel[];
   input: readonly string[];
   contextWindow: number;
   maxTokens: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+  };
 };
+
+export class UnsupportedThinkingLevelError extends Error {
+  constructor(
+    readonly selection: ModelSelection,
+    readonly supportedLevels: readonly ModelThinkingLevel[],
+  ) {
+    super(
+      `Thinking level ${selection.thinkingLevel} is not supported by ${selection.providerId}/${selection.modelId}`,
+    );
+    this.name = "UnsupportedThinkingLevelError";
+  }
+}
 
 export type CustomOpenAiProvider = {
   id: string;
   name: string;
   baseUrl: string;
   apiKey?: string;
-  modelIds: readonly string[];
+  models: readonly CustomOpenAiModel[];
+};
+
+export type CustomOpenAiModel = {
+  id: string;
+  name: string;
+  reasoning: boolean;
+  input: readonly ("text" | "image")[];
+  contextWindow: number;
+  maxTokens: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+  };
 };
 
 export type CreateModelCatalogOptions = {
@@ -52,19 +121,20 @@ function registerCustomProviders(
   providers: readonly CustomOpenAiProvider[],
 ) {
   for (const provider of providers) {
-    const providerModels = provider.modelIds.map(
-      (id) =>
+    const providerModels = provider.models.map(
+      (model) =>
         ({
-          id,
-          name: id,
+          id: model.id,
+          name: model.name,
           api: "openai-completions",
           provider: provider.id,
           baseUrl: provider.baseUrl,
-          reasoning: false,
-          input: ["text", "image"],
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          contextWindow: 128_000,
-          maxTokens: 8_192,
+          reasoning: model.reasoning,
+          input: [...model.input],
+          cost: model.cost,
+          contextWindow: model.contextWindow,
+          maxTokens: model.maxTokens,
+          ...(model.reasoning ? { compat: { supportsReasoningEffort: true } } : {}),
         }) satisfies Model<"openai-completions">,
     );
 
@@ -105,7 +175,6 @@ export class ModelCatalog {
             id: provider.id,
             name: provider.name,
             configured: auth !== undefined,
-            ...(auth?.source ? { authSource: auth.source } : {}),
             modelCount: provider.getModels().length,
           };
         } catch {
@@ -126,9 +195,11 @@ export class ModelCatalog {
       name: model.name,
       providerId: model.provider,
       reasoning: model.reasoning,
+      thinkingLevels: getSupportedThinkingLevels(model),
       input: model.input,
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
+      cost: model.cost,
     }));
   }
 
@@ -139,9 +210,11 @@ export class ModelCatalog {
       name: model.name,
       providerId: model.provider,
       reasoning: model.reasoning,
+      thinkingLevels: getSupportedThinkingLevels(model),
       input: model.input,
       contextWindow: model.contextWindow,
       maxTokens: model.maxTokens,
+      cost: model.cost,
     }));
   }
 
@@ -175,6 +248,39 @@ export class ModelCatalog {
     return model;
   }
 
+  async resolveSelection(selection: ModelSelection): Promise<Model<Api>> {
+    const model = await this.resolve(selection);
+    const supportedLevels = getSupportedThinkingLevels(model);
+    if (!supportedLevels.includes(selection.thinkingLevel)) {
+      throw new UnsupportedThinkingLevelError(selection, supportedLevels);
+    }
+    return model;
+  }
+
+  async testConnection(ref: ModelRef) {
+    const model = await this.resolve(ref);
+    const startedAt = Date.now();
+    const response = await this.models.completeSimple(
+      model,
+      {
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "Reply with OK." }],
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      { maxTokens: 8, maxRetries: 0, timeoutMs: 15_000 },
+    );
+    return {
+      providerId: ref.providerId,
+      modelId: ref.modelId,
+      durationMs: Date.now() - startedAt,
+      usage: response.usage,
+    };
+  }
+
   streamSimple: Models["streamSimple"] = (model, context, options) =>
     this.models.streamSimple(model, context, options);
 }
@@ -186,6 +292,9 @@ export function createModelCatalog(
     ...(options.credentials ? { credentials: options.credentials } : {}),
     ...(options.authContext ? { authContext: options.authContext } : {}),
   });
+  for (const providerId of EXCLUDED_MODEL_PROVIDER_IDS) {
+    models.deleteProvider(providerId);
+  }
   registerCustomProviders(models, options.customProviders ?? []);
   return new ModelCatalog(models);
 }

@@ -1,4 +1,9 @@
-import type { AgentRuntimeEvent, ModelRef, RuntimeRunResult } from '@chalk/agent-runtime';
+import {
+  UnsupportedThinkingLevelError,
+  type AgentRuntimeEvent,
+  type ModelSelection,
+  type RuntimeRunResult,
+} from '@chalk/agent-runtime';
 import type { ImageContent } from '@earendil-works/pi-ai';
 
 import {
@@ -16,7 +21,7 @@ import { readUploadedObject } from '../../storage/s3';
 
 export type ChatStreamInput = {
   message: string;
-  model?: ModelRef;
+  model?: ModelSelection;
   attachmentIds: string[];
 };
 
@@ -154,7 +159,15 @@ export class ChatService {
     const prompt = documents.length
       ? `${input.message}\n\n已附加文件：${documents.map((attachment) => attachment.filename).join('、')}。当前版本不会自动读取 PDF 正文，请根据学生提供的文字继续，并在需要正文时明确询问。`
       : input.message;
-    const entry = await getOrCreateRuntime(userId, conversation, input.model);
+    let entry;
+    try {
+      entry = await getOrCreateRuntime(userId, conversation, input.model);
+    } catch (error) {
+      if (error instanceof UnsupportedThinkingLevelError) {
+        throw new ApiError(400, error.message, 'UNSUPPORTED_THINKING_LEVEL');
+      }
+      throw error;
+    }
 
     return {
       abort: () => entry.runtime.abort(),

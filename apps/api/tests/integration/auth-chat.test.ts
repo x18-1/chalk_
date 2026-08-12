@@ -15,7 +15,12 @@ import { closeDb, getDb } from '../../src/db/client';
 import { createAttachmentsDal, createSubagentRunsDal } from '../../src/db/dal';
 import { OwnershipError } from '../../src/db/errors';
 import { authUsers, conversations } from '../../src/db/schema';
-import { createSession, deleteSession } from '../../src/agent/runtime-manager';
+import {
+  closeRuntime,
+  createSession,
+  deleteSession,
+  getOrCreateRuntime,
+} from '../../src/agent/runtime-manager';
 
 const email = `api-test-${randomBytes(6).toString('hex')}@chalk.local`;
 const password = `test-${randomBytes(12).toString('hex')}`;
@@ -152,6 +157,141 @@ describe('API auth and chat interface', () => {
     });
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({ code: 'ORIGIN_NOT_ALLOWED' });
+  });
+
+  it('allows configured browser origins to preflight every mutating method', async () => {
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      const response = await app.inject({
+        method: 'OPTIONS',
+        url: '/settings/model',
+        headers: {
+          origin: 'http://localhost:3000',
+          'access-control-request-method': method,
+          'access-control-request-headers': 'content-type',
+        },
+      });
+      expect(response.statusCode).toBe(204);
+      expect(response.headers['access-control-allow-origin']).toBe('http://localhost:3000');
+      expect(response.headers['access-control-allow-methods']).toContain(method);
+    }
+  });
+
+  it('only advertises credential removal for a user-stored credential', async () => {
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/providers/anthropic/credential',
+      headers: { cookie },
+      payload: { apiKey: 'test-stored-anthropic-key' },
+    });
+    expect(saved.statusCode).toBe(200);
+
+    const configured = await app.inject({ method: 'GET', url: '/providers', headers: { cookie } });
+    expect(configured.statusCode).toBe(200);
+    expect(configured.json().providers).toContainEqual(expect.objectContaining({
+      id: 'anthropic',
+      configured: true,
+      canRemoveCredential: true,
+    }));
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: '/providers/anthropic/credential',
+      headers: { cookie },
+    });
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json()).toMatchObject({ providerId: 'anthropic', canRemoveCredential: false });
+
+    const afterRemoval = await app.inject({ method: 'GET', url: '/providers', headers: { cookie } });
+    expect(afterRemoval.statusCode).toBe(200);
+    expect(afterRemoval.json().providers).toContainEqual(expect.objectContaining({
+      id: 'anthropic',
+      canRemoveCredential: false,
+    }));
+  });
+
+  it('persists a supported thinking level and rejects an unsupported one', async () => {
+    const customModel = {
+      id: 'test-chat-model',
+      name: 'Test Chat Model',
+      reasoning: false,
+      input: ['text', 'image'],
+      contextWindow: 128_000,
+      maxTokens: 8_192,
+      cost: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 1.25 },
+    };
+    const created = await app.inject({
+      method: 'POST',
+      url: '/providers/custom',
+      headers: { cookie },
+      payload: {
+        name: 'Test OpenAI-compatible provider',
+        baseUrl: 'https://models.example.test/v1',
+        apiKey: 'test-api-key',
+        models: [customModel],
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().provider).toMatchObject({
+      name: 'Test OpenAI-compatible provider',
+      configured: true,
+      canRemoveCredential: true,
+      models: [customModel],
+    });
+    expect(JSON.stringify(created.json())).not.toContain('test-api-key');
+    const providerId = created.json().provider.id as string;
+
+    const customProviders = await app.inject({ method: 'GET', url: '/providers/custom', headers: { cookie } });
+    expect(customProviders.statusCode).toBe(200);
+    expect(customProviders.json().providers).toContainEqual(expect.objectContaining({
+      id: providerId,
+      canRemoveCredential: true,
+      models: [customModel],
+    }));
+
+    const models = await app.inject({ method: 'GET', url: `/models?provider=${providerId}`, headers: { cookie } });
+    expect(models.statusCode).toBe(200);
+    expect(models.json().models).toContainEqual(expect.objectContaining({
+      ...customModel,
+      providerId,
+      thinkingLevels: ['off'],
+    }));
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/settings/model',
+      headers: { cookie },
+      payload: { providerId, modelId: 'test-chat-model', thinkingLevel: 'off' },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().defaultModel).toEqual({
+      providerId,
+      modelId: 'test-chat-model',
+      thinkingLevel: 'off',
+    });
+
+    const settings = await app.inject({ method: 'GET', url: '/settings', headers: { cookie } });
+    expect(settings.statusCode).toBe(200);
+    expect(settings.json().defaultModel).toEqual(saved.json().defaultModel);
+
+    const conversationResponse = await app.inject({
+      method: 'POST',
+      url: '/chat',
+      headers: { cookie },
+      payload: {},
+    });
+    const conversation = conversationResponse.json().conversation;
+    const runtime = await getOrCreateRuntime(userId, conversation);
+    expect(runtime.model).toEqual(saved.json().defaultModel);
+    await closeRuntime(conversation.id);
+
+    const unsupported = await app.inject({
+      method: 'PUT',
+      url: '/settings/model',
+      headers: { cookie },
+      payload: { providerId, modelId: 'test-chat-model', thinkingLevel: 'high' },
+    });
+    expect(unsupported.statusCode).toBe(400);
+    expect(unsupported.json()).toMatchObject({ code: 'UNSUPPORTED_THINKING_LEVEL' });
   });
 
   it('rejects credential-bearing MCP URLs at the API seam', async () => {

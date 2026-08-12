@@ -15,7 +15,9 @@ test('student can sign in and open the real settings surface', async ({ page }) 
   await page.getByRole('menuitem', { name: '设置' }).click();
   const dialog = page.getByRole('dialog', { name: '设置' });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole('heading', { name: '模型连接' })).toBeVisible();
+  await expect(dialog.getByRole('tab', { name: 'API' })).toHaveAttribute('aria-selected', 'true');
+  await expect(dialog.getByRole('tab', { name: '大模型' })).toHaveAttribute('aria-selected', 'true');
+  await expect(dialog.getByRole('complementary', { name: '模型 Provider' })).toBeVisible();
 
   for (const tab of ['Skills', 'MCP', 'Tools']) {
     await dialog.getByRole('tab', { name: tab }).click();

@@ -8,11 +8,16 @@ export {
 export {
   ModelCatalog,
   createModelCatalog,
+  MODEL_THINKING_LEVELS,
+  parseModelThinkingLevel,
   type CreateModelCatalogOptions,
   type CustomOpenAiProvider,
+  type CustomOpenAiModel,
   type ModelRef,
+  type ModelSelection,
   type ModelSummary,
   type ProviderSummary,
+  UnsupportedThinkingLevelError,
 } from "./models/model-catalog";
 export {
   createJsonlSessionRepository,

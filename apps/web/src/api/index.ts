@@ -7,10 +7,12 @@ export {
   type ChatStreamEvent,
   type Conversation,
   type ModelRef,
+  type ModelSelection,
+  type ThinkingLevel,
 } from './chat';
 export {
   settingsApi,
-  type CustomProvider,
+  type CustomModel,
   type McpServer,
   type Model,
   type Provider,

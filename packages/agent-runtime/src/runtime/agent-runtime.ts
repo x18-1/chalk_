@@ -16,7 +16,7 @@ import type { ImageContent, Models } from "@earendil-works/pi-ai";
 import {
   createModelCatalogFromModels,
   type ModelCatalog,
-  type ModelRef,
+  type ModelSelection,
 } from "../models/model-catalog";
 import type { RuntimeSession } from "../session/session-repository";
 import {
@@ -67,7 +67,7 @@ export type RuntimeRunResult = {
 export type CreateAgentRuntimeOptions = {
   session: RuntimeSession;
   models: Models | ModelCatalog;
-  model: ModelRef;
+  model: ModelSelection;
   systemPrompt: string;
   tools?: AgentTool[];
   telemetry?: RuntimeTelemetryOptions;
@@ -294,7 +294,7 @@ export async function createAgentRuntime(
     options.models instanceof Object && "resolve" in options.models
       ? (options.models as ModelCatalog)
       : createModelCatalogFromModels(options.models as Models);
-  const model = await catalog.resolve(options.model);
+  const model = await catalog.resolveSelection(options.model);
   const allHistory = await options.session.getMessages();
   const lastSummaryIndex = allHistory.reduce(
     (index, message, current) =>
@@ -350,7 +350,7 @@ export async function createAgentRuntime(
     initialState: {
       systemPrompt: options.systemPrompt,
       model,
-      thinkingLevel: "off",
+      thinkingLevel: options.model.thinkingLevel,
       tools: options.tools ?? [],
       messages: history,
     },
