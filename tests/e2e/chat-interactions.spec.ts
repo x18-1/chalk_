@@ -155,6 +155,7 @@ test('restores thinking and multiple tool results from durable history', async (
     await expect(page.getByText('题目结构检查')).toBeVisible();
     await expect(page.getByText('MCP · very long relationship verification tool name')).toBeVisible();
     await expect(page.getByText('工具调用已完成。')).toHaveCount(2);
+    await expect(page.getByText('先识别已知条件，再检查可以直接使用的关系。')).toBeHidden();
 
     await page.getByText('思考过程', { exact: true }).click();
     await expect(page.getByText('先识别已知条件，再检查可以直接使用的关系。')).toBeVisible();

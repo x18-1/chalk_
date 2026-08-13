@@ -839,13 +839,29 @@ function MessageBubble({
 }
 
 function ThinkingDisclosure({ thinking }: { thinking: NonNullable<Message["thinking"]> }) {
-  return <details className={styles.thinkingDisclosure} open={thinking.state === "running"}>
-    <summary><BrainCircuit size={15} /><span>{thinking.state === "running" ? "正在思考" : "思考过程"}</span><ChevronDown size={14} className={styles.disclosureChevron} /></summary>
+  const running = thinking.state === "running";
+  return <details className={`${styles.thinkingDisclosure} ${running ? styles.thinkingRunning : ""}`} open={running}>
+    <summary>
+      <BrainCircuit size={15} />
+      <span>{running ? "正在思考" : "思考过程"}</span>
+      <ChevronDown size={14} className={styles.disclosureChevron} />
+    </summary>
     <div className={styles.thinkingContent}>{thinking.text}</div>
   </details>;
 }
 
 function ToolActivity({ tool, onApprove, onDeny }: { tool: MessageTool; onApprove: () => void; onDeny: () => void }) {
   const detail = tool.state === "approval" ? "这一步需要你的确认。" : tool.state === "error" ? "这次工具调用没有完成。" : tool.state === "rejected" ? "你已拒绝这次工具调用。" : tool.state === "running" ? "正在处理当前学习任务。" : "工具调用已完成。";
-  return <div className={`${styles.toolActivity} ${styles[`tool_${tool.state}`]}`}><div className={styles.toolIcon}>{tool.state === "running" ? <LoaderCircle size={15} className={styles.spin} /> : tool.state === "error" || tool.state === "rejected" ? <X size={15} /> : tool.state === "complete" ? <Check size={15} /> : <Activity size={15} />}</div><div className={styles.toolCopy}><strong>{tool.label}</strong><p>{detail}</p>{tool.result && <details className={styles.toolResult}><summary>查看结果<ChevronDown size={13} /></summary><p>{tool.result}</p></details>}{tool.state === "approval" && <div className={styles.approvalActions}><button className={styles.approveButton} type="button" onClick={onApprove}><Check size={14} />允许</button><button className={styles.denyButton} type="button" onClick={onDeny}>拒绝</button></div>}</div></div>;
+  return <div className={`${styles.toolActivity} ${styles[`tool_${tool.state}`]}`}>
+    <div className={styles.toolIcon}>{tool.state === "running" ? <LoaderCircle size={15} className={styles.spin} /> : tool.state === "error" || tool.state === "rejected" ? <X size={15} /> : tool.state === "complete" ? <Check size={15} /> : <Activity size={15} />}</div>
+    <div className={styles.toolCopy}>
+      <strong title={tool.label}>{tool.label}</strong>
+      <p>{detail}</p>
+      {tool.result && <details className={styles.toolResult}>
+        <summary>查看结果<ChevronDown size={13} /></summary>
+        <p>{tool.result}</p>
+      </details>}
+      {tool.state === "approval" && <div className={styles.approvalActions}><button className={styles.approveButton} type="button" onClick={onApprove}><Check size={14} />允许</button><button className={styles.denyButton} type="button" onClick={onDeny}>拒绝</button></div>}
+    </div>
+  </div>;
 }
