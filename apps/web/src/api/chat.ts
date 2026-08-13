@@ -1,4 +1,4 @@
-import { apiJson, apiUrl } from './client';
+import { ApiRequestError, apiJson, apiUrl } from './client';
 
 export type Conversation = {
   id: string;
@@ -13,7 +13,7 @@ export type ModelRef = { providerId: string; modelId: string };
 export type ModelSelection = ModelRef & { thinkingLevel: ThinkingLevel };
 export type ChatModel = { providerId: string; id: string; name: string };
 export type ChatMessage = Record<string, unknown>;
-export type CompletedChatMessage = { role?: unknown; content?: unknown };
+export type CompletedChatMessage = { role?: unknown; content?: unknown; stopReason?: unknown };
 export type ChatStreamInput = {
   message: string;
   model?: ModelSelection;
@@ -112,7 +112,14 @@ export const chatApi = {
       body: JSON.stringify(input),
       signal,
     });
-    if (!response.ok || !response.body) throw new Error('对话请求失败');
+    if (!response.ok || !response.body) {
+      const body = await response.json().catch(() => ({})) as { error?: string; code?: string };
+      throw new ApiRequestError(
+        response.status,
+        body.error ?? '对话请求失败',
+        body.code,
+      );
+    }
     await consumeEventStream(response.body, onEvent);
   },
 };
