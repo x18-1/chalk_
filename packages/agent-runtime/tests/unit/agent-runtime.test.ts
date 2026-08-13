@@ -6,11 +6,15 @@ import {
   createModels,
   fauxAssistantMessage,
   fauxProvider,
+  fauxThinking,
+  fauxToolCall,
 } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createJsonlSessionRepository } from "../../src/session/session-repository";
 import { createAgentRuntime } from "../../src/runtime/agent-runtime";
+import { ToolRegistry, type RuntimeTool } from "../../src/tools/tool-registry";
 
 const temporaryDirectories: string[] = [];
 
@@ -358,5 +362,94 @@ describe("AgentRuntime", () => {
     expect(captured[0]).toContain("已总结早期条件。");
     expect(captured[0]).toContain(recentText);
     expect(captured[0]).not.toContain("SECRET_FACT_AB_EQUALS_AC");
+  });
+
+  it("persists thinking blocks and tool results in the durable transcript", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({
+      sessionsRoot: join(directory, "sessions"),
+      cwd: directory,
+    });
+    const session = await sessions.create({ ownerId: "student-1" });
+    const inspectParameters = Type.Object({ problem: Type.String() });
+    const inspectProblem = {
+      name: "inspect_problem_structure",
+      label: "题目结构检查",
+      description: "整理题目结构",
+      parameters: inspectParameters,
+      source: "chalk",
+      async execute() {
+        return {
+          content: [{ type: "text" as const, text: "已识别三条已知关系。" }],
+        };
+      },
+    } satisfies RuntimeTool<typeof inspectParameters>;
+    const tools = new ToolRegistry([inspectProblem]).createAgentTools({
+      context: { ownerId: "student-1", sessionId: session.descriptor.id },
+      approvalModes: new Map([["inspect_problem_structure", "never"]]),
+    });
+    const faux = fauxProvider({ tokenSize: { min: 1, max: 1 } });
+    faux.setResponses([
+      fauxAssistantMessage(
+        [
+          fauxThinking("先识别已知条件，再检查可以直接使用的关系。"),
+          fauxToolCall(
+            "inspect_problem_structure",
+            { problem: "三角形 ABC 中 AB = AC" },
+            { id: "inspect-1" },
+          ),
+        ],
+        { stopReason: "toolUse" },
+      ),
+      fauxAssistantMessage("现在先写出最直接的一组等量关系。"),
+    ]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const runtime = await createAgentRuntime({
+      session,
+      models,
+      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      systemPrompt: "你是 Chalk 数学老师。",
+      tools,
+    });
+    const thinking: string[] = [];
+
+    const result = await runtime.run("请检查这道几何题的结构。", (event) => {
+      if (event.type === "thinking_delta") thinking.push(event.delta);
+    });
+
+    expect(result.status).toBe("completed");
+    expect(thinking.join("")).toBe("先识别已知条件，再检查可以直接使用的关系。");
+
+    const reopened = await sessions.open("student-1", session.descriptor.id);
+    const transcript = await reopened.getTranscript();
+    expect(transcript).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            type: "thinking",
+            thinking: "先识别已知条件，再检查可以直接使用的关系。",
+          }),
+          expect.objectContaining({
+            type: "toolCall",
+            id: "inspect-1",
+            name: "inspect_problem_structure",
+          }),
+        ]),
+      }),
+      expect.objectContaining({
+        role: "toolResult",
+        toolCallId: "inspect-1",
+        toolName: "inspect_problem_structure",
+        isError: false,
+        content: [{ type: "text", text: "已识别三条已知关系。" }],
+      }),
+      expect.objectContaining({
+        role: "assistant",
+        content: [{ type: "text", text: "现在先写出最直接的一组等量关系。" }],
+      }),
+    ]));
   });
 });
