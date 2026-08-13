@@ -155,6 +155,12 @@ export function registerMcpRoutes(app: FastifyInstance, auth: AuthModule) {
     try {
       const tools = await manager.connect(runtimeConfig(row));
       return { status: manager.statuses()[0], tools };
+    } catch (error) {
+      throw new ApiError(
+        502,
+        error instanceof Error ? error.message : 'MCP server failed to connect',
+        'MCP_CONNECT_FAILED',
+      );
     } finally {
       await manager.close();
     }
