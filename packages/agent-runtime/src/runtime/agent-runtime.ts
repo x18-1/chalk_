@@ -106,6 +106,7 @@ function lastAssistant(messages: AgentMessage[]) {
 export class AgentRuntime {
   private readonly listeners = new Set<RuntimeEventListener>();
   private running = false;
+  private abortRequested = false;
   private readonly telemetryContext;
   private readonly telemetryAttributes;
 
@@ -117,11 +118,22 @@ export class AgentRuntime {
     this.telemetryContext = telemetry.context ?? defaultRuntimeTelemetry.context;
     this.telemetryAttributes = telemetry.attributes ?? {};
     this.agent.subscribe(async (event) => {
+      const normalizedEvent = event.type === "message_end"
+        ? { ...event, message: this.normalizeAbortedMessage(event.message) }
+        : event;
       if (event.type === "message_end") {
-        await this.session.appendMessage(event.message);
+        if (normalizedEvent.type !== "message_end") return;
+        if (normalizedEvent.message !== event.message) {
+          const messages = this.agent.state.messages;
+          this.agent.state.messages = [
+            ...messages.slice(0, -1),
+            normalizedEvent.message,
+          ];
+        }
+        await this.session.appendMessage(normalizedEvent.message);
       }
 
-      const runtimeEvent = this.toRuntimeEvent(event);
+      const runtimeEvent = this.toRuntimeEvent(normalizedEvent);
       if (!runtimeEvent) return;
 
       for (const listener of this.listeners) {
@@ -137,6 +149,7 @@ export class AgentRuntime {
   ): Promise<RuntimeRunResult> {
     if (this.running) throw new Error("Agent runtime already has an active run");
     this.running = true;
+    this.abortRequested = false;
     if (listener) this.listeners.add(listener);
 
     return this.telemetryContext.startSpan(
@@ -177,6 +190,7 @@ export class AgentRuntime {
   }
 
   abort() {
+    if (this.running) this.abortRequested = true;
     this.agent.abort();
   }
 
@@ -202,6 +216,17 @@ export class AgentRuntime {
 
   private async emit(event: AgentRuntimeEvent) {
     for (const listener of this.listeners) await listener(event);
+  }
+
+  private normalizeAbortedMessage(message: AgentMessage): AgentMessage {
+    if (
+      this.abortRequested &&
+      message.role === "assistant" &&
+      message.stopReason === "error"
+    ) {
+      return { ...message, stopReason: "aborted" };
+    }
+    return message;
   }
 
   private recordTelemetryEvent(span: TelemetrySpan, event: AgentRuntimeEvent) {
@@ -338,7 +363,11 @@ export async function createAgentRuntime(
           contextEstimate.tokens,
           Date.now(),
         );
-        await options.session.appendMessage(summaryMessage);
+        await options.session.appendCompaction({
+          summary: summary.value,
+          retainedTail: keep,
+          tokensBefore: contextEstimate.tokens,
+        });
         history = [summaryMessage, ...keep];
       }
     }

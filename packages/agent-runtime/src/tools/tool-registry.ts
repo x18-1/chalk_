@@ -43,6 +43,7 @@ export interface ApprovalPort {
   request(
     request: ToolApprovalRequest,
     signal?: AbortSignal,
+    onPending?: () => void,
   ): Promise<{ approved: boolean; reason?: string }>;
 }
 
@@ -113,22 +114,6 @@ function toAgentTool(
           );
         }
 
-        onUpdate?.({
-          content: [
-            {
-              type: "text",
-              text: `Waiting for approval to run ${tool.label}`,
-            },
-          ],
-          details: {
-            type: "approval_pending",
-            toolCallId,
-            toolName: tool.name,
-            label: tool.label,
-            args,
-          },
-        });
-
         const decision = await options.approval.request(
           {
             toolCallId,
@@ -138,6 +123,21 @@ function toAgentTool(
             context: options.context,
           },
           signal,
+          () => onUpdate?.({
+            content: [
+              {
+                type: "text",
+                text: `Waiting for approval to run ${tool.label}`,
+              },
+            ],
+            details: {
+              type: "approval_pending",
+              toolCallId,
+              toolName: tool.name,
+              label: tool.label,
+              args,
+            },
+          }),
         );
         if (!decision.approved) {
           throw new Error(decision.reason ?? `Tool ${tool.name} was rejected`);

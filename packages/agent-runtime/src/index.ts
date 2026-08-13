@@ -47,6 +47,7 @@ export {
 } from "./skills/skill-registry";
 export {
   McpManager,
+  type McpManagerOptions,
   type McpServerConfig,
   type McpServerStatus,
 } from "./mcp/mcp-manager";

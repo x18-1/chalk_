@@ -1,4 +1,5 @@
 import {
+  buildSessionContext,
   JsonlSessionRepo,
   type AgentMessage,
   type JsonlSessionMetadata,
@@ -11,7 +12,7 @@ export type SessionDescriptor = {
   path: string;
   createdAt: number;
   modifiedAt: number;
-  ownerId?: string;
+  ownerId: string;
 };
 
 export class SessionNotFoundError extends Error {
@@ -22,21 +23,26 @@ export class SessionNotFoundError extends Error {
 }
 
 export type CreateSessionOptions = {
-  ownerId?: string;
+  ownerId: string;
 };
 
 export interface RuntimeSession {
   readonly descriptor: SessionDescriptor;
   getMessages(): Promise<AgentMessage[]>;
   appendMessage(message: AgentMessage): Promise<void>;
+  appendCompaction(input: {
+    summary: string;
+    retainedTail: AgentMessage[];
+    tokensBefore: number;
+  }): Promise<void>;
   appendEvent(type: string, data?: unknown): Promise<void>;
   setName(name: string): Promise<void>;
 }
 
 export interface SessionRepository {
-  create(options?: CreateSessionOptions): Promise<RuntimeSession>;
-  open(sessionId: string): Promise<RuntimeSession>;
-  delete(sessionId: string): Promise<void>;
+  create(options: CreateSessionOptions): Promise<RuntimeSession>;
+  open(ownerId: string, sessionId: string): Promise<RuntimeSession>;
+  delete(ownerId: string, sessionId: string): Promise<void>;
 }
 
 export type JsonlSessionRepositoryOptions = {
@@ -46,13 +52,16 @@ export type JsonlSessionRepositoryOptions = {
 
 function toDescriptor(metadata: JsonlSessionMetadata): SessionDescriptor {
   const ownerId = metadata.metadata?.ownerId;
+  if (typeof ownerId !== "string") {
+    throw new SessionNotFoundError(metadata.id);
+  }
 
   return {
     id: metadata.id,
     path: metadata.path,
     createdAt: metadata.createdAt,
     modifiedAt: metadata.modifiedAt,
-    ...(typeof ownerId === "string" ? { ownerId } : {}),
+    ownerId,
   };
 }
 
@@ -64,19 +73,23 @@ function wrapSession(
     descriptor: toDescriptor(metadata),
 
     async getMessages() {
-      const entries = await session.findEntries({
-        type: "message",
-        order: "oldestFirst",
-      });
-
-      return entries.flatMap((entry) =>
-        entry.type === "message" ? [entry.message] : [],
-      );
+      const entries = await session.findEntries({ order: "oldestFirst" });
+      return buildSessionContext(entries).messages;
     },
 
     async appendMessage(message) {
       const durableMessage = JSON.parse(JSON.stringify(message)) as AgentMessage;
       await session.appendMessage(durableMessage);
+    },
+
+    async appendCompaction(input) {
+      await session.appendEntry({
+        type: "compaction",
+        id: session.idGenerator.next(),
+        summary: input.summary,
+        retainedTail: JSON.parse(JSON.stringify(input.retainedTail)) as AgentMessage[],
+        tokensBefore: input.tokensBefore,
+      }, "main");
     },
 
     async appendEvent(type, data) {
@@ -98,9 +111,12 @@ export function createJsonlSessionRepository(
     sessionsRoot: options.sessionsRoot,
   });
 
-  async function findMetadata(sessionId: string) {
+  async function findMetadata(ownerId: string, sessionId: string) {
     const sessions = await repository.list({ cwd: options.cwd });
-    const metadata = sessions.find((session) => session.id === sessionId);
+    const metadata = sessions.find(
+      (session) =>
+        session.id === sessionId && session.metadata?.ownerId === ownerId,
+    );
 
     if (!metadata) {
       throw new SessionNotFoundError(sessionId);
@@ -110,26 +126,24 @@ export function createJsonlSessionRepository(
   }
 
   return {
-    async create(createOptions = {}) {
+    async create(createOptions) {
       const session = await repository.create({
         cwd: options.cwd,
-        ...(createOptions.ownerId
-          ? { metadata: { ownerId: createOptions.ownerId } }
-          : {}),
+        metadata: { ownerId: createOptions.ownerId },
       });
       const metadata = await session.getMetadata();
 
       return wrapSession(session, metadata);
     },
 
-    async open(sessionId) {
-      const metadata = await findMetadata(sessionId);
+    async open(ownerId, sessionId) {
+      const metadata = await findMetadata(ownerId, sessionId);
       const session = await repository.open(metadata);
       return wrapSession(session, metadata);
     },
 
-    async delete(sessionId) {
-      const metadata = await findMetadata(sessionId);
+    async delete(ownerId, sessionId) {
+      const metadata = await findMetadata(ownerId, sessionId);
       await repository.delete(metadata);
     },
   };

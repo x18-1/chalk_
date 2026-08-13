@@ -24,7 +24,10 @@ function createTool(requiresApproval: RuntimeTool<typeof parameters>["requiresAp
 
 describe("ToolRegistry", () => {
   it("fails closed and emits a pending update before approval", async () => {
-    const request = vi.fn(async () => ({ approved: true }));
+    const request = vi.fn(async (_request, _signal, onPending) => {
+      onPending?.();
+      return { approved: true };
+    });
     const update = vi.fn();
     const [tool] = new ToolRegistry([createTool()]).createAgentTools({
       context: { ownerId: "student-1", sessionId: "session-1" },
