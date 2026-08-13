@@ -70,18 +70,22 @@ export const providerCredentials = pgTable(
   (t) => [unique().on(t.userId, t.providerId)],
 );
 
-export const toolApprovals = pgTable('tool_approvals', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  conversationId: uuid('conversation_id')
-    .notNull()
-    .references(() => conversations.id, { onDelete: 'cascade' }),
-  toolCallId: text('tool_call_id').notNull(),
-  toolName: text('tool_name').notNull(),
-  args: jsonb('args').notNull(),
-  status: text('status').default('pending').notNull(), // pending | approved | rejected
-  decidedAt: timestamp('decided_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const toolApprovals = pgTable(
+  'tool_approvals',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    toolCallId: text('tool_call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    args: jsonb('args').notNull(),
+    status: text('status').default('pending').notNull(), // pending | approved | rejected
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.conversationId, table.toolCallId)],
+);
 
 export const agentSettings = pgTable('agent_settings', {
   userId: uuid('user_id')

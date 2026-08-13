@@ -31,6 +31,7 @@ import { decrypt } from './credentials/encrypt';
 import { DrizzleCredentialStore } from './credentials/store';
 import { createBuiltinToolRegistry } from './builtin-tools';
 import { runtimeTelemetry } from './telemetry';
+import { ToolApprovalAlreadyDecidedError, ToolApprovalNotActiveError } from '../db/errors';
 
 let sessionRepository: ReturnType<typeof createJsonlSessionRepository> | undefined;
 
@@ -52,12 +53,28 @@ type PendingApproval = {
   reject: (error: Error) => void;
 };
 
+type AgentRuntimeConfig = {
+  toolApprovalTimeoutMs: number;
+};
+
+let runtimeConfig: AgentRuntimeConfig = {
+  toolApprovalTimeoutMs: 120_000,
+};
+
+export function configureAgentRuntime(config: AgentRuntimeConfig) {
+  runtimeConfig = config;
+}
+
 class ApprovalBroker implements ApprovalPort {
   private readonly pending = new Map<string, PendingApproval>();
 
   constructor(private readonly userId: string) {}
 
-  async request(request: Parameters<ApprovalPort['request']>[0], signal?: AbortSignal) {
+  async request(
+    request: Parameters<ApprovalPort['request']>[0],
+    signal?: AbortSignal,
+    onPending?: () => void,
+  ) {
     const conversationId = request.context.conversationId;
     if (!conversationId) {
       return { approved: false, reason: 'Approval requires a conversation context' };
@@ -95,13 +112,15 @@ class ApprovalBroker implements ApprovalPort {
         rejectDecision(error);
       };
       const abort = () => {
-        void approvals.updateStatusByToolCall(
-          this.userId,
-          conversationId,
-          request.toolCallId,
-          'rejected',
-        ).catch(() => undefined);
-        reject(new Error('Tool approval was aborted'));
+        void approvals
+          .updateStatusByToolCall(
+            this.userId,
+            conversationId,
+            request.toolCallId,
+            'rejected',
+          )
+          .catch(() => undefined)
+          .finally(() => reject(new Error('Tool approval was aborted')));
       };
 
       if (signal?.aborted) {
@@ -111,28 +130,56 @@ class ApprovalBroker implements ApprovalPort {
       signal?.addEventListener('abort', abort, { once: true });
       this.pending.set(key, { resolve, reject });
 
-      timeout = setTimeout(() => {
+      timeout = setTimeout(async () => {
         const current = this.pending.get(key);
         if (!current) return;
-        void approvals.updateStatusByToolCall(
-          this.userId,
-          conversationId,
-          request.toolCallId,
-          'rejected',
-        ).catch(() => undefined);
-        current.resolve({ approved: false, reason: 'Tool approval timed out' });
-      }, Number(process.env.TOOL_APPROVAL_TIMEOUT_MS ?? 120_000));
+        try {
+          await approvals.updateStatusByToolCall(
+            this.userId,
+            conversationId,
+            request.toolCallId,
+            'rejected',
+          );
+          current.resolve({ approved: false, reason: 'Tool approval timed out' });
+        } catch (error) {
+          if (error instanceof ToolApprovalAlreadyDecidedError) {
+            current.resolve({
+              approved: error.status === 'approved',
+              reason: `Tool approval was already ${error.status}`,
+            });
+            return;
+          }
+          current.reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      }, runtimeConfig.toolApprovalTimeoutMs);
+      onPending?.();
       void row;
     });
   }
 
   async decide(conversationId: string, toolCallId: string, approved: boolean, reason?: string) {
-    const db = getDb();
-    const approvals = createToolApprovalsDal(db);
-    await approvals.updateStatusByToolCall(this.userId, conversationId, toolCallId, approved ? 'approved' : 'rejected');
     const pending = this.pending.get(`${conversationId}:${toolCallId}`);
-    if (!pending) return;
-    this.pending.delete(`${conversationId}:${toolCallId}`);
+    if (!pending) {
+      throw new ToolApprovalNotActiveError(toolCallId);
+    }
+
+    const approvals = createToolApprovalsDal(getDb());
+    try {
+      await approvals.updateStatusByToolCall(
+        this.userId,
+        conversationId,
+        toolCallId,
+        approved ? 'approved' : 'rejected',
+      );
+    } catch (error) {
+      if (error instanceof ToolApprovalAlreadyDecidedError) {
+        pending.resolve({
+          approved: false,
+          reason: `Tool approval was already ${error.status}`,
+        });
+      }
+      throw error;
+    }
     pending.resolve({ approved, ...(reason ? { reason } : {}) });
   }
 
@@ -286,10 +333,7 @@ export async function getOrCreateRuntime(
   }
   if (existing) await closeRuntime(conversation.id);
 
-  const session = await getSessionRepository().open(conversation.sessionId);
-  if (session.descriptor.ownerId && session.descriptor.ownerId !== userId) {
-    throw new Error('Session owner does not match conversation owner');
-  }
+  const session = await getSessionRepository().open(userId, conversation.sessionId);
 
   const { catalog, model } = await selectModel(userId, requestedModel);
   const skills = new SkillRegistry(process.cwd(), skillSources());
@@ -417,8 +461,15 @@ export async function closeRuntime(conversationId: string) {
   const entry = activeRuntimes.get(conversationId);
   if (!entry) return;
   activeRuntimes.delete(conversationId);
-  entry.approvals.rejectAll();
-  await entry.mcp.close();
+  try {
+    await createToolApprovalsDal(getDb()).rejectPendingByConversation(
+      entry.ownerId,
+      conversationId,
+    );
+  } finally {
+    entry.approvals.rejectAll();
+    await entry.mcp.close();
+  }
 }
 
 export async function closeUserRuntimes(userId: string) {
@@ -431,12 +482,12 @@ export async function createSession(userId: string) {
   return getSessionRepository().create({ ownerId: userId });
 }
 
-export async function openSession(sessionId: string) {
-  return getSessionRepository().open(sessionId);
+export async function openSession(userId: string, sessionId: string) {
+  return getSessionRepository().open(userId, sessionId);
 }
 
-export async function deleteSession(sessionId: string) {
-  await getSessionRepository().delete(sessionId);
+export async function deleteSession(userId: string, sessionId: string) {
+  await getSessionRepository().delete(userId, sessionId);
 }
 
 export async function listRuntimeTools(userId: string) {

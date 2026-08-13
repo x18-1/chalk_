@@ -11,6 +11,8 @@ import { registerConfigurationRoutes } from './modules/configuration/routes';
 import { registerMcpRoutes } from './modules/mcp/routes';
 import { registerTelemetryRoutes } from './modules/telemetry/routes';
 import { registerUploadRoutes } from './modules/uploads/routes';
+import { startToolApprovalRecovery } from './agent/approval-recovery';
+import { configureAgentRuntime } from './agent/runtime-manager';
 
 export type BuildApiOptions = { config?: ApiConfig };
 
@@ -39,7 +41,23 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   });
 
   registerErrorHandler(app);
-  const auth = new AuthModule(getDb(), config);
+  const db = getDb();
+  configureAgentRuntime({ toolApprovalTimeoutMs: config.toolApprovalTimeoutMs });
+  const approvalRecovery = await startToolApprovalRecovery(db, {
+    timeoutMs: config.toolApprovalTimeoutMs,
+    onError(error) {
+      app.log.error({ err: error }, 'Unable to recover expired tool approvals');
+    },
+  });
+  if (approvalRecovery.recovered > 0) {
+    app.log.warn(
+      { count: approvalRecovery.recovered },
+      'Rejected expired tool approvals during startup recovery',
+    );
+  }
+  app.addHook('onClose', async () => approvalRecovery.stop());
+
+  const auth = new AuthModule(db, config);
   registerAuthRoutes(app, auth);
   registerChatRoutes(app, auth);
   registerConfigurationRoutes(app, auth);

@@ -1,0 +1,1 @@
+ALTER TABLE "tool_approvals" ADD CONSTRAINT "tool_approvals_conversation_id_tool_call_id_unique" UNIQUE("conversation_id","tool_call_id");

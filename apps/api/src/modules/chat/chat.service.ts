@@ -60,7 +60,7 @@ export class ChatService {
         sessionFilePath: session.descriptor.path,
       });
     } catch (error) {
-      await deleteSession(session.descriptor.id).catch(() => undefined);
+      await deleteSession(userId, session.descriptor.id).catch(() => undefined);
       throw error;
     }
   }
@@ -80,17 +80,14 @@ export class ChatService {
 
     // Postgres is the owner-visible source of truth. Failed transcript cleanup is
     // recoverable and should not resurrect a conversation that was already deleted.
-    await deleteSession(conversation.sessionId).catch((error) => {
+    await deleteSession(userId, conversation.sessionId).catch((error) => {
       this.options.onSessionCleanupError?.(error, conversation.sessionId);
     });
   }
 
   async getMessages(userId: string, conversationId: string) {
     const conversation = await this.conversations.getById(userId, conversationId);
-    const session = await openSession(conversation.sessionId);
-    if (session.descriptor.ownerId && session.descriptor.ownerId !== userId) {
-      throw new ApiError(404, 'Resource not found', 'NOT_FOUND');
-    }
+    const session = await openSession(userId, conversation.sessionId);
     return session.getMessages();
   }
 

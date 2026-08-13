@@ -26,6 +26,31 @@ function sse(type: string, data: unknown) {
   return `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
+type StreamErrorCategory = 'provider' | 'tool' | 'mcp' | 'approval' | 'network';
+
+function streamError(error: unknown, fallback: StreamErrorCategory = 'network') {
+  const message = error instanceof Error ? error.message : String(error);
+  const code = error instanceof Error && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : undefined;
+  const haystack = `${error instanceof Error ? error.name : ''} ${code ?? ''} ${message}`.toLowerCase();
+  const category: StreamErrorCategory = haystack.includes('mcp')
+    ? 'mcp'
+    : haystack.includes('approval') || haystack.includes('approve')
+      ? 'approval'
+      : haystack.includes('tool')
+        ? 'tool'
+        : haystack.includes('provider') || haystack.includes('model') || haystack.includes('credential') || haystack.includes('api key')
+          ? 'provider'
+          : fallback;
+  return {
+    error: message,
+    code: code ?? `STREAM_${category.toUpperCase()}_ERROR`,
+    category,
+    retryable: category !== 'approval',
+  };
+}
+
 export function registerChatRoutes(app: FastifyInstance, auth: AuthModule) {
   const chat = new ChatService(getDb(), {
     onSessionCleanupError(error, sessionId) {
@@ -135,11 +160,15 @@ export function registerChatRoutes(app: FastifyInstance, auth: AuthModule) {
       .then(async (result) => {
         if (!closed) {
           await run.complete();
-          send('result', result);
+          if (result.status === 'failed') {
+            send('error', streamError(result.error ?? 'Provider failed to complete the response', 'provider'));
+          } else {
+            send('result', result);
+          }
         }
       })
       .catch((error: unknown) => {
-        send('error', { error: error instanceof Error ? error.message : String(error) });
+        send('error', streamError(error));
       })
       .finally(() => {
         closed = true;
