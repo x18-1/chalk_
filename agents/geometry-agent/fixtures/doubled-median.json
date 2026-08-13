@@ -1,0 +1,23 @@
+{
+  "problem": "在三角形 ABC 中，D 是 BC 的中点。延长 AD 到 E，使 DE = AD，连接 BE。证明相关结论。",
+  "scene": {
+    "version": 1,
+    "objects": [
+      { "id": "A", "kind": "point", "x": 0, "y": 3 },
+      { "id": "B", "kind": "point", "x": -4, "y": 0 },
+      { "id": "C", "kind": "point", "x": 4, "y": 0 },
+      { "id": "D", "kind": "midpoint", "points": ["B", "C"] },
+      { "id": "E", "kind": "reflection", "point": "A", "center": "D" },
+      { "id": "AB", "kind": "segment", "points": ["A", "B"] },
+      { "id": "AC", "kind": "segment", "points": ["A", "C"] },
+      { "id": "BC", "kind": "segment", "points": ["B", "C"] },
+      { "id": "AD", "kind": "segment", "points": ["A", "D"] },
+      { "id": "DE", "kind": "segment", "points": ["D", "E"] },
+      { "id": "BE", "kind": "segment", "points": ["B", "E"] }
+    ],
+    "assertions": [
+      { "kind": "equal_length", "segments": ["AD", "DE"] },
+      { "kind": "collinear", "points": ["A", "D", "E"] }
+    ]
+  }
+}
