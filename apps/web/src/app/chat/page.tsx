@@ -126,6 +126,10 @@ function toolResultText(content: unknown) {
   return text.length > 360 ? `${text.slice(0, 357)}...` : text;
 }
 
+function isStudentRejectedTool(content: unknown) {
+  return toolResultText(content).includes("学生拒绝了这次工具调用");
+}
+
 function mergeTools(current: MessageTool[] = [], incoming: MessageTool[]) {
   const merged = [...current];
   for (const tool of incoming) {
@@ -136,9 +140,11 @@ function mergeTools(current: MessageTool[] = [], incoming: MessageTool[]) {
       merged[index] = {
         ...existing,
         ...tool,
-        state: tool.state === "running" && existing.state !== "running"
-          ? existing.state
-          : tool.state,
+        state: existing.state === "rejected" || tool.state === "rejected"
+          ? "rejected"
+          : tool.state === "running" && existing.state !== "running"
+            ? existing.state
+            : tool.state,
       };
     }
   }
@@ -201,7 +207,9 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
         toolCallId: raw.toolCallId,
         toolName,
         label: toolLabel(toolName),
-        state: raw.isError === true ? "error" : "complete",
+        state: isStudentRejectedTool(raw.content)
+          ? "rejected"
+          : raw.isError === true ? "error" : "complete",
         result: toolResultText(raw.content),
       }]);
     }
@@ -523,19 +531,21 @@ export default function ChatPage() {
           const toolCallId = String(data.toolCallId ?? "");
           const toolName = String(data.toolName ?? "tool");
           const result = objectValue(data.result);
+          const resultText = toolResultText(result?.content);
+          const rejected = rejectedToolCallsRef.current.has(toolCallId)
+            || isStudentRejectedTool(result?.content);
           setMessages((current) => current.map((message) => message.id === tutorId ? {
             ...message,
             tools: mergeTools(message.tools, [{
               toolCallId,
               toolName,
               label: message.tools?.find((tool) => tool.toolCallId === toolCallId)?.label ?? toolLabel(toolName),
-              state: rejectedToolCallsRef.current.has(toolCallId)
-                ? "rejected"
-                : data.isError ? "error" : "complete",
-              result: toolResultText(result?.content),
+              state: rejected ? "rejected" : data.isError ? "error" : "complete",
+              result: resultText,
             }]),
           } : message));
-          if (rejectedToolCallsRef.current.delete(toolCallId)) return;
+          rejectedToolCallsRef.current.delete(toolCallId);
+          if (rejected) return;
           if (data.isError) {
             const kind = toolName.startsWith("mcp__") ? "mcp" : "tool";
             setFailure({
@@ -608,16 +618,19 @@ export default function ChatPage() {
     setMessages((current) => current.map((message) => ({
       ...message,
       tools: message.tools?.map((tool) => tool.toolCallId === toolCallId
-        ? { ...tool, state: "running" }
+        ? { ...tool, state: approved ? "running" : "rejected" }
         : tool),
     })));
     try {
       await chatApi.approve(selectedId, toolCallId, approved);
       setMessages((current) => current.map((message) => ({
         ...message,
-        tools: message.tools?.map((tool) => tool.toolCallId === toolCallId
-          ? { ...tool, state: approved ? "running" : "rejected" }
-          : tool),
+        tools: message.tools?.map((tool) => {
+          if (tool.toolCallId !== toolCallId) return tool;
+          if (!approved) return { ...tool, state: "rejected" };
+          if (tool.state === "complete" || tool.state === "error" || tool.state === "rejected") return tool;
+          return { ...tool, state: "running" };
+        }),
       })));
       setNotice(approved ? "已允许这次工具调用" : "已拒绝这次工具调用");
     } catch (approvalError) {
