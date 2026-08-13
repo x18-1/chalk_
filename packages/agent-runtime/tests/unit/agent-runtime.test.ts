@@ -263,4 +263,100 @@ describe("AgentRuntime", () => {
       }),
     ]);
   });
+
+  it("compacts by contextWindow when caller does not override keepRecentTokens", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({
+      sessionsRoot: join(directory, "sessions"),
+      cwd: directory,
+    });
+    const session = await sessions.create({ ownerId: "student-1" });
+    const earlyText = "早期条件：SECRET_FACT_AB_EQUALS_AC。" + "甲".repeat(2_000);
+    const recentText = "最近必须保留：连接 AC。" + "乙".repeat(1_200);
+    await session.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: earlyText }],
+      timestamp: 1,
+    });
+    await session.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: recentText }],
+      timestamp: 2,
+    });
+    const faux = fauxProvider({
+      models: [{ id: "compact-model", contextWindow: 1_024 }],
+    });
+    faux.setResponses([fauxAssistantMessage("已总结早期条件。")]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+
+    const runtime = await createAgentRuntime({
+      session,
+      models,
+      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      systemPrompt: "test",
+    });
+
+    expect(runtime.getMessages()).toEqual([
+      expect.objectContaining({ role: "compactionSummary", summary: "已总结早期条件。" }),
+      expect.objectContaining({
+        role: "user",
+        content: [{ type: "text", text: recentText }],
+      }),
+    ]);
+    expect(await session.getTranscript()).toEqual([
+      expect.objectContaining({ content: [{ type: "text", text: earlyText }] }),
+      expect.objectContaining({ content: [{ type: "text", text: recentText }] }),
+    ]);
+  });
+
+  it("sends the compaction summary to the model instead of the dropped prefix", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({
+      sessionsRoot: join(directory, "sessions"),
+      cwd: directory,
+    });
+    const session = await sessions.create({ ownerId: "student-1" });
+    const earlyText = "早期条件：SECRET_FACT_AB_EQUALS_AC。" + "甲".repeat(2_000);
+    const recentText = "最近必须保留：连接 AC。" + "乙".repeat(1_200);
+    await session.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: earlyText }],
+      timestamp: 1,
+    });
+    await session.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: recentText }],
+      timestamp: 2,
+    });
+    const captured: string[] = [];
+    const faux = fauxProvider({
+      models: [{ id: "compact-model", contextWindow: 1_024 }],
+    });
+    faux.setResponses([
+      fauxAssistantMessage("已总结早期条件。"),
+      (context) => {
+        captured.push(JSON.stringify(context.messages));
+        return fauxAssistantMessage("先写一个已知关系。");
+      },
+    ]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const runtime = await createAgentRuntime({
+      session,
+      models,
+      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      systemPrompt: "test",
+    });
+
+    const result = await runtime.run("验证压缩后的上下文");
+
+    expect(result.status).toBe("completed");
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toContain("已总结早期条件。");
+    expect(captured[0]).toContain(recentText);
+    expect(captured[0]).not.toContain("SECRET_FACT_AB_EQUALS_AC");
+  });
 });

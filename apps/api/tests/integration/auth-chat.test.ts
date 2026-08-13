@@ -23,6 +23,7 @@ import {
   createSession,
   deleteSession,
   getOrCreateRuntime,
+  openSession,
 } from '../../src/agent/runtime-manager';
 
 const email = `api-test-${randomBytes(6).toString('hex')}@chalk.local`;
@@ -690,6 +691,46 @@ describe('API auth and chat interface', () => {
         retryable: true,
       }),
     }));
+  });
+
+  it('returns the original transcript after a compaction entry is written', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/chat',
+      headers: { cookie },
+      payload: { title: 'transcript after compaction' },
+    });
+    expect(created.statusCode).toBe(201);
+    const conversation = created.json().conversation as { id: string; sessionId: string };
+    const session = await openSession(userId, conversation.sessionId);
+    const earlyMessage = {
+      role: 'user' as const,
+      content: [{ type: 'text' as const, text: '早期条件：三角形 ABC 中 AB = AC' }],
+      timestamp: 1,
+    };
+    const recentMessage = {
+      role: 'user' as const,
+      content: [{ type: 'text' as const, text: '最近必须保留：连接 AC' }],
+      timestamp: 2,
+    };
+    await session.appendMessage(earlyMessage);
+    await session.appendMessage(recentMessage);
+    await session.appendCompaction({
+      summary: '已总结早期条件。',
+      retainedTail: [recentMessage],
+      tokensBefore: 9_000,
+    });
+
+    const history = await app.inject({
+      method: 'GET',
+      url: `/chat/${conversation.id}/messages`,
+      headers: { cookie },
+    });
+    expect(history.statusCode).toBe(200);
+    expect(history.json().messages).toEqual([earlyMessage, recentMessage]);
+    expect(history.json().messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'compactionSummary' }),
+    ]));
   });
 
   it('rejects credential-bearing MCP URLs at the API seam', async () => {

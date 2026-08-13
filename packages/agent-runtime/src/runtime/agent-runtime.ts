@@ -1,5 +1,6 @@
 import {
   Agent,
+  convertToLlm,
   createCompactionSummaryMessage,
   estimateContextTokens,
   estimateTokens,
@@ -329,8 +330,12 @@ export async function createAgentRuntime(
   let history = lastSummaryIndex >= 0
     ? allHistory.slice(lastSummaryIndex)
     : allHistory;
+  const scaledReserve = Math.max(64, Math.floor(model.contextWindow * 0.25));
+  const scaledKeep = Math.max(64, Math.floor(model.contextWindow * 0.25));
   const compactionSettings: CompactionSettings = {
     ...DEFAULT_COMPACTION_SETTINGS,
+    reserveTokens: scaledReserve,
+    keepRecentTokens: scaledKeep,
     ...options.compaction,
   };
   const contextEstimate = estimateContextTokens(history);
@@ -374,6 +379,7 @@ export async function createAgentRuntime(
   }
   const agent = new Agent({
     streamFn: catalog.streamSimple,
+    convertToLlm,
     sessionId: options.session.descriptor.id,
     toolExecution: "sequential",
     initialState: {

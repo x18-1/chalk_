@@ -29,6 +29,7 @@ export type CreateSessionOptions = {
 export interface RuntimeSession {
   readonly descriptor: SessionDescriptor;
   getMessages(): Promise<AgentMessage[]>;
+  getTranscript(): Promise<AgentMessage[]>;
   appendMessage(message: AgentMessage): Promise<void>;
   appendCompaction(input: {
     summary: string;
@@ -75,6 +76,11 @@ function wrapSession(
     async getMessages() {
       const entries = await session.findEntries({ order: "oldestFirst" });
       return buildSessionContext(entries).messages;
+    },
+
+    async getTranscript() {
+      const entries = await session.findEntries({ order: "oldestFirst" });
+      return entries.flatMap((entry) => entry.type === "message" ? [entry.message] : []);
     },
 
     async appendMessage(message) {

@@ -88,7 +88,7 @@ export class ChatService {
   async getMessages(userId: string, conversationId: string) {
     const conversation = await this.conversations.getById(userId, conversationId);
     const session = await openSession(userId, conversation.sessionId);
-    return session.getMessages();
+    return session.getTranscript();
   }
 
   async abortRun(userId: string, conversationId: string) {
