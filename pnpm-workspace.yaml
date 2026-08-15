@@ -3,12 +3,10 @@ packages:
   - 'apps/*'
 
 allowBuilds:
-  esbuild: set this to true or false
-
-allowedBuildScripts:
-  esbuild: true
   '@google/genai': true
+  esbuild: false
   protobufjs: true
+  sharp: false
 
 minimumReleaseAgeExclude:
   - '@aws-sdk/client-s3@3.1107.0'
