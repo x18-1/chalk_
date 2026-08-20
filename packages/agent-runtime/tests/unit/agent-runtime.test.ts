@@ -9,11 +9,13 @@ import {
   fauxThinking,
   fauxToolCall,
 } from "@earendil-works/pi-ai";
+import { InMemoryTelemetryContext } from "@earendil-works/pi-telemetry";
 import { Type } from "typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createJsonlSessionRepository } from "../../src/session/session-repository";
 import { createAgentRuntime } from "../../src/runtime/agent-runtime";
+import { createRuntimeTelemetryContext } from "../../src/telemetry/telemetry";
 import { ToolRegistry, type RuntimeTool } from "../../src/tools/tool-registry";
 
 const temporaryDirectories: string[] = [];
@@ -61,6 +63,41 @@ describe("AgentRuntime", () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]?.role).toBe("user");
     expect(messages[1]?.role).toBe("assistant");
+  });
+
+  it("records a run and each model request without recording prompt content", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({ sessionsRoot: join(directory, "sessions"), cwd: directory });
+    const session = await sessions.create({ ownerId: "student-1" });
+    const faux = fauxProvider({ tokenSize: { min: 1, max: 1 } });
+    faux.setResponses([fauxAssistantMessage("先观察已知条件。")]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const telemetry = new InMemoryTelemetryContext();
+    const runtimeTelemetry = createRuntimeTelemetryContext(telemetry);
+    const runtime = await createAgentRuntime({
+      session,
+      models,
+      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      systemPrompt: "test",
+      telemetry: {
+        context: runtimeTelemetry,
+        attributes: { ownerId: "student-1", sessionId: session.descriptor.id },
+      },
+    });
+
+    await runtime.run("PRIVATE_STUDENT_PROMPT");
+
+    const spans = telemetry.getSpans();
+    const runSpan = spans.find((span) => span.name === "chalk.agent.run");
+    const modelSpan = spans.find((span) => span.name === "chalk.agent.model_call");
+    expect(runSpan).toEqual(expect.objectContaining({ parentId: null }));
+    expect(modelSpan).toEqual(expect.objectContaining({
+      parentId: runSpan?.id,
+      attributes: expect.objectContaining({ status: "completed", finishReason: "stop" }),
+    }));
+    expect(JSON.stringify(spans)).not.toContain("PRIVATE_STUDENT_PROMPT");
   });
 
   it("fails closed when the selected model does not exist", async () => {
@@ -372,6 +409,8 @@ describe("AgentRuntime", () => {
       cwd: directory,
     });
     const session = await sessions.create({ ownerId: "student-1" });
+    const telemetry = new InMemoryTelemetryContext();
+    const runtimeTelemetry = createRuntimeTelemetryContext(telemetry);
     const inspectParameters = Type.Object({ problem: Type.String() });
     const inspectProblem = {
       name: "inspect_problem_structure",
@@ -382,11 +421,13 @@ describe("AgentRuntime", () => {
       async execute() {
         return {
           content: [{ type: "text" as const, text: "已识别三条已知关系。" }],
+          details: {},
         };
       },
     } satisfies RuntimeTool<typeof inspectParameters>;
     const tools = new ToolRegistry([inspectProblem]).createAgentTools({
       context: { ownerId: "student-1", sessionId: session.descriptor.id },
+      telemetry: runtimeTelemetry,
       approvalModes: new Map([["inspect_problem_structure", "never"]]),
     });
     const faux = fauxProvider({ tokenSize: { min: 1, max: 1 } });
@@ -412,6 +453,10 @@ describe("AgentRuntime", () => {
       model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
       systemPrompt: "你是 Chalk 数学老师。",
       tools,
+      telemetry: {
+        context: runtimeTelemetry,
+        attributes: { ownerId: "student-1", sessionId: session.descriptor.id },
+      },
     });
     const thinking: string[] = [];
 
@@ -451,5 +496,10 @@ describe("AgentRuntime", () => {
         content: [{ type: "text", text: "现在先写出最直接的一组等量关系。" }],
       }),
     ]));
+    const spans = telemetry.getSpans();
+    const runSpan = spans.find((span) => span.name === "chalk.agent.run");
+    expect(spans.find((span) => span.name === "chalk.agent.tool_call")).toEqual(
+      expect.objectContaining({ parentId: runSpan?.id }),
+    );
   });
 });

@@ -63,6 +63,9 @@ export {
 } from "./subagent/subagent-executor";
 export {
   chalkTelemetrySchema,
+  createRuntimeTelemetryContext,
   defaultRuntimeTelemetry,
+  RuntimeTelemetryContext,
+  type AgentRunObservation,
   type RuntimeTelemetryOptions,
 } from "./telemetry/telemetry";

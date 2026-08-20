@@ -7,6 +7,7 @@ import {
   createModelCatalog,
   parseModelThinkingLevel,
   McpManager,
+  createRuntimeTelemetryContext,
   ForegroundSubagentExecutor,
   createSubagentTool,
   SkillRegistry,
@@ -20,6 +21,7 @@ import {
 import { getDb } from '../db/client';
 import {
   createAgentSettingsDal,
+  createAgentRunObservationsDal,
   createCustomProvidersDal,
   createMcpServersDal,
   createSubagentRunsDal,
@@ -361,6 +363,8 @@ export async function getOrCreateRuntime(
     });
   }
   const toolSettings = await createToolSettingsDal(db).list(userId);
+  const observations = createAgentRunObservationsDal(db);
+  const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
   const registry = createBuiltinToolRegistry();
   for (const tool of mcp.proxyTools()) registry.register(tool);
@@ -399,7 +403,7 @@ export async function getOrCreateRuntime(
           `父会话：${context.parentSessionId}`,
         ].filter(Boolean).join('\n'),
         telemetry: {
-          context: runtimeTelemetry,
+          context: createRuntimeTelemetryContext(runtimeTelemetry),
           attributes: {
             ownerId: userId,
             sessionId: session.descriptor.id,
@@ -408,6 +412,17 @@ export async function getOrCreateRuntime(
             modelId: model.modelId,
             thinkingLevel: model.thinkingLevel,
           },
+          onRunFinished: context.conversationId
+            ? async (observation) => {
+              await observations.record(userId, {
+              conversationId: context.conversationId!,
+              sessionId: session.descriptor.id,
+              modelProviderId: model.providerId,
+              modelId: model.modelId,
+              observation,
+              });
+            }
+            : undefined,
         },
       }),
   });
@@ -415,6 +430,7 @@ export async function getOrCreateRuntime(
 
   const tools = registry.createAgentTools({
     context: { ownerId: userId, sessionId: conversation.sessionId, conversationId: conversation.id },
+    telemetry,
     approval: approvals,
     enabledToolNames: new Set(
       registry.list()
@@ -437,7 +453,7 @@ export async function getOrCreateRuntime(
     systemPrompt,
     tools,
     telemetry: {
-      context: runtimeTelemetry,
+      context: telemetry,
       attributes: {
         ownerId: userId,
         sessionId: conversation.sessionId,
@@ -445,6 +461,15 @@ export async function getOrCreateRuntime(
         modelProviderId: model.providerId,
         modelId: model.modelId,
         thinkingLevel: model.thinkingLevel,
+      },
+      onRunFinished: async (observation) => {
+        await observations.record(userId, {
+          conversationId: conversation.id,
+          sessionId: conversation.sessionId,
+          modelProviderId: model.providerId,
+          modelId: model.modelId,
+          observation,
+        });
       },
     },
   });

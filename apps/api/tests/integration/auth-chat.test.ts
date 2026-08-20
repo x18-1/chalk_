@@ -15,7 +15,11 @@ loadDotenv({ path: join(process.cwd(), '../../.env ') });
 import { buildApi } from '../../src/app';
 import { loadConfig } from '../../src/config';
 import { closeDb, getDb } from '../../src/db/client';
-import { createAttachmentsDal, createSubagentRunsDal } from '../../src/db/dal';
+import {
+  createAgentRunObservationsDal,
+  createAttachmentsDal,
+  createSubagentRunsDal,
+} from '../../src/db/dal';
 import { OwnershipError } from '../../src/db/errors';
 import { authUsers, conversations } from '../../src/db/schema';
 import {
@@ -292,6 +296,13 @@ describe('API auth and chat interface', () => {
     });
     expect(userTelemetry.statusCode).toBe(403);
     expect(userTelemetry.json()).toMatchObject({ code: 'FORBIDDEN' });
+    const userConversationTelemetry = await app.inject({
+      method: 'GET',
+      url: '/telemetry/conversations',
+      headers: { cookie: responseCookie(userLogin.headers['set-cookie']) },
+    });
+    expect(userConversationTelemetry.statusCode).toBe(403);
+    expect(userConversationTelemetry.json()).toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('logs in, exposes the session, and scopes conversations to the owner', async () => {
@@ -736,6 +747,68 @@ describe('API auth and chat interface', () => {
         retryable: true,
       }),
     }));
+  });
+
+  it('persists a redacted run summary for each conversation turn', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/chat',
+      headers: { cookie },
+      payload: { title: 'observed conversation' },
+    });
+    expect(created.statusCode).toBe(201);
+    const conversationId = created.json().conversation.id as string;
+
+    const events = await streamConversation(conversationId, 'PRIVATE_STUDENT_OBSERVATION_INPUT');
+    expect(events).toContainEqual(expect.objectContaining({ type: 'result' }));
+
+    const observations = await createAgentRunObservationsDal(getDb())
+      .listForConversation(userId, conversationId);
+    expect(observations).toHaveLength(1);
+    expect(observations[0]).toMatchObject({
+      conversationId,
+      userId,
+      modelProviderId: fixtureProviderId,
+      modelId: 'fixture-model',
+      status: 'completed',
+    });
+    expect(observations[0]?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(JSON.stringify(observations)).not.toContain('PRIVATE_STUDENT_OBSERVATION_INPUT');
+
+    const adminLogin = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'admin', password: 'admin123' },
+    });
+    const adminCookie = responseCookie(adminLogin.headers['set-cookie']);
+    const summaries = await app.inject({
+      method: 'GET',
+      url: '/telemetry/conversations',
+      headers: { cookie: adminCookie },
+    });
+    expect(summaries.statusCode).toBe(200);
+    expect(summaries.json().conversations).toContainEqual(expect.objectContaining({
+      conversationId,
+      title: 'observed conversation',
+      runCount: 1,
+      statusCounts: { completed: 1, aborted: 0, failed: 0 },
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCost: 0,
+    }));
+    expect(JSON.stringify(summaries.json())).not.toContain('PRIVATE_STUDENT_OBSERVATION_INPUT');
+
+    const details = await app.inject({
+      method: 'GET',
+      url: `/telemetry/conversations/${conversationId}`,
+      headers: { cookie: adminCookie },
+    });
+    expect(details.statusCode).toBe(200);
+    expect(details.json()).toMatchObject({
+      summary: expect.objectContaining({ conversationId, runCount: 1 }),
+      runs: [expect.objectContaining({ conversationId, status: 'completed' })],
+    });
+    expect(JSON.stringify(details.json())).not.toContain('PRIVATE_STUDENT_OBSERVATION_INPUT');
   });
 
   it('returns the original transcript after a compaction entry is written', async () => {

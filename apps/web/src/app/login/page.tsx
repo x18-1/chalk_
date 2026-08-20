@@ -23,7 +23,8 @@ export default function LoginPage() {
       return;
     }
     setPending(false);
-    window.location.assign('/chat');
+    const returnTo = new URLSearchParams(window.location.search).get('returnTo');
+    window.location.assign(returnTo?.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/chat');
   }
 
   return (

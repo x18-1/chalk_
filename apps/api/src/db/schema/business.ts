@@ -1,5 +1,7 @@
 import {
   boolean,
+  doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -144,6 +146,40 @@ export const subagentRuns = pgTable('subagent_runs', {
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
 });
+
+export const agentRunObservations = pgTable(
+  'agent_run_observations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').notNull(),
+    modelProviderId: text('model_provider_id'),
+    modelId: text('model_id'),
+    status: text('status').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    totalCost: doublePrecision('total_cost'),
+    errorCategory: text('error_category'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('agent_run_observations_conversation_started_idx').on(
+      table.conversationId,
+      table.startedAt,
+    ),
+    index('agent_run_observations_user_started_idx').on(
+      table.userId,
+      table.startedAt,
+    ),
+  ],
+);
 
 export const attachments = pgTable('attachments', {
   id: uuid('id').defaultRandom().primaryKey(),
