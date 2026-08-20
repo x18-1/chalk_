@@ -50,6 +50,13 @@
       "when": 1787229437964,
       "tag": "0006_black_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787233620502,
+      "tag": "0007_melodic_beast",
+      "breakpoints": true
     }
   ]
 }

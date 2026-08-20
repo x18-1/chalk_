@@ -249,6 +249,51 @@ describe('API auth and chat interface', () => {
     expect(response.json()).toMatchObject({ code: 'AUTH_REQUIRED' });
   });
 
+  it('returns development roles and protects admin telemetry routes', async () => {
+    const adminLogin = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'admin', password: 'admin123' },
+    });
+    expect(adminLogin.statusCode).toBe(200);
+    expect(adminLogin.json().user).toMatchObject({
+      email: 'admin@chalk.local',
+      role: 'admin',
+    });
+    const adminCookie = responseCookie(adminLogin.headers['set-cookie']);
+
+    const adminSession = await app.inject({
+      method: 'GET',
+      url: '/auth/session',
+      headers: { cookie: adminCookie },
+    });
+    expect(adminSession.json().user).toMatchObject({ role: 'admin' });
+    const adminTelemetry = await app.inject({
+      method: 'GET',
+      url: '/telemetry/spans',
+      headers: { cookie: adminCookie },
+    });
+    expect(adminTelemetry.statusCode).toBe(200);
+
+    const userLogin = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: 'user', password: 'user123' },
+    });
+    expect(userLogin.statusCode).toBe(200);
+    expect(userLogin.json().user).toMatchObject({
+      email: 'user@chalk.local',
+      role: 'user',
+    });
+    const userTelemetry = await app.inject({
+      method: 'GET',
+      url: '/telemetry/spans',
+      headers: { cookie: responseCookie(userLogin.headers['set-cookie']) },
+    });
+    expect(userTelemetry.statusCode).toBe(403);
+    expect(userTelemetry.json()).toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('logs in, exposes the session, and scopes conversations to the owner', async () => {
     const login = await app.inject({
       method: 'POST',

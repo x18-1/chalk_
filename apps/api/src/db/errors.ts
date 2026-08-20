@@ -5,6 +5,13 @@ export class AuthRequiredError extends Error {
   }
 }
 
+export class PermissionDeniedError extends Error {
+  constructor(message = 'Insufficient permissions') {
+    super(message);
+    this.name = 'PermissionDeniedError';
+  }
+}
+
 export class OwnershipError extends Error {
   constructor(resource: string, resourceId: string) {
     super(`Access denied: ${resource} ${resourceId} not found or not owned by user`);
@@ -28,4 +35,3 @@ export class ToolApprovalNotActiveError extends Error {
     this.name = 'ToolApprovalNotActiveError';
   }
 }
-

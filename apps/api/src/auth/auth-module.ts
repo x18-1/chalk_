@@ -7,11 +7,11 @@ import { z } from 'zod';
 
 import type { ApiConfig } from '../config';
 import type { Database } from '../db/client';
-import { AuthRequiredError } from '../db/errors';
+import { AuthRequiredError, PermissionDeniedError } from '../db/errors';
 import { authSessions, authUsers } from '../db/schema';
 
 const credentialsSchema = z.object({
-  email: z.string().email().transform((value) => value.toLowerCase()),
+  email: z.string().trim().min(1).max(320).transform((value) => value.toLowerCase()),
   password: z.string().min(1).max(1_000),
 });
 
@@ -20,6 +20,7 @@ export type AuthenticatedUser = {
   email: string;
   name: string | null;
   image: string | null;
+  role: 'admin' | 'user';
 };
 
 type SessionCookieConfig = ApiConfig['sessionCookie'];
@@ -29,8 +30,13 @@ function tokenHash(token: string) {
 }
 
 function publicUser(user: typeof authUsers.$inferSelect): AuthenticatedUser {
-  return { id: user.id, email: user.email, name: user.name, image: user.image };
+  return { id: user.id, email: user.email, name: user.name, image: user.image, role: user.role };
 }
+
+const developmentAccounts = [
+  { alias: 'admin', email: 'admin@chalk.local', password: 'admin123', role: 'admin' as const, name: 'Chalk 管理员' },
+  { alias: 'user', email: 'user@chalk.local', password: 'user123', role: 'user' as const, name: '林同学' },
+];
 
 export class AuthModule {
   constructor(
@@ -40,8 +46,14 @@ export class AuthModule {
 
   async login(input: unknown) {
     const credentials = credentialsSchema.parse(input);
-    const user = (await this.findUser(credentials.email)) ??
-      (await this.ensureDevelopmentUser(credentials.email, credentials.password));
+    const isDevelopmentAccount = this.config.nodeEnv !== 'production' && developmentAccounts.some((candidate) =>
+      (credentials.email === candidate.alias || credentials.email === candidate.email) &&
+      credentials.password === candidate.password,
+    );
+    const user = isDevelopmentAccount
+      ? await this.ensureDevelopmentUser(credentials.email, credentials.password)
+      : (await this.findUser(credentials.email)) ??
+        (await this.ensureDevelopmentUser(credentials.email, credentials.password));
 
     if (!user?.passwordHash || !(await compare(credentials.password, user.passwordHash))) {
       return null;
@@ -122,6 +134,28 @@ export class AuthModule {
 
   private async ensureDevelopmentUser(email: string, password: string) {
     if (this.config.nodeEnv === 'production') return null;
+    const account = developmentAccounts.find((candidate) =>
+      (email === candidate.alias || email === candidate.email) && password === candidate.password,
+    );
+    if (account) {
+      await this.db
+        .insert(authUsers)
+        .values({
+          email: account.email,
+          passwordHash: await hash(account.password, 12),
+          name: account.name,
+          role: account.role,
+        })
+        .onConflictDoUpdate({
+          target: authUsers.email,
+          set: {
+            passwordHash: await hash(account.password, 12),
+            name: account.name,
+            role: account.role,
+          },
+        });
+      return this.findUser(account.email);
+    }
     const developmentEmail = (process.env.DEV_USER_EMAIL ?? 'dev@chalk.local').toLowerCase();
     const developmentPassword = process.env.DEV_USER_PASSWORD ?? 'chalk-dev-2026';
     if (email !== developmentEmail || password !== developmentPassword) return null;
@@ -132,9 +166,22 @@ export class AuthModule {
         email: developmentEmail,
         passwordHash: await hash(developmentPassword, 12),
         name: '林同学',
+        role: 'user',
       })
       .onConflictDoNothing({ target: authUsers.email });
     return this.findUser(developmentEmail);
+  }
+
+  async requireRole(request: FastifyRequest, role: AuthenticatedUser['role']) {
+    const user = await this.requireUser(request);
+    if (user.role !== role) {
+      throw new PermissionDeniedError();
+    }
+    return user;
+  }
+
+  requireAdmin(request: FastifyRequest) {
+    return this.requireRole(request, 'admin');
   }
 }
 
