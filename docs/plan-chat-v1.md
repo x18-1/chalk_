@@ -590,12 +590,12 @@ const runtime = createAgentRuntime({ sessionRepo });
 ```
 
 **恢复验证清单**：
-- [ ] 进程重启后，打开历史对话，消息完整显示
-- [ ] 进程重启后，继续发消息，agent 能看到之前的上下文
+- [x] 进程重启后，打开历史对话，消息完整显示
+- [x] 进程重启后，继续发消息，agent 能看到之前的上下文
 - [ ] Branch 功能：点"编辑重新生成"，生成新分支，原分支保留
-- [ ] Compaction：对话超过 100 轮，自动总结前 80 轮
+- [x] Compaction：按模型上下文 token 阈值自动总结较早历史，并保留近期 token 尾部
 - [x] Thinking 持久化：刷新页面后，thinking blocks 仍可展开
-- [ ] 工具审批：进程重启时有 pending 审批，启动后自动 reject（超时 1 分钟）
+- [x] 工具审批：进程重启时有 pending 审批，启动后自动 reject（按配置超时）
 
 ---
 
