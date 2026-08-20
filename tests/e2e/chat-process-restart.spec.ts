@@ -72,8 +72,10 @@ function createFixtureProviderServer() {
     }
     const body = await readJsonRequest(request);
     const messages = body.messages ?? [];
-    const hasFirstTurn = messages.some((message) => textContent(message.content).includes(firstQuestion));
-    const answer = hasFirstTurn ? resumedAnswer : firstAnswer;
+    const userTurns = messages.filter((message) => message.role === 'user');
+    const answer = userTurns.length > 1 && userTurns.some((message) => textContent(message.content).includes(firstQuestion))
+      ? resumedAnswer
+      : firstAnswer;
     response.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache',
@@ -111,7 +113,11 @@ async function waitForApi(healthy: boolean) {
 }
 
 async function stopApi() {
-  process.kill(apiPid, 'SIGTERM');
+  try {
+    process.kill(-apiPid, 'SIGTERM');
+  } catch {
+    process.kill(apiPid, 'SIGTERM');
+  }
   await waitForApi(false);
 }
 
