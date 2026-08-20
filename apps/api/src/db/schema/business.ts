@@ -17,6 +17,7 @@ export const conversations = pgTable('conversations', {
     .notNull()
     .references(() => authUsers.id, { onDelete: 'cascade' }),
   title: text('title'),
+  titleSource: text('title_source').default('fallback').notNull(),
   sessionId: text('session_id').notNull(),
   sessionFilePath: text('session_file_path').notNull(),
   sessionBackend: text('session_backend').default('jsonl').notNull(),

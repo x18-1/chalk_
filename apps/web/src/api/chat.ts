@@ -3,6 +3,7 @@ import { ApiRequestError, apiJson, apiUrl } from './client';
 export type Conversation = {
   id: string;
   title: string | null;
+  titleSource: 'fallback' | 'auto' | 'manual';
   sessionId: string;
   createdAt: string;
   updatedAt: string;
@@ -64,6 +65,10 @@ export const chatApi = {
       method: 'POST',
       body: JSON.stringify({}),
     });
+  },
+
+  get(id: string) {
+    return apiJson<{ conversation: Conversation }>(conversationPath(id));
   },
 
   messages(id: string) {

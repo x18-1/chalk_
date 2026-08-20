@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LoaderCircle, RotateCw } from "lucide-react";
 
@@ -14,9 +14,14 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
   const protectedPage = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const [state, setState] = useState<"loading" | "ready" | "error">(protectedPage ? "loading" : "ready");
   const [attempt, setAttempt] = useState(0);
+  const verifiedSessionRef = useRef(false);
 
   useEffect(() => {
     if (!protectedPage) {
+      setState("ready");
+      return;
+    }
+    if (verifiedSessionRef.current) {
       setState("ready");
       return;
     }
@@ -29,6 +34,7 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
           window.location.replace(`/login?returnTo=${encodeURIComponent(pathname)}`);
           return;
         }
+        verifiedSessionRef.current = true;
         setState("ready");
       })
       .catch((error: unknown) => {
@@ -41,7 +47,7 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
       });
 
     return () => controller.abort();
-  }, [attempt, pathname, protectedPage]);
+  }, [attempt, protectedPage]);
 
   if (!protectedPage || state === "ready") return children;
 

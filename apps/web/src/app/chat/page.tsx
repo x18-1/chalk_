@@ -10,13 +10,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import {
   Activity,
   AlertCircle,
   ArrowUp,
   BookOpen,
-  BrainCircuit,
   Check,
   ChevronDown,
   FileText,
@@ -56,7 +56,7 @@ type Message = {
   text: string;
   time: string;
   attachment?: string;
-  thinking?: { text: string; state: "running" | "complete" };
+  thinking?: "running";
   tools?: MessageTool[];
   runStatus?: "aborted" | "failed";
 };
@@ -81,16 +81,6 @@ function messageText(content: unknown) {
     if (block && typeof block === "object" && "type" in block && block.type === "text" && "text" in block) return [String(block.text)];
     return [];
   }).join("");
-}
-
-function thinkingText(content: unknown) {
-  if (!Array.isArray(content)) return "";
-  return content.flatMap((block) => {
-    const value = objectValue(block);
-    return value?.type === "thinking" && typeof value.thinking === "string"
-      ? [value.thinking]
-      : [];
-  }).join("\n\n");
 }
 
 function toolCalls(content: unknown): MessageTool[] {
@@ -151,6 +141,12 @@ function mergeTools(current: MessageTool[] = [], incoming: MessageTool[]) {
   return merged;
 }
 
+function temporaryConversationTitle(message: string) {
+  const trimmed = message.trim();
+  const firstSentence = trimmed.split(/[。！？!?\r\n]/, 1)[0]?.trim();
+  return (firstSentence || trimmed).slice(0, 80);
+}
+
 function historyMessages(conversationId: string, rawMessages: Array<Record<string, unknown>>) {
   const parsed: Message[] = [];
   let currentTutor: Message | undefined;
@@ -167,7 +163,6 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
     }
     if (raw.role === "assistant") {
       const text = messageText(raw.content).trim();
-      const thinking = thinkingText(raw.content).trim();
       if (!currentTutor) {
         currentTutor = {
           id: `${conversationId}-${String(raw.timestamp ?? index)}`,
@@ -179,12 +174,6 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
         parsed.push(currentTutor);
       }
       if (text) currentTutor.text = [currentTutor.text, text].filter(Boolean).join("\n\n");
-      if (thinking) {
-        currentTutor.thinking = {
-          text: [currentTutor.thinking?.text, thinking].filter(Boolean).join("\n\n"),
-          state: "complete",
-        };
-      }
       currentTutor.tools = mergeTools(currentTutor.tools, toolCalls(raw.content));
       if (raw.stopReason === "aborted" || raw.stopReason === "error") {
         currentTutor.runStatus = raw.stopReason === "aborted" ? "aborted" : "failed";
@@ -300,7 +289,7 @@ export default function ChatPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
   const [contextCollapsed, setContextCollapsed] = useState(false);
-  const [showProblemSource, setShowProblemSource] = useState(false);
+  const [isDraftConversation, setIsDraftConversation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -328,13 +317,16 @@ export default function ChatPage() {
         setModelOptions(modelData.models);
         setModelProviders(providerData.providers);
         setActiveModelProviderId(nextSelection?.providerId ?? "");
-        const queryId = new URLSearchParams(window.location.search).get("conversation");
-        const nextId = queryId && nextConversations.some((conversation) => conversation.id === queryId) ? queryId : nextConversations[0]?.id ?? "";
+        const query = new URLSearchParams(window.location.search);
+        const isNewConversation = query.get("new") === "1";
+        const queryId = query.get("conversation");
+        const nextId = !isNewConversation && queryId && nextConversations.some((conversation) => conversation.id === queryId) ? queryId : nextConversations[0]?.id ?? "";
         if (nextId) {
+          setIsDraftConversation(false);
           setSelectedId(nextId);
           await loadConversationMessages(nextId);
         }
-        if (new URLSearchParams(window.location.search).get("new") === "1") await startConversation();
+        if (isNewConversation) prepareNewConversation();
       } catch (loadError) {
         if (!cancelled) setFailure({
           kind: "network",
@@ -396,18 +388,12 @@ export default function ChatPage() {
     const models = activeProviderGroup?.models ?? [];
     return query ? models.filter((model) => `${model.name} ${model.id}`.toLocaleLowerCase().includes(query)) : models;
   }, [activeProviderGroup, modelSearch]);
-  const latestStudentMessage = [...messages].reverse().find((message) => message.role === "student");
-  const learningContext = {
-    label: "数学 · 当前对话",
-    problem: latestStudentMessage?.text || "把你正在思考的题目写下来，我们从已知条件开始。",
-  };
   function resetTransientConversationState() {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsStreaming(false);
     setAttachedFile(null);
     setShowModelMenu(false);
-    setShowProblemSource(false);
     setDraft("");
     setNotice(null);
     setFailure(null);
@@ -420,6 +406,7 @@ export default function ChatPage() {
 
   async function selectConversation(id: string) {
     resetTransientConversationState();
+    setIsDraftConversation(false);
     setSelectedId(id);
     setMessages([]);
     try {
@@ -440,6 +427,7 @@ export default function ChatPage() {
       const data = await chatApi.create();
       const next = { id: data.conversation.id, title: formatConversationTitle(data.conversation), group: conversationGroup(data.conversation.updatedAt) };
       setConversations((current) => [next, ...current]);
+      setIsDraftConversation(false);
       setSelectedId(next.id);
       setMessages([]);
       window.history.replaceState(null, "", `/chat?conversation=${next.id}`);
@@ -448,6 +436,26 @@ export default function ChatPage() {
       setFailure(classifyFailure(createError));
       return null;
     }
+  }
+
+  async function syncConversationTitle(conversationId: string, remainingAttempts = 3): Promise<void> {
+    const { conversation } = await chatApi.get(conversationId);
+    setConversations((current) => current.map((item) => item.id === conversationId
+      ? { ...item, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }
+      : item));
+    if (conversation.titleSource === 'fallback' && remainingAttempts > 0) {
+      window.setTimeout(() => {
+        void syncConversationTitle(conversationId, remainingAttempts - 1).catch(() => undefined);
+      }, 1_500);
+    }
+  }
+
+  function prepareNewConversation() {
+    resetTransientConversationState();
+    setIsDraftConversation(true);
+    setSelectedId("");
+    setMessages([]);
+    window.history.replaceState(null, "", "/chat?new=1");
   }
 
   function stopStreaming() {
@@ -459,7 +467,7 @@ export default function ChatPage() {
       ? {
           ...message,
           runStatus: "aborted",
-          thinking: message.thinking ? { ...message.thinking, state: "complete" } : undefined,
+          thinking: undefined,
         }
       : message));
   }
@@ -475,6 +483,9 @@ export default function ChatPage() {
     let conversationId = selectedId;
     if (!conversationId) conversationId = (await startConversation()) ?? "";
     if (!conversationId) return;
+    setConversations((current) => current.map((conversation) => conversation.id === conversationId
+      ? { ...conversation, title: temporaryConversationTitle(text) || conversation.title }
+      : conversation));
     setNotice(null);
     setFailure(null);
     const now = new Date();
@@ -496,14 +507,14 @@ export default function ChatPage() {
     abortControllerRef.current = controller;
     try {
       await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
-        if (type === "text_delta") setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: `${message.text}${String(data.delta ?? "")}` } : message));
-        if (type === "thinking_delta") setMessages((current) => current.map((message) => message.id === tutorId ? {
+        if (type === "text_delta") setMessages((current) => current.map((message) => message.id === tutorId ? {
           ...message,
-          thinking: {
-            text: `${message.thinking?.text ?? ""}${String(data.delta ?? "")}`,
-            state: "running",
-          },
+          text: `${message.text}${String(data.delta ?? "")}`,
+          thinking: undefined,
         } : message));
+        if (type === "thinking_delta") setMessages((current) => current.map((message) => message.id === tutorId && !message.text
+          ? { ...message, thinking: "running" }
+          : message));
         if (type === "tool_started" || type === "tool_pending") {
           const toolCallId = String(data.toolCallId ?? "");
           const toolName = String(data.toolName ?? "tool");
@@ -558,13 +569,10 @@ export default function ChatPage() {
         }
         if (type === "message_completed" && data.message?.role === "assistant") {
           const completedMessage = data.message;
-          const completedThinking = thinkingText(completedMessage.content);
           setMessages((current) => current.map((message) => message.id === tutorId ? {
             ...message,
             text: messageText(completedMessage.content) || message.text,
-            thinking: completedThinking
-              ? { text: completedThinking, state: "complete" }
-              : message.thinking ? { ...message.thinking, state: "complete" } : undefined,
+            thinking: undefined,
             tools: mergeTools(message.tools, toolCalls(completedMessage.content)),
             runStatus: completedMessage.stopReason === "aborted"
               ? "aborted"
@@ -582,10 +590,8 @@ export default function ChatPage() {
     } finally {
       abortControllerRef.current = null;
       setIsStreaming(false);
-      setMessages((current) => current.map((message) => message.id === tutorId && message.thinking ? {
-        ...message,
-        thinking: { ...message.thinking, state: "complete" },
-      } : message));
+      setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, thinking: undefined } : message));
+      void syncConversationTitle(conversationId).catch(() => undefined);
     }
   }
 
@@ -745,7 +751,7 @@ export default function ChatPage() {
 
   return (
     <main className={`${styles.workspace} ${contextCollapsed ? styles.contextCollapsed : ""}`}>
-      <AppSidebar activeSection="chats" conversations={conversations} selectedConversationId={selectedId} onNewConversation={() => { void startConversation(); }} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
+      <AppSidebar activeSection={isDraftConversation ? "new" : undefined} conversations={conversations} selectedConversationId={selectedId} onNewConversation={prepareNewConversation} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
 
       <section className={styles.chatSurface} aria-label="数学对话">
         <header className={styles.chatHeader}>
@@ -759,7 +765,7 @@ export default function ChatPage() {
             {messages.map((message, index) => <MessageBubble
               key={message.id}
               message={message}
-              pending={isStreaming && index === messages.length - 1 && message.role === "tutor" && !message.text && !message.thinking?.text && !message.tools?.length}
+              pending={isStreaming && index === messages.length - 1 && message.role === "tutor" && !message.text && !message.thinking && !message.tools?.length}
               onDecideTool={(toolCallId, approved) => void decideTool(toolCallId, approved)}
             />)}
           </div>
@@ -802,8 +808,8 @@ export default function ChatPage() {
       </section>
 
       <aside className={styles.contextRail} aria-label="学习上下文">
-        <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>当前问题</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
-        <section className={styles.problemSection}><div className={styles.problemTopline}><span className={styles.problemLabel}>{learningContext.label}</span><span className={styles.contextStatus}><span className={styles.statusDot}></span>{messages.length ? "进行中" : "待开始"}</span></div><p>{learningContext.problem}</p>{showProblemSource && <div className={styles.problemSource}><strong>当前题目</strong><span>{learningContext.problem}</span></div>}<div className={styles.contextActions}><button className={styles.textAction} type="button" onClick={() => setShowProblemSource((visible) => !visible)}><BookOpen size={14} />{showProblemSource ? "收起题目" : "查看题目"}</button></div></section>
+        <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>参考资料</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
+        <section className={styles.contextEmpty} aria-live="polite"><BookOpen size={18} /><p>本次对话还没有搜索或引用资料。</p></section>
       </aside>
       {settingsOpen && <SettingsDialog onClose={() => { void reloadModelCatalog(); }} />}
     </main>
@@ -823,31 +829,24 @@ function MessageBubble({
   return <div className={styles.tutorMessage}>
     <div className={styles.messageAuthor}>
       <span className={styles.tutorAvatar}>C</span><strong>Chalk</strong>
-      <span>{pending ? "正在思考" : message.time}</span>
+      <span>{message.time}</span>
       {message.runStatus && <span className={`${styles.runStatus} ${styles[`run_${message.runStatus}`]}`}>{message.runStatus === "aborted" ? "已停止" : "未完成"}</span>}
     </div>
-    {pending && <div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />正在整理下一步提示</div>}
-    {message.thinking?.text && <ThinkingDisclosure thinking={message.thinking} />}
+    {(pending || message.thinking === "running") && <div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />Thinking…</div>}
     {!!message.tools?.length && <div className={styles.messageTools}>{message.tools.map((tool) => <ToolActivity
       key={tool.toolCallId}
       tool={tool}
       onApprove={() => onDecideTool(tool.toolCallId, true)}
       onDeny={() => onDecideTool(tool.toolCallId, false)}
     />)}</div>}
-    {message.text && <div className={styles.tutorCopy}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{message.text}</ReactMarkdown></div>}
+    {message.text && <div className={styles.tutorCopy}><ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        table: ({ children }) => <div className={styles.tableScroll} role="region" aria-label="表格内容" tabIndex={0}><table>{children}</table></div>,
+      }}
+    >{message.text}</ReactMarkdown></div>}
   </div>;
-}
-
-function ThinkingDisclosure({ thinking }: { thinking: NonNullable<Message["thinking"]> }) {
-  const running = thinking.state === "running";
-  return <details className={`${styles.thinkingDisclosure} ${running ? styles.thinkingRunning : ""}`} open={running}>
-    <summary>
-      <BrainCircuit size={15} />
-      <span>{running ? "正在思考" : "思考过程"}</span>
-      <ChevronDown size={14} className={styles.disclosureChevron} />
-    </summary>
-    <div className={styles.thinkingContent}>{thinking.text}</div>
-  </details>;
 }
 
 function ToolActivity({ tool, onApprove, onDeny }: { tool: MessageTool; onApprove: () => void; onDeny: () => void }) {

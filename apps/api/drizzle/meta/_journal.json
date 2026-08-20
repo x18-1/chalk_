@@ -43,6 +43,13 @@
       "when": 1786540310018,
       "tag": "0005_add-tool-approval-uniqueness",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787229437964,
+      "tag": "0006_black_karnak",
+      "breakpoints": true
     }
   ]
 }

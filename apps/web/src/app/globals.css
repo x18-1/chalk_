@@ -17,7 +17,7 @@
   --chalk-warning: #a76024;
   --chalk-danger: #a8453d;
   --chalk-font: "Noto Sans SC Variable", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-  --chalk-display: Georgia, "Noto Serif SC", "Songti SC", serif;
+  --chalk-display: Georgia, "Noto Serif SC", "Songti SC", "Noto Sans SC Variable", "Noto Sans SC", serif;
   --chalk-shadow-working: 0 1px 2px rgba(43, 41, 38, 0.04), 0 8px 24px rgba(43, 41, 38, 0.045);
   --chalk-shadow-popover: 0 18px 44px rgba(43, 41, 38, 0.14);
 }

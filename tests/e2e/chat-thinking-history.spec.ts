@@ -355,7 +355,7 @@ async function withThinkingFixture(page: Page, run: () => Promise<void>) {
   }
 }
 
-test('keeps thinking and tool history after a live run and reload', async ({ page }) => {
+test('keeps thinking private while restoring tool history after a live run and reload', async ({ page }) => {
   const session: Partial<ThinkingSession> = {};
   await withThinkingFixture(page, async () => {
     try {
@@ -366,13 +366,7 @@ test('keeps thinking and tool history after a live run and reload', async ({ pag
       await expect(page.getByText('提示阶梯')).toBeVisible();
       await expect(page.getByText('工具调用已完成。')).toBeVisible();
       await expect(page.getByText(finalReply)).toBeVisible();
-      await expect(page.getByText('思考过程', { exact: true })).toBeVisible();
-
-      const liveThinking = page.locator('details').filter({ has: page.getByText('思考过程', { exact: true }) });
-      await expect(liveThinking).not.toHaveAttribute('open');
-      await expect(page.getByText(thinkingText)).toBeHidden();
-      await page.getByText('思考过程', { exact: true }).click();
-      await expect(page.getByText(thinkingText)).toBeVisible();
+      await expect(page.getByText(thinkingText)).toHaveCount(0);
       await page.getByText('查看结果', { exact: true }).click();
       await expect(page.getByText(toolResultText)).toBeVisible();
 
@@ -394,13 +388,7 @@ test('keeps thinking and tool history after a live run and reload', async ({ pag
       await expect(page.getByText(finalReply)).toBeVisible();
       await expect(page.getByText('提示阶梯')).toBeVisible();
       await expect(page.getByText('工具调用已完成。')).toBeVisible();
-      await expect(page.getByText('思考过程', { exact: true })).toBeVisible();
-      const restoredThinking = page.locator('details').filter({ has: page.getByText('思考过程', { exact: true }) });
-      await expect(restoredThinking).not.toHaveAttribute('open');
-      await expect(page.getByText(thinkingText)).toBeHidden();
-
-      await page.getByText('思考过程', { exact: true }).click();
-      await expect(page.getByText(thinkingText)).toBeVisible();
+      await expect(page.getByText(thinkingText)).toHaveCount(0);
       await page.getByText('查看结果', { exact: true }).click();
       await expect(page.getByText(toolResultText)).toBeVisible();
     } finally {

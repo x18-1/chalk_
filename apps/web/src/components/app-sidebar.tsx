@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Check,
   ChevronRight,
@@ -41,13 +42,18 @@ export const defaultSidebarConversations: SidebarConversation[] = [
 const conversationGroupOrder: ConversationGroup[] = ["今天", "昨天", "过去 7 天", "过去 30 天"];
 
 type AppSidebarProps = {
-  activeSection?: "chats" | "chalkboard";
+  activeSection?: "new" | "chats" | "chalkboard";
   conversations?: SidebarConversation[];
   selectedConversationId?: string;
   onNewConversation?: () => void;
   onSelectConversation?: (id: string) => void;
   onRenameConversation?: (id: string, title: string) => void;
   onDeleteConversation?: (id: string) => void;
+};
+
+type ConversationMenuPosition = {
+  top: number;
+  left: number;
 };
 
 export function AppSidebar({
@@ -66,11 +72,27 @@ export function AppSidebar({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openConversationMenu, setOpenConversationMenu] = useState<string | null>(null);
-  const [conversationMenuAbove, setConversationMenuAbove] = useState(false);
+  const [conversationMenuPosition, setConversationMenuPosition] = useState<ConversationMenuPosition | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const conversations = controlledConversations ?? localConversations;
+  const pendingDeleteConversation = conversations.find((conversation) => conversation.id === pendingDeleteId);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target as Element).closest("[data-sidebar-menu]")) closeTransientMenus();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeTransientMenus();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   const conversationGroups = useMemo(() => {
     if (!groupByTime) return [{ group: null, items: conversations }];
@@ -83,6 +105,7 @@ export function AppSidebar({
     setGroupMenuOpen(false);
     setUserMenuOpen(false);
     setOpenConversationMenu(null);
+    setConversationMenuPosition(null);
     setPendingDeleteId(null);
   }
 
@@ -117,17 +140,18 @@ export function AppSidebar({
   function toggleConversationMenu(id: string, button: HTMLButtonElement) {
     const opening = openConversationMenu !== id;
     if (opening) {
-      const list = button.closest('[aria-label="最近对话"]');
       const buttonRect = button.getBoundingClientRect();
-      const listRect = list?.getBoundingClientRect();
       const menuHeight = 72;
-      setConversationMenuAbove(Boolean(
-        listRect &&
-        listRect.bottom - buttonRect.bottom < menuHeight &&
-        buttonRect.top - listRect.top >= menuHeight
-      ));
+      const menuWidth = 132;
+      const gap = 4;
+      const showAbove = window.innerHeight - buttonRect.bottom < menuHeight + gap && buttonRect.top >= menuHeight + gap;
+      setConversationMenuPosition({
+        top: Math.round(showAbove ? buttonRect.top - menuHeight - gap : buttonRect.bottom + gap),
+        left: Math.round(Math.max(8, Math.min(window.innerWidth - menuWidth - 8, buttonRect.right - menuWidth))),
+      });
     }
     setOpenConversationMenu(opening ? id : null);
+    if (!opening) setConversationMenuPosition(null);
     setPendingDeleteId(null);
   }
 
@@ -142,8 +166,8 @@ export function AppSidebar({
       <div className={styles.brand}><span className={styles.brandMark}>C</span><span>Chalk</span></div>
 
       {onNewConversation
-        ? <button className={styles.newConversation} type="button" onClick={() => { closeTransientMenus(); onNewConversation(); }}><SquarePen size={16} /><span>新建对话</span></button>
-        : <Link className={styles.newConversation} href="/chat?new=1"><SquarePen size={16} /><span>新建对话</span></Link>}
+        ? <button className={`${styles.newConversation} ${activeSection === "new" ? styles.activeNavItem : ""}`} type="button" onClick={() => { closeTransientMenus(); onNewConversation(); }}><SquarePen size={16} /><span>新建对话</span></button>
+        : <Link className={`${styles.newConversation} ${activeSection === "new" ? styles.activeNavItem : ""}`} href="/chat?new=1"><SquarePen size={16} /><span>新建对话</span></Link>}
 
       <nav className={styles.primaryNav} aria-label="产品功能">
         <Link className={activeSection === "chats" ? styles.activeNavItem : ""} href="/chats"><MessageCircle size={16} /><span>Chats</span></Link>
@@ -153,14 +177,14 @@ export function AppSidebar({
       <div className={styles.recentHeader}>
         <button className={styles.recentToggle} type="button" aria-expanded={recentOpen} onClick={() => { setRecentOpen((open) => !open); setGroupMenuOpen(false); }}><ChevronRight size={15} className={recentOpen ? styles.recentExpanded : ""} /><span>最近</span></button>
         <div className={styles.recentActions}>
-          <button className={`${styles.groupByButton} ${groupByTime ? styles.groupByActive : ""}`} type="button" aria-label="按时间分组" title="按时间分组" aria-expanded={groupMenuOpen} onClick={() => { setGroupMenuOpen((open) => !open); setUserMenuOpen(false); }}><ListFilter size={15} /></button>
-          {groupMenuOpen && <div className={styles.groupMenuPopover} role="menu">
+          <button data-sidebar-menu className={`${styles.groupByButton} ${groupByTime ? styles.groupByActive : ""}`} type="button" aria-label="按时间分组" title="按时间分组" aria-expanded={groupMenuOpen} onClick={() => { setGroupMenuOpen((open) => !open); setUserMenuOpen(false); }}><ListFilter size={15} /></button>
+          {groupMenuOpen && <div data-sidebar-menu className={styles.groupMenuPopover} role="menu">
             <button type="button" role="menuitemcheckbox" aria-checked={groupByTime} onClick={() => { setGroupByTime((active) => !active); setGroupMenuOpen(false); }}><span>按时间</span>{groupByTime && <Check size={14} />}</button>
           </div>}
         </div>
       </div>
 
-      {recentOpen && <nav className={styles.conversationList} aria-label="最近对话">
+      {recentOpen && <nav className={styles.conversationList} aria-label="最近对话" onScroll={closeTransientMenus}>
         {conversationGroups.length ? conversationGroups.map(({ group, items }) => <section className={styles.conversationGroup} key={group ?? "all"}>
           {groupByTime && <h2>{group}</h2>}
           {items.map((conversation) => <div key={conversation.id} className={`${styles.conversationItem} ${selectedConversationId === conversation.id ? styles.selectedConversation : ""}`}>
@@ -169,26 +193,26 @@ export function AppSidebar({
               : onSelectConversation
                 ? <button className={styles.conversationSelect} type="button" aria-current={selectedConversationId === conversation.id ? "page" : undefined} onClick={() => selectConversation(conversation.id)}><strong>{conversation.title}</strong></button>
                 : <Link className={styles.conversationSelect} href={`/chat?conversation=${conversation.id}`}><strong>{conversation.title}</strong></Link>}
-            <button className={styles.conversationMenu} type="button" aria-label={`${conversation.title} 的更多操作`} title="更多操作" aria-expanded={openConversationMenu === conversation.id} onClick={(event) => toggleConversationMenu(conversation.id, event.currentTarget)}><MoreHorizontal size={15} /></button>
-            {openConversationMenu === conversation.id && <div className={`${styles.conversationMenuPopover} ${conversationMenuAbove ? styles.conversationPopoverAbove : ""}`} role="menu"><button type="button" role="menuitem" onClick={() => startRenameConversation(conversation)}><Pencil size={14} />重命名</button><button type="button" role="menuitem" onClick={() => { setOpenConversationMenu(null); setPendingDeleteId(conversation.id); }}><Trash2 size={14} />删除</button></div>}
-            {pendingDeleteId === conversation.id && <div className={`${styles.deleteConfirm} ${conversationMenuAbove ? styles.conversationPopoverAbove : ""}`} role="alert"><span>删除此对话？</span><button type="button" onClick={() => setPendingDeleteId(null)}>取消</button><button type="button" onClick={() => deleteConversation(conversation.id)}>删除</button></div>}
+            <button data-sidebar-menu className={styles.conversationMenu} type="button" aria-label={`${conversation.title} 的更多操作`} title="更多操作" aria-expanded={openConversationMenu === conversation.id} onClick={(event) => toggleConversationMenu(conversation.id, event.currentTarget)}><MoreHorizontal size={15} /></button>
+            {openConversationMenu === conversation.id && conversationMenuPosition && <div data-sidebar-menu className={styles.conversationMenuPopover} style={conversationMenuPosition} role="menu"><button type="button" role="menuitem" onClick={() => startRenameConversation(conversation)}><Pencil size={14} />重命名</button><button type="button" role="menuitem" onClick={() => { setOpenConversationMenu(null); setConversationMenuPosition(null); setPendingDeleteId(conversation.id); }}><Trash2 size={14} />删除</button></div>}
           </div>)}
         </section>) : <p className={styles.emptyConversations}>暂无会话</p>}
       </nav>}
 
       <div className={styles.userArea}>
-        {userMenuOpen && <div className={styles.userMenu} role="menu">
+        {userMenuOpen && <div data-sidebar-menu className={styles.userMenu} role="menu">
           <button type="button" role="menuitem" onClick={() => { setUserMenuOpen(false); setSettingsOpen(true); }}><Settings2 size={16} /><span>设置</span></button>
           <button type="button" role="menuitem" disabled title="帮助与反馈暂不可用"><CircleHelp size={16} /><span>帮助与反馈</span></button>
           <button type="button" role="menuitem" onClick={() => void logout()}><LogOut size={16} /><span>退出登录</span></button>
         </div>}
-        <button className={styles.userButton} type="button" aria-expanded={userMenuOpen} aria-label="打开用户菜单" onClick={() => { setUserMenuOpen((open) => !open); setGroupMenuOpen(false); }}>
+        <button data-sidebar-menu className={styles.userButton} type="button" aria-expanded={userMenuOpen} aria-label="打开用户菜单" onClick={() => { setUserMenuOpen((open) => !open); setGroupMenuOpen(false); }}>
           <span className={styles.avatar}>林</span>
           <span className={styles.userCopy}><strong>林同学</strong><small>自学空间</small></span>
           <ChevronUp size={16} className={userMenuOpen ? styles.userChevronOpen : ""} />
         </button>
       </div>
     </aside>
+    {pendingDeleteConversation && createPortal(<div className={styles.deleteConfirmBackdrop} onPointerDown={(event) => { if (event.target === event.currentTarget) setPendingDeleteId(null); }}><section data-sidebar-menu className={styles.deleteConfirm} role="dialog" aria-modal="true" aria-labelledby="delete-conversation-title" aria-describedby="delete-conversation-description"><strong id="delete-conversation-title">删除这段对话？</strong><p id="delete-conversation-description">删除后，对话记录将无法恢复。</p><div className={styles.deleteConfirmActions}><button type="button" onClick={() => setPendingDeleteId(null)}>取消</button><button className={styles.deleteConfirmDanger} type="button" onClick={() => deleteConversation(pendingDeleteConversation.id)}>删除</button></div></section></div>, document.body)}
     {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
   </>;
 }
