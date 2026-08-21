@@ -20,3 +20,10 @@ export {
   type Tool,
 } from './settings';
 export { uploadsApi } from './uploads';
+export {
+  telemetryApi,
+  type AgentRun,
+  type AgentRunStatus,
+  type ConversationObservationDetail,
+  type ConversationObservationSummary,
+} from './telemetry';

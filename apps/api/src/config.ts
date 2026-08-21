@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+const toolApprovalTimeoutSchema = z.coerce
+  .number()
+  .int()
+  .min(1_000)
+  .max(24 * 60 * 60 * 1_000)
+  .default(120_000);
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_HOST: z.string().min(1).default('127.0.0.1'),
@@ -8,6 +15,7 @@ const environmentSchema = z.object({
   SESSION_COOKIE_NAME: z.string().min(1).default('chalk_session'),
   SESSION_COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  TOOL_APPROVAL_TIMEOUT_MS: toolApprovalTimeoutSchema,
 });
 
 export type ApiConfig = {
@@ -20,7 +28,14 @@ export type ApiConfig = {
     secure: boolean;
     ttlDays: number;
   };
+  toolApprovalTimeoutMs: number;
 };
+
+export function parseToolApprovalTimeoutMs(
+  value: string | number | undefined = process.env.TOOL_APPROVAL_TIMEOUT_MS,
+) {
+  return toolApprovalTimeoutSchema.parse(value);
+}
 
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): ApiConfig {
   const parsed = environmentSchema.parse(environment);
@@ -43,5 +58,6 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): ApiCon
       secure: parsed.SESSION_COOKIE_SECURE === 'true',
       ttlDays: parsed.SESSION_TTL_DAYS,
     },
+    toolApprovalTimeoutMs: parsed.TOOL_APPROVAL_TIMEOUT_MS,
   };
 }

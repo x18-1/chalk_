@@ -1,5 +1,7 @@
 import {
   boolean,
+  doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -17,6 +19,7 @@ export const conversations = pgTable('conversations', {
     .notNull()
     .references(() => authUsers.id, { onDelete: 'cascade' }),
   title: text('title'),
+  titleSource: text('title_source').default('fallback').notNull(),
   sessionId: text('session_id').notNull(),
   sessionFilePath: text('session_file_path').notNull(),
   sessionBackend: text('session_backend').default('jsonl').notNull(),
@@ -70,18 +73,22 @@ export const providerCredentials = pgTable(
   (t) => [unique().on(t.userId, t.providerId)],
 );
 
-export const toolApprovals = pgTable('tool_approvals', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  conversationId: uuid('conversation_id')
-    .notNull()
-    .references(() => conversations.id, { onDelete: 'cascade' }),
-  toolCallId: text('tool_call_id').notNull(),
-  toolName: text('tool_name').notNull(),
-  args: jsonb('args').notNull(),
-  status: text('status').default('pending').notNull(), // pending | approved | rejected
-  decidedAt: timestamp('decided_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const toolApprovals = pgTable(
+  'tool_approvals',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    toolCallId: text('tool_call_id').notNull(),
+    toolName: text('tool_name').notNull(),
+    args: jsonb('args').notNull(),
+    status: text('status').default('pending').notNull(), // pending | approved | rejected
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.conversationId, table.toolCallId)],
+);
 
 export const agentSettings = pgTable('agent_settings', {
   userId: uuid('user_id')
@@ -139,6 +146,40 @@ export const subagentRuns = pgTable('subagent_runs', {
   startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
 });
+
+export const agentRunObservations = pgTable(
+  'agent_run_observations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').notNull(),
+    modelProviderId: text('model_provider_id'),
+    modelId: text('model_id'),
+    status: text('status').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    totalCost: doublePrecision('total_cost'),
+    errorCategory: text('error_category'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('agent_run_observations_conversation_started_idx').on(
+      table.conversationId,
+      table.startedAt,
+    ),
+    index('agent_run_observations_user_started_idx').on(
+      table.userId,
+      table.startedAt,
+    ),
+  ],
+);
 
 export const attachments = pgTable('attachments', {
   id: uuid('id').defaultRandom().primaryKey(),

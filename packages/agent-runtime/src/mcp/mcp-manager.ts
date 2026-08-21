@@ -28,6 +28,11 @@ export type McpServerStatus = {
   connectedAt?: number;
 };
 
+export type McpManagerOptions = {
+  connectTimeoutMs?: number;
+  callTimeoutMs?: number;
+};
+
 type RemoteTool = Awaited<ReturnType<Client["listTools"]>>["tools"][number];
 
 type Connection = {
@@ -124,6 +129,7 @@ function toRuntimeTool(
   config: McpServerConfig,
   client: Client,
   tool: RemoteTool,
+  callTimeoutMs: number,
 ): RuntimeTool {
   const name = `mcp__${safeName(config.name)}__${safeName(tool.name)}`;
   return {
@@ -138,7 +144,10 @@ function toRuntimeTool(
       const result = (await client.callTool(
         { name: tool.name, arguments: args as Record<string, unknown> },
         undefined,
-        { signal },
+        {
+          timeout: callTimeoutMs,
+          ...(signal ? { signal } : {}),
+        },
       )) as CallToolResult;
       return {
         content: resultContent(result.content),
@@ -163,8 +172,15 @@ function publicRemoteTool(tool: RemoteTool) {
 
 export class McpManager {
   private readonly connections = new Map<string, Connection>();
+  private readonly connectTimeoutMs: number;
+  private readonly callTimeoutMs: number;
 
-  constructor(configs: readonly McpServerConfig[] = []) {
+  constructor(
+    configs: readonly McpServerConfig[] = [],
+    options: McpManagerOptions = {},
+  ) {
+    this.connectTimeoutMs = options.connectTimeoutMs ?? 10_000;
+    this.callTimeoutMs = options.callTimeoutMs ?? 30_000;
     for (const config of configs) this.register(config);
   }
 
@@ -185,7 +201,10 @@ export class McpManager {
     });
   }
 
-  async connect(configOrId: McpServerConfig | string): Promise<ToolSummary[]> {
+  async connect(
+    configOrId: McpServerConfig | string,
+    signal?: AbortSignal,
+  ): Promise<ToolSummary[]> {
     if (typeof configOrId !== "string" && !this.connections.has(configOrId.id)) {
       this.register(configOrId);
     }
@@ -199,7 +218,7 @@ export class McpManager {
     }
     if (connection.connectPromise) return connection.connectPromise;
 
-    connection.connectPromise = this.openConnection(connection);
+    connection.connectPromise = this.openConnection(connection, signal);
     try {
       return await connection.connectPromise;
     } finally {
@@ -251,7 +270,7 @@ export class McpManager {
     );
   }
 
-  private async openConnection(connection: Connection) {
+  private async openConnection(connection: Connection, signal?: AbortSignal) {
     connection.status = {
       id: connection.config.id,
       name: connection.config.name,
@@ -261,12 +280,16 @@ export class McpManager {
     const client = new Client({ name: "chalk", version: "0.0.1" });
 
     try {
-      await client.connect(transportFor(connection.config));
-      const listed = await client.listTools();
+      const requestOptions = {
+        timeout: this.connectTimeoutMs,
+        ...(signal ? { signal } : {}),
+      };
+      await client.connect(transportFor(connection.config), requestOptions);
+      const listed = await client.listTools(undefined, requestOptions);
       connection.client = client;
       connection.remoteTools = listed.tools;
       connection.tools = listed.tools.map((tool) =>
-        toRuntimeTool(connection.config, client, tool),
+        toRuntimeTool(connection.config, client, tool, this.callTimeoutMs),
       );
       connection.status = {
         id: connection.config.id,
@@ -303,9 +326,9 @@ export class McpManager {
       parameters: proxyParameters,
       source: "mcp",
       executionMode: "sequential",
-      requiresApproval: async (args: ProxyParameters) => {
+      requiresApproval: async (args: ProxyParameters, _context, signal) => {
         if (args.action !== "call") return false;
-        await this.connect(config.id);
+        await this.connect(config.id, signal);
         const remote = connection.remoteTools.find(
           (tool) => tool.name === args.tool,
         );
@@ -313,7 +336,7 @@ export class McpManager {
         return remote.annotations?.readOnlyHint !== true;
       },
       execute: async (args: ProxyParameters, _context, signal) => {
-        await this.connect(config.id);
+        await this.connect(config.id, signal);
 
         if (args.action === "search") {
           const query = args.query?.trim().toLowerCase() ?? "";
@@ -356,7 +379,10 @@ export class McpManager {
         const result = (await connection.client.callTool(
           { name: remote.name, arguments: args.arguments ?? {} },
           undefined,
-          { signal },
+          {
+            timeout: this.callTimeoutMs,
+            ...(signal ? { signal } : {}),
+          },
         )) as CallToolResult;
         return {
           content: resultContent(result.content),

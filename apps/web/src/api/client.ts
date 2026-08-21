@@ -1,7 +1,11 @@
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
 
 export class ApiRequestError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly code?: string,
+  ) {
     super(message);
     this.name = 'ApiRequestError';
   }
@@ -24,7 +28,13 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
-  const body = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new ApiRequestError(response.status, body.error ?? `Request failed (${response.status})`);
+  const body = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
+  if (!response.ok) {
+    throw new ApiRequestError(
+      response.status,
+      body.error ?? `Request failed (${response.status})`,
+      body.code,
+    );
+  }
   return body;
 }

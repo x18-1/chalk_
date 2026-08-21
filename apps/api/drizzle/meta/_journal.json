@@ -36,6 +36,34 @@
       "when": 1786507385864,
       "tag": "0004_slippery_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786540310018,
+      "tag": "0005_add-tool-approval-uniqueness",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787229437964,
+      "tag": "0006_black_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787233620502,
+      "tag": "0007_melodic_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787236650693,
+      "tag": "0008_young_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

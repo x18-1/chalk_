@@ -5,9 +5,33 @@ export class AuthRequiredError extends Error {
   }
 }
 
+export class PermissionDeniedError extends Error {
+  constructor(message = 'Insufficient permissions') {
+    super(message);
+    this.name = 'PermissionDeniedError';
+  }
+}
+
 export class OwnershipError extends Error {
   constructor(resource: string, resourceId: string) {
     super(`Access denied: ${resource} ${resourceId} not found or not owned by user`);
     this.name = 'OwnershipError';
+  }
+}
+
+export class ToolApprovalAlreadyDecidedError extends Error {
+  constructor(
+    readonly toolCallId: string,
+    readonly status: string,
+  ) {
+    super(`Tool approval ${toolCallId} has already been ${status}`);
+    this.name = 'ToolApprovalAlreadyDecidedError';
+  }
+}
+
+export class ToolApprovalNotActiveError extends Error {
+  constructor(readonly toolCallId: string) {
+    super(`Tool approval ${toolCallId} is not waiting for a decision`);
+    this.name = 'ToolApprovalNotActiveError';
   }
 }

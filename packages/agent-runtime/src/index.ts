@@ -47,6 +47,7 @@ export {
 } from "./skills/skill-registry";
 export {
   McpManager,
+  type McpManagerOptions,
   type McpServerConfig,
   type McpServerStatus,
 } from "./mcp/mcp-manager";
@@ -62,6 +63,9 @@ export {
 } from "./subagent/subagent-executor";
 export {
   chalkTelemetrySchema,
+  createRuntimeTelemetryContext,
   defaultRuntimeTelemetry,
+  RuntimeTelemetryContext,
+  type AgentRunObservation,
   type RuntimeTelemetryOptions,
 } from "./telemetry/telemetry";

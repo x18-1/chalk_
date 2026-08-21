@@ -1,6 +1,6 @@
 import { apiJson } from './client';
 
-export type AuthUser = { id: string; email?: string; name?: string | null; image?: string | null };
+export type AuthUser = { id: string; email?: string; name?: string | null; image?: string | null; role: 'admin' | 'user' };
 
 export const authApi = {
   login(email: string, password: string) {

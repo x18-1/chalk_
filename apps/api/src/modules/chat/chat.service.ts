@@ -8,6 +8,7 @@ import type { ImageContent } from '@earendil-works/pi-ai';
 
 import {
   closeRuntime,
+  createUserModelCatalog,
   createSession,
   deleteSession,
   getActiveRuntime,
@@ -30,6 +31,32 @@ export type ChatMessageRun = {
   start(listener: (event: AgentRuntimeEvent) => void | Promise<void>): Promise<RuntimeRunResult>;
   complete(): Promise<void>;
 };
+
+const titleModel = { providerId: 'deepseek', modelId: 'deepseek-v4-flash' } as const;
+const titlePrompt = [
+  '你为数学学习产品生成会话标题。',
+  '只根据用户的第一条问题，生成一个简洁、具体的中文标题。',
+  '标题应描述知识点或学习任务，不给答案，不复述整段问题，不使用引号、序号或句号。',
+  '优先控制在 8 到 18 个汉字；只输出标题本身。',
+].join('\n');
+
+function fallbackTitle(message: string) {
+  const trimmed = message.trim();
+  const firstSentence = trimmed.split(/[。！？!?\r\n]/, 1)[0]?.trim();
+  return (firstSentence || trimmed).slice(0, 80);
+}
+
+function generatedTitle(content: Array<{ type: string; text?: string }>) {
+  const raw = content
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text ?? '')
+    .join('')
+    .replace(/\s+/g, ' ')
+    .replace(/^(?:标题|会话标题)\s*[:：]\s*/, '')
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
+    .trim();
+  return raw.length >= 2 ? raw.slice(0, 40) : null;
+}
 
 type ChatServiceOptions = {
   onSessionCleanupError?: (error: unknown, sessionId: string) => void;
@@ -60,7 +87,7 @@ export class ChatService {
         sessionFilePath: session.descriptor.path,
       });
     } catch (error) {
-      await deleteSession(session.descriptor.id).catch(() => undefined);
+      await deleteSession(userId, session.descriptor.id).catch(() => undefined);
       throw error;
     }
   }
@@ -70,7 +97,33 @@ export class ChatService {
   }
 
   renameConversation(userId: string, conversationId: string, title: string) {
-    return this.conversations.update(userId, conversationId, { title });
+    return this.conversations.update(userId, conversationId, {
+      title,
+      titleSource: 'manual',
+    });
+  }
+
+  private async generateAutoTitle(userId: string, conversationId: string, message: string) {
+    const catalog = await createUserModelCatalog(userId);
+    const model = await catalog.resolve(titleModel);
+    const response = await catalog.getRawModels().completeSimple(
+      model,
+      {
+        systemPrompt: titlePrompt,
+        messages: [{
+          role: 'user',
+          content: [{ type: 'text', text: message }],
+          timestamp: Date.now(),
+        }],
+      },
+      {
+        maxTokens: 48,
+        maxRetries: 0,
+        timeoutMs: 8_000,
+      },
+    );
+    const title = generatedTitle(response.content);
+    if (title) await this.conversations.updateAutoTitle(userId, conversationId, title);
   }
 
   async deleteConversation(userId: string, conversationId: string) {
@@ -80,18 +133,15 @@ export class ChatService {
 
     // Postgres is the owner-visible source of truth. Failed transcript cleanup is
     // recoverable and should not resurrect a conversation that was already deleted.
-    await deleteSession(conversation.sessionId).catch((error) => {
+    await deleteSession(userId, conversation.sessionId).catch((error) => {
       this.options.onSessionCleanupError?.(error, conversation.sessionId);
     });
   }
 
   async getMessages(userId: string, conversationId: string) {
     const conversation = await this.conversations.getById(userId, conversationId);
-    const session = await openSession(conversation.sessionId);
-    if (session.descriptor.ownerId && session.descriptor.ownerId !== userId) {
-      throw new ApiError(404, 'Resource not found', 'NOT_FOUND');
-    }
-    return session.getMessages();
+    const session = await openSession(userId, conversation.sessionId);
+    return session.getTranscript();
   }
 
   async abortRun(userId: string, conversationId: string) {
@@ -129,6 +179,16 @@ export class ChatService {
     input: ChatStreamInput,
   ): Promise<ChatMessageRun> {
     const conversation = await this.conversations.getById(userId, conversationId);
+    if (!conversation.title) {
+      const initialized = await this.conversations.initializeFallbackTitle(
+        userId,
+        conversationId,
+        fallbackTitle(input.message),
+      );
+      if (initialized) {
+        void this.generateAutoTitle(userId, conversationId, input.message).catch(() => undefined);
+      }
+    }
     const attachments = await this.attachments.listForConversation(
       userId,
       conversationId,
@@ -173,9 +233,7 @@ export class ChatService {
       abort: () => entry.runtime.abort(),
       start: (listener) => entry.runtime.run(prompt, listener, images),
       complete: async () => {
-        await this.conversations.update(userId, conversationId, {
-          title: conversation.title ?? input.message.slice(0, 80),
-        });
+        await this.conversations.update(userId, conversationId, {});
       },
     };
   }

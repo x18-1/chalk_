@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import { JsonlSessionRepo } from "@earendil-works/pi-agent-core";
+import { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createJsonlSessionRepository, SessionNotFoundError } from "../../src/session/session-repository";
@@ -58,11 +60,44 @@ describe("SessionRepository", () => {
     await created.appendMessage(userMessage);
     await created.appendMessage(assistantMessage);
 
-    const reopened = await repository.open(created.descriptor.id);
+    const reopened = await repository.open("student-1", created.descriptor.id);
 
     expect(reopened.descriptor.path).toBe(created.descriptor.path);
     expect(reopened.descriptor.ownerId).toBe("student-1");
     expect(await reopened.getMessages()).toEqual([userMessage, assistantMessage]);
+    expect(await reopened.getTranscript()).toEqual([userMessage, assistantMessage]);
+  });
+
+  it("keeps the original transcript after compaction", async () => {
+    const repository = await createRepository();
+    const created = await repository.create({ ownerId: "student-1" });
+
+    const earlyMessage = {
+      role: "user",
+      content: [{ type: "text", text: "早期条件：三角形 ABC 中 AB = AC" }],
+      timestamp: 1,
+    } satisfies AgentMessage;
+    const recentMessage = {
+      role: "user",
+      content: [{ type: "text", text: "最近必须保留：连接 AC" }],
+      timestamp: 2,
+    } satisfies AgentMessage;
+
+    await created.appendMessage(earlyMessage);
+    await created.appendMessage(recentMessage);
+    await created.appendCompaction({
+      summary: "已总结早期条件。",
+      retainedTail: [recentMessage],
+      tokensBefore: 9_000,
+    });
+
+    const reopened = await repository.open("student-1", created.descriptor.id);
+
+    expect(await reopened.getTranscript()).toEqual([earlyMessage, recentMessage]);
+    expect(await reopened.getMessages()).toEqual([
+      expect.objectContaining({ role: "compactionSummary", summary: "已总结早期条件。" }),
+      recentMessage,
+    ]);
   });
 
   it("deletes only the requested session", async () => {
@@ -70,9 +105,44 @@ describe("SessionRepository", () => {
     const first = await repository.create({ ownerId: "student-1" });
     const second = await repository.create({ ownerId: "student-1" });
 
-    await repository.delete(first.descriptor.id);
+    await repository.delete("student-1", first.descriptor.id);
 
-    await expect(repository.open(first.descriptor.id)).rejects.toBeInstanceOf(SessionNotFoundError);
-    await expect(repository.open(second.descriptor.id)).resolves.toBeDefined();
+    await expect(repository.open("student-1", first.descriptor.id)).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(repository.open("student-1", second.descriptor.id)).resolves.toBeDefined();
+  });
+
+  it("hides a session from the wrong owner", async () => {
+    const repository = await createRepository();
+    const created = await repository.create({ ownerId: "student-1" });
+
+    await expect(
+      repository.open("student-2", created.descriptor.id),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(
+      repository.delete("student-2", created.descriptor.id),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(
+      repository.open("student-1", created.descriptor.id),
+    ).resolves.toBeDefined();
+  });
+
+  it("fails closed for a legacy session without owner metadata", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-session-test-"));
+    temporaryDirectories.push(directory);
+    const sessionsRoot = join(directory, "sessions");
+    const upstream = new JsonlSessionRepo({
+      fs: new NodeExecutionEnv({ cwd: directory }),
+      sessionsRoot,
+    });
+    const legacy = await upstream.create({ cwd: directory });
+    const legacyMetadata = await legacy.getMetadata();
+    const repository = createJsonlSessionRepository({ sessionsRoot, cwd: directory });
+
+    await expect(
+      repository.open("student-1", legacyMetadata.id),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
+    await expect(
+      repository.delete("student-1", legacyMetadata.id),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });

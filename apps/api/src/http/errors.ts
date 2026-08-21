@@ -2,7 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import { SessionNotFoundError } from '@chalk/agent-runtime';
 
-import { AuthRequiredError, OwnershipError } from '../db/errors';
+import {
+  AuthRequiredError,
+  OwnershipError,
+  PermissionDeniedError,
+  ToolApprovalAlreadyDecidedError,
+  ToolApprovalNotActiveError,
+} from '../db/errors';
 
 export class ApiError extends Error {
   constructor(
@@ -26,8 +32,23 @@ export function registerErrorHandler(app: FastifyInstance) {
     if (error instanceof AuthRequiredError) {
       return reply.code(401).send({ error: 'Authentication required', code: 'AUTH_REQUIRED' });
     }
+    if (error instanceof PermissionDeniedError) {
+      return reply.code(403).send({ error: 'Insufficient permissions', code: 'FORBIDDEN' });
+    }
     if (error instanceof OwnershipError) {
       return reply.code(404).send({ error: 'Resource not found', code: 'NOT_FOUND' });
+    }
+    if (error instanceof ToolApprovalAlreadyDecidedError) {
+      return reply.code(409).send({
+        error: 'Tool approval has already been decided',
+        code: 'TOOL_APPROVAL_ALREADY_DECIDED',
+      });
+    }
+    if (error instanceof ToolApprovalNotActiveError) {
+      return reply.code(409).send({
+        error: 'No active approval is waiting for a decision',
+        code: 'NO_ACTIVE_APPROVAL',
+      });
     }
     if (error instanceof SessionNotFoundError) {
       return reply.code(404).send({ error: 'Conversation session not found', code: 'SESSION_NOT_FOUND' });

@@ -10,12 +10,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import {
   Activity,
+  AlertCircle,
   ArrowUp,
   BookOpen,
-  BrainCircuit,
   Check,
   ChevronDown,
   FileText,
@@ -24,7 +25,9 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pause,
+  RefreshCw,
   Search,
+  Settings2,
   Sparkles,
   SquarePen,
   X,
@@ -32,18 +35,19 @@ import {
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
 import { SettingsDialog } from "../../components/settings-dialog";
-import { chatApi, settingsApi, uploadsApi, type Conversation, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
+import { ApiRequestError, chatApi, settingsApi, uploadsApi, type Conversation, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chat.module.css";
 
 type Role = "student" | "tutor";
-type ToolState = "idle" | "running" | "approval" | "complete" | "error";
+type ToolState = "running" | "approval" | "complete" | "error" | "rejected";
 
-type ActiveTool = {
+type MessageTool = {
   toolCallId: string;
   toolName: string;
   label: string;
-  state: Exclude<ToolState, "idle">;
+  state: ToolState;
+  result?: string;
 };
 
 type Message = {
@@ -52,9 +56,23 @@ type Message = {
   text: string;
   time: string;
   attachment?: string;
+  thinking?: "running";
+  tools?: MessageTool[];
+  runStatus?: "aborted" | "failed";
 };
 
 type AttachedFile = { id?: string; name: string; status: "uploading" | "ready" };
+type FailureKind = "provider" | "tool" | "mcp" | "approval" | "network";
+type ChatFailure = {
+  kind: FailureKind;
+  title: string;
+  detail: string;
+  action: "retry" | "settings" | "reload";
+};
+
+function objectValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
 
 function messageText(content: unknown) {
   if (typeof content === "string") return content;
@@ -63,6 +81,161 @@ function messageText(content: unknown) {
     if (block && typeof block === "object" && "type" in block && block.type === "text" && "text" in block) return [String(block.text)];
     return [];
   }).join("");
+}
+
+function toolCalls(content: unknown): MessageTool[] {
+  if (!Array.isArray(content)) return [];
+  return content.flatMap((block) => {
+    const value = objectValue(block);
+    if (value?.type !== "toolCall" || typeof value.id !== "string" || typeof value.name !== "string") return [];
+    return [{
+      toolCallId: value.id,
+      toolName: value.name,
+      label: toolLabel(value.name),
+      state: "running" as const,
+    }];
+  });
+}
+
+function toolLabel(name: string) {
+  const labels: Record<string, string> = {
+    inspect_problem_structure: "题目结构检查",
+    make_hint_ladder: "提示阶梯",
+    run_subagent: "专项分析",
+  };
+  if (labels[name]) return labels[name];
+  if (name.startsWith("mcp__")) {
+    const displayName = name.split("__").filter(Boolean).at(-1)?.replaceAll("_", " ") ?? "工具";
+    return `MCP · ${displayName}`;
+  }
+  return name.replaceAll("_", " ");
+}
+
+function toolResultText(content: unknown) {
+  const text = messageText(content).trim();
+  return text.length > 360 ? `${text.slice(0, 357)}...` : text;
+}
+
+function isStudentRejectedTool(content: unknown) {
+  return toolResultText(content).includes("学生拒绝了这次工具调用");
+}
+
+function mergeTools(current: MessageTool[] = [], incoming: MessageTool[]) {
+  const merged = [...current];
+  for (const tool of incoming) {
+    const index = merged.findIndex((item) => item.toolCallId === tool.toolCallId);
+    if (index < 0) merged.push(tool);
+    else {
+      const existing = merged[index]!;
+      merged[index] = {
+        ...existing,
+        ...tool,
+        state: existing.state === "rejected" || tool.state === "rejected"
+          ? "rejected"
+          : tool.state === "running" && existing.state !== "running"
+            ? existing.state
+            : tool.state,
+      };
+    }
+  }
+  return merged;
+}
+
+function temporaryConversationTitle(message: string) {
+  const trimmed = message.trim();
+  const firstSentence = trimmed.split(/[。！？!?\r\n]/, 1)[0]?.trim();
+  return (firstSentence || trimmed).slice(0, 80);
+}
+
+function historyMessages(conversationId: string, rawMessages: Array<Record<string, unknown>>) {
+  const parsed: Message[] = [];
+  let currentTutor: Message | undefined;
+  rawMessages.forEach((raw, index) => {
+    if (raw.role === "user") {
+      currentTutor = undefined;
+      parsed.push({
+        id: `${conversationId}-${String(raw.timestamp ?? index)}`,
+        role: "student",
+        text: messageText(raw.content),
+        time: formatMessageTime(raw.timestamp),
+      });
+      return;
+    }
+    if (raw.role === "assistant") {
+      const text = messageText(raw.content).trim();
+      if (!currentTutor) {
+        currentTutor = {
+          id: `${conversationId}-${String(raw.timestamp ?? index)}`,
+          role: "tutor",
+          text: "",
+          time: formatMessageTime(raw.timestamp),
+          tools: [],
+        };
+        parsed.push(currentTutor);
+      }
+      if (text) currentTutor.text = [currentTutor.text, text].filter(Boolean).join("\n\n");
+      currentTutor.tools = mergeTools(currentTutor.tools, toolCalls(raw.content));
+      if (raw.stopReason === "aborted" || raw.stopReason === "error") {
+        currentTutor.runStatus = raw.stopReason === "aborted" ? "aborted" : "failed";
+      }
+      return;
+    }
+    if (raw.role === "toolResult" && typeof raw.toolCallId === "string") {
+      if (!currentTutor) {
+        currentTutor = {
+          id: `${conversationId}-tool-${String(raw.timestamp ?? index)}`,
+          role: "tutor",
+          text: "",
+          time: formatMessageTime(raw.timestamp),
+          tools: [],
+        };
+        parsed.push(currentTutor);
+      }
+      const toolName = typeof raw.toolName === "string" ? raw.toolName : "tool";
+      currentTutor.tools = mergeTools(currentTutor.tools, [{
+        toolCallId: raw.toolCallId,
+        toolName,
+        label: toolLabel(toolName),
+        state: isStudentRejectedTool(raw.content)
+          ? "rejected"
+          : raw.isError === true ? "error" : "complete",
+        result: toolResultText(raw.content),
+      }]);
+    }
+  });
+  return parsed;
+}
+
+function classifyFailure(error: unknown, fallback: FailureKind = "network"): ChatFailure {
+  const structured = objectValue(error);
+  const message = error instanceof Error
+    ? error.message
+    : typeof structured?.error === "string" ? structured.error : String(error || "未知错误");
+  const code = error instanceof ApiRequestError
+    ? error.code ?? ""
+    : typeof structured?.code === "string" ? structured.code : "";
+  const haystack = `${code} ${message}`.toLowerCase();
+  const structuredCategory = typeof structured?.category === "string"
+    && ["provider", "tool", "mcp", "approval", "network"].includes(structured.category)
+    ? structured.category as FailureKind
+    : undefined;
+  const kind: FailureKind = structuredCategory ?? (haystack.includes("mcp")
+    ? "mcp"
+    : haystack.includes("approval") || haystack.includes("approve")
+      ? "approval"
+      : haystack.includes("tool")
+        ? "tool"
+        : haystack.includes("provider") || haystack.includes("model") || haystack.includes("credential") || haystack.includes("api key")
+          ? "provider"
+          : fallback);
+  const copy: Record<FailureKind, Omit<ChatFailure, "kind">> = {
+    provider: { title: "模型服务未完成回答", detail: `${message}。检查模型凭据或切换模型后再试。`, action: "settings" },
+    tool: { title: "工具调用没有完成", detail: `${message}。你可以调整问题后重新发送。`, action: "retry" },
+    mcp: { title: "MCP 服务暂时不可用", detail: `${message}。检查 MCP 连接后再试。`, action: "settings" },
+    approval: { title: "工具审批没有生效", detail: `${message}。审批可能已超时或被处理，请重新发起这一步。`, action: "retry" },
+    network: { title: "连接已中断", detail: `${message}。确认网络恢复后重新发送。`, action: "retry" },
+  };
+  return { kind, ...copy[kind] };
 }
 
 function formatMessageTime(timestamp: unknown) {
@@ -111,15 +284,16 @@ export default function ChatPage() {
   const [activeModelProviderId, setActiveModelProviderId] = useState("");
   const [modelSearch, setModelSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [activeTool, setActiveTool] = useState<ActiveTool | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ChatFailure | null>(null);
   const [contextCollapsed, setContextCollapsed] = useState(false);
-  const [showProblemSource, setShowProblemSource] = useState(false);
+  const [isDraftConversation, setIsDraftConversation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const rejectedToolCallsRef = useRef(new Set<string>());
   const modelPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => {
@@ -143,15 +317,23 @@ export default function ChatPage() {
         setModelOptions(modelData.models);
         setModelProviders(providerData.providers);
         setActiveModelProviderId(nextSelection?.providerId ?? "");
-        const queryId = new URLSearchParams(window.location.search).get("conversation");
-        const nextId = queryId && nextConversations.some((conversation) => conversation.id === queryId) ? queryId : nextConversations[0]?.id ?? "";
+        const query = new URLSearchParams(window.location.search);
+        const isNewConversation = query.get("new") === "1";
+        const queryId = query.get("conversation");
+        const nextId = !isNewConversation && queryId && nextConversations.some((conversation) => conversation.id === queryId) ? queryId : nextConversations[0]?.id ?? "";
         if (nextId) {
+          setIsDraftConversation(false);
           setSelectedId(nextId);
           await loadConversationMessages(nextId);
         }
-        if (new URLSearchParams(window.location.search).get("new") === "1") await startConversation();
+        if (isNewConversation) prepareNewConversation();
       } catch (loadError) {
-        if (!cancelled) setNotice(loadError instanceof Error ? loadError.message : "加载工作区失败");
+        if (!cancelled) setFailure({
+          kind: "network",
+          title: "工作区没有加载完成",
+          detail: `${loadError instanceof Error ? loadError.message : "加载工作区失败"}。检查连接后重新加载。`,
+          action: "reload",
+        });
       }
     }
     void loadWorkspace();
@@ -206,38 +388,37 @@ export default function ChatPage() {
     const models = activeProviderGroup?.models ?? [];
     return query ? models.filter((model) => `${model.name} ${model.id}`.toLocaleLowerCase().includes(query)) : models;
   }, [activeProviderGroup, modelSearch]);
-  const latestStudentMessage = [...messages].reverse().find((message) => message.role === "student");
-  const learningContext = {
-    label: "数学 · 当前对话",
-    problem: latestStudentMessage?.text || "把你正在思考的题目写下来，我们从已知条件开始。",
-  };
   function resetTransientConversationState() {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsStreaming(false);
-    setActiveTool(null);
     setAttachedFile(null);
     setShowModelMenu(false);
-    setShowProblemSource(false);
     setDraft("");
     setNotice(null);
+    setFailure(null);
   }
 
   async function loadConversationMessages(id: string) {
     const data = await chatApi.messages(id);
-    setMessages(data.messages.flatMap((message, index) => {
-      const role = message.role === "user" ? "student" : message.role === "assistant" ? "tutor" : null;
-      if (!role) return [];
-      return [{ id: `${id}-${String(message.timestamp ?? index)}`, role, text: messageText(message.content), time: formatMessageTime(message.timestamp) } satisfies Message];
-    }));
+    setMessages(historyMessages(id, data.messages));
   }
 
   async function selectConversation(id: string) {
     resetTransientConversationState();
+    setIsDraftConversation(false);
     setSelectedId(id);
     setMessages([]);
-    setActiveTool(null);
-    try { await loadConversationMessages(id); } catch (loadError) { setNotice(loadError instanceof Error ? loadError.message : "加载对话失败"); }
+    try {
+      await loadConversationMessages(id);
+    } catch (loadError) {
+      setFailure({
+        kind: "network",
+        title: "对话记录没有加载完成",
+        detail: `${loadError instanceof Error ? loadError.message : "加载对话失败"}。检查连接后重新加载这段对话。`,
+        action: "reload",
+      });
+    }
   }
 
   async function startConversation() {
@@ -246,15 +427,35 @@ export default function ChatPage() {
       const data = await chatApi.create();
       const next = { id: data.conversation.id, title: formatConversationTitle(data.conversation), group: conversationGroup(data.conversation.updatedAt) };
       setConversations((current) => [next, ...current]);
+      setIsDraftConversation(false);
       setSelectedId(next.id);
       setMessages([]);
-      setActiveTool(null);
       window.history.replaceState(null, "", `/chat?conversation=${next.id}`);
       return next.id;
     } catch (createError) {
-      setNotice(createError instanceof Error ? createError.message : "无法新建对话");
+      setFailure(classifyFailure(createError));
       return null;
     }
+  }
+
+  async function syncConversationTitle(conversationId: string, remainingAttempts = 3): Promise<void> {
+    const { conversation } = await chatApi.get(conversationId);
+    setConversations((current) => current.map((item) => item.id === conversationId
+      ? { ...item, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }
+      : item));
+    if (conversation.titleSource === 'fallback' && remainingAttempts > 0) {
+      window.setTimeout(() => {
+        void syncConversationTitle(conversationId, remainingAttempts - 1).catch(() => undefined);
+      }, 1_500);
+    }
+  }
+
+  function prepareNewConversation() {
+    resetTransientConversationState();
+    setIsDraftConversation(true);
+    setSelectedId("");
+    setMessages([]);
+    window.history.replaceState(null, "", "/chat?new=1");
   }
 
   function stopStreaming() {
@@ -262,12 +463,18 @@ export default function ChatPage() {
     abortControllerRef.current = null;
     if (selectedId) void chatApi.abort(selectedId).catch(() => undefined);
     setIsStreaming(false);
-    setActiveTool(null);
+    setMessages((current) => current.map((message, index) => index === current.length - 1 && message.role === "tutor"
+      ? {
+          ...message,
+          runStatus: "aborted",
+          thinking: undefined,
+        }
+      : message));
   }
 
-  async function sendMessage(event?: React.FormEvent) {
+  async function sendMessage(event?: React.FormEvent, retryText?: string) {
     event?.preventDefault();
-    const text = draft.trim();
+    const text = (retryText ?? draft).trim();
     if (!text || isStreaming) return;
     if (attachedFile?.status === "uploading") {
       setNotice("附件仍在上传，请稍候");
@@ -276,7 +483,11 @@ export default function ChatPage() {
     let conversationId = selectedId;
     if (!conversationId) conversationId = (await startConversation()) ?? "";
     if (!conversationId) return;
+    setConversations((current) => current.map((conversation) => conversation.id === conversationId
+      ? { ...conversation, title: temporaryConversationTitle(text) || conversation.title }
+      : conversation));
     setNotice(null);
+    setFailure(null);
     const now = new Date();
     const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
     const studentMessage: Message = { id: `student-${Date.now()}`, role: "student", text, time, attachment: attachedFile?.name };
@@ -284,38 +495,103 @@ export default function ChatPage() {
     setDraft("");
     setAttachedFile(null);
     setIsStreaming(true);
-    setActiveTool(null);
     const tutorId = `tutor-${Date.now()}`;
-    setMessages((current) => [...current, { id: tutorId, role: "tutor", text: "", time }]);
+    setMessages((current) => [...current, {
+      id: tutorId,
+      role: "tutor",
+      text: "",
+      time,
+      tools: [],
+    }]);
     const controller = new AbortController();
     abortControllerRef.current = controller;
     try {
       await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
-        if (type === "text_delta") setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: `${message.text}${String(data.delta ?? "")}` } : message));
-        if (type === "tool_started") setActiveTool({ toolCallId: String(data.toolCallId ?? ""), toolName: String(data.toolName ?? "tool"), label: String(data.toolName ?? "工具"), state: "running" });
-        if (type === "tool_pending") setActiveTool({ toolCallId: String(data.toolCallId ?? ""), toolName: String(data.toolName ?? "tool"), label: String(data.label ?? data.toolName ?? "工具"), state: "approval" });
+        if (type === "text_delta") setMessages((current) => current.map((message) => message.id === tutorId ? {
+          ...message,
+          text: `${message.text}${String(data.delta ?? "")}`,
+          thinking: undefined,
+        } : message));
+        if (type === "thinking_delta") setMessages((current) => current.map((message) => message.id === tutorId && !message.text
+          ? { ...message, thinking: "running" }
+          : message));
+        if (type === "tool_started" || type === "tool_pending") {
+          const toolCallId = String(data.toolCallId ?? "");
+          const toolName = String(data.toolName ?? "tool");
+          setMessages((current) => current.map((message) => message.id === tutorId ? {
+            ...message,
+            tools: mergeTools(message.tools, [{
+              toolCallId,
+              toolName,
+              label: type === "tool_pending" ? String(data.label ?? toolLabel(toolName)) : toolLabel(toolName),
+              state: type === "tool_pending" ? "approval" : "running",
+            }]),
+          } : message));
+        }
         if (type === "tool_updated") {
           const update = data.update;
           if (update && typeof update === "object" && "details" in update && update.details && typeof update.details === "object" && "type" in update.details && update.details.type === "subagent_running") {
-            setActiveTool((current) => current ? { ...current, state: "running" } : current);
+            const toolCallId = String(data.toolCallId ?? "");
+            setMessages((current) => current.map((message) => message.id === tutorId ? {
+              ...message,
+              tools: (message.tools ?? []).map((tool) => tool.toolCallId === toolCallId ? { ...tool, state: "running" } : tool),
+            } : message));
           }
         }
-        if (type === "tool_finished") setActiveTool((current) => current ? { ...current, state: data.isError ? "error" : "complete" } : current);
+        if (type === "tool_finished") {
+          const toolCallId = String(data.toolCallId ?? "");
+          const toolName = String(data.toolName ?? "tool");
+          const result = objectValue(data.result);
+          const resultText = toolResultText(result?.content);
+          const rejected = rejectedToolCallsRef.current.has(toolCallId)
+            || isStudentRejectedTool(result?.content);
+          setMessages((current) => current.map((message) => message.id === tutorId ? {
+            ...message,
+            tools: mergeTools(message.tools, [{
+              toolCallId,
+              toolName,
+              label: message.tools?.find((tool) => tool.toolCallId === toolCallId)?.label ?? toolLabel(toolName),
+              state: rejected ? "rejected" : data.isError ? "error" : "complete",
+              result: resultText,
+            }]),
+          } : message));
+          rejectedToolCallsRef.current.delete(toolCallId);
+          if (rejected) return;
+          if (data.isError) {
+            const kind = toolName.startsWith("mcp__") ? "mcp" : "tool";
+            setFailure({
+              kind,
+              title: kind === "mcp" ? "MCP 工具没有完成" : "工具调用没有完成",
+              detail: `${toolResultText(result?.content) || "工具返回了错误结果"}。调整问题或检查工具配置后重试。`,
+              action: kind === "mcp" ? "settings" : "retry",
+            });
+          }
+        }
         if (type === "message_completed" && data.message?.role === "assistant") {
           const completedMessage = data.message;
-          setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, text: messageText(completedMessage.content) } : message));
+          setMessages((current) => current.map((message) => message.id === tutorId ? {
+            ...message,
+            text: messageText(completedMessage.content) || message.text,
+            thinking: undefined,
+            tools: mergeTools(message.tools, toolCalls(completedMessage.content)),
+            runStatus: completedMessage.stopReason === "aborted"
+              ? "aborted"
+              : completedMessage.stopReason === "error" ? "failed" : message.runStatus,
+          } : message));
         }
         if (type === "error") {
-          setMessages((current) => current.filter((message) => message.id !== tutorId || message.text.trim()));
-          setNotice("模型未能完成回答，请稍后重试");
+          setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: "failed" } : message));
+          setFailure(classifyFailure(data, "provider"));
         }
       }, controller.signal);
     } catch (streamError) {
-      setMessages((current) => current.filter((message) => message.id !== tutorId || message.text.trim()));
-      if (!controller.signal.aborted) setNotice("连接中断，请重新发送这条消息");
+      setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: controller.signal.aborted ? "aborted" : "failed" } : message));
+      if (!controller.signal.aborted) setFailure(classifyFailure(streamError));
     } finally {
       abortControllerRef.current = null;
       setIsStreaming(false);
+      setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, thinking: undefined } : message));
+      void syncConversationTitle(conversationId).catch(() => undefined);
     }
   }
 
@@ -341,14 +617,37 @@ export default function ChatPage() {
     }
   }
 
-  async function decideTool(approved: boolean) {
-    if (!selectedId || !activeTool?.toolCallId) return;
+  async function decideTool(toolCallId: string, approved: boolean) {
+    if (!selectedId || !toolCallId) return;
+    setFailure(null);
+    if (!approved) rejectedToolCallsRef.current.add(toolCallId);
+    setMessages((current) => current.map((message) => ({
+      ...message,
+      tools: message.tools?.map((tool) => tool.toolCallId === toolCallId
+        ? { ...tool, state: approved ? "running" : "rejected" }
+        : tool),
+    })));
     try {
-      await chatApi.approve(selectedId, activeTool.toolCallId, approved);
-      setActiveTool((current) => current ? { ...current, state: approved ? "running" : "error" } : current);
+      await chatApi.approve(selectedId, toolCallId, approved);
+      setMessages((current) => current.map((message) => ({
+        ...message,
+        tools: message.tools?.map((tool) => {
+          if (tool.toolCallId !== toolCallId) return tool;
+          if (!approved) return { ...tool, state: "rejected" };
+          if (tool.state === "complete" || tool.state === "error" || tool.state === "rejected") return tool;
+          return { ...tool, state: "running" };
+        }),
+      })));
       setNotice(approved ? "已允许这次工具调用" : "已拒绝这次工具调用");
     } catch (approvalError) {
-      setNotice(approvalError instanceof Error ? approvalError.message : "审批请求失败");
+      rejectedToolCallsRef.current.delete(toolCallId);
+      setMessages((current) => current.map((message) => ({
+        ...message,
+        tools: message.tools?.map((tool) => tool.toolCallId === toolCallId
+          ? { ...tool, state: "error" }
+          : tool),
+      })));
+      setFailure(classifyFailure(approvalError, "approval"));
     }
   }
 
@@ -378,7 +677,6 @@ export default function ChatPage() {
         const next = remaining[0];
         setSelectedId(next?.id ?? "");
         setMessages([]);
-        setActiveTool(null);
         if (next) void loadConversationMessages(next.id);
       }
     }).catch((deleteError) => setNotice(deleteError instanceof Error ? deleteError.message : "删除失败"));
@@ -434,9 +732,26 @@ export default function ChatPage() {
     }
   }
 
+  async function recoverFailure() {
+    if (!failure) return;
+    if (failure.action === "settings") {
+      setFailure(null);
+      setSettingsOpen(true);
+      return;
+    }
+    if (failure.action === "reload") {
+      if (selectedId) await selectConversation(selectedId);
+      else window.location.reload();
+      return;
+    }
+    const retryMessage = [...messages].reverse().find((message) => message.role === "student");
+    setFailure(null);
+    if (retryMessage) await sendMessage(undefined, retryMessage.text);
+  }
+
   return (
     <main className={`${styles.workspace} ${contextCollapsed ? styles.contextCollapsed : ""}`}>
-      <AppSidebar activeSection="chats" conversations={conversations} selectedConversationId={selectedId} onNewConversation={() => { void startConversation(); }} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
+      <AppSidebar activeSection={isDraftConversation ? "new" : undefined} conversations={conversations} selectedConversationId={selectedId} onNewConversation={prepareNewConversation} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
 
       <section className={styles.chatSurface} aria-label="数学对话">
         <header className={styles.chatHeader}>
@@ -447,12 +762,25 @@ export default function ChatPage() {
         <div ref={messageViewportRef} className={styles.messageViewport}>
           <div className={styles.messageColumn}>
             {messages.length === 0 && <div className={styles.emptyConversation}><div className={styles.emptyIcon}><SquarePen size={19} /></div><h1>把问题写下来</h1><p>从一道题、一个概念，或你卡住的某一步开始。</p></div>}
-            {messages.map((message, index) => <MessageBubble key={message.id} message={message} pending={isStreaming && index === messages.length - 1 && message.role === "tutor" && !message.text} />)}
-            {activeTool && <div className={styles.inlineToolActivity}><ToolActivity state={activeTool.state} title={activeTool.label} onApprove={() => void decideTool(true)} onDeny={() => void decideTool(false)} /></div>}
+            {messages.map((message, index) => <MessageBubble
+              key={message.id}
+              message={message}
+              pending={isStreaming && index === messages.length - 1 && message.role === "tutor" && !message.text && !message.thinking && !message.tools?.length}
+              onDecideTool={(toolCallId, approved) => void decideTool(toolCallId, approved)}
+            />)}
           </div>
         </div>
 
         <div className={styles.composerDock}>
+          {failure && <div className={`${styles.failureBanner} ${styles[`failure_${failure.kind}`]}`} role="alert">
+            <AlertCircle size={17} />
+            <div><strong>{failure.title}</strong><p>{failure.detail}</p></div>
+            <button className={styles.failureAction} type="button" onClick={() => void recoverFailure()}>
+              {failure.action === "settings" ? <Settings2 size={14} /> : <RefreshCw size={14} />}
+              {failure.action === "settings" ? "打开设置" : failure.action === "reload" ? "重新加载" : "重试"}
+            </button>
+            <button className={styles.failureDismiss} type="button" aria-label="关闭错误提示" onClick={() => setFailure(null)}><X size={14} /></button>
+          </div>}
           {notice && <div className={styles.notice} role="status"><span>{notice}</span><button type="button" aria-label="关闭提示" onClick={() => setNotice(null)}><X size={14} /></button></div>}
           {attachedFile && <div className={styles.attachmentChip}><FileText size={14} /><span>{attachedFile.name}{attachedFile.status === "uploading" ? " · 上传中" : ""}</span><button type="button" aria-label="移除附件" onClick={() => setAttachedFile(null)}><X size={13} /></button></div>}
           <form className={styles.composer} onSubmit={sendMessage}>
@@ -480,20 +808,59 @@ export default function ChatPage() {
       </section>
 
       <aside className={styles.contextRail} aria-label="学习上下文">
-        <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>当前问题</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
-        <section className={styles.problemSection}><div className={styles.problemTopline}><span className={styles.problemLabel}>{learningContext.label}</span><span className={styles.contextStatus}><span className={styles.statusDot}></span>{messages.length ? "进行中" : "待开始"}</span></div><p>{learningContext.problem}</p>{showProblemSource && <div className={styles.problemSource}><strong>当前题目</strong><span>{learningContext.problem}</span></div>}<div className={styles.contextActions}><button className={styles.textAction} type="button" onClick={() => setShowProblemSource((visible) => !visible)}><BookOpen size={14} />{showProblemSource ? "收起题目" : "查看题目"}</button></div></section>
+        <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>参考资料</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
+        <section className={styles.contextEmpty} aria-live="polite"><BookOpen size={18} /><p>本次对话还没有搜索或引用资料。</p></section>
       </aside>
       {settingsOpen && <SettingsDialog onClose={() => { void reloadModelCatalog(); }} />}
     </main>
   );
 }
 
-function MessageBubble({ message, pending = false }: { message: Message; pending?: boolean }) {
+function MessageBubble({
+  message,
+  pending = false,
+  onDecideTool,
+}: {
+  message: Message;
+  pending?: boolean;
+  onDecideTool: (toolCallId: string, approved: boolean) => void;
+}) {
   if (message.role === "student") return <div className={styles.studentMessage}><div className={styles.studentBubble}>{message.attachment && <div className={styles.attachmentPreview}><FileText size={14} /><span>{message.attachment}</span></div>}<p>{message.text}</p></div><time>{message.time}</time></div>;
-  return <div className={styles.tutorMessage}><div className={styles.messageAuthor}><span className={styles.tutorAvatar}>C</span><strong>Chalk</strong><span>{pending ? "正在思考" : message.time}</span></div>{pending ? <div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />正在整理下一步提示</div> : <div className={styles.tutorCopy}><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{message.text}</ReactMarkdown></div>}</div>;
+  return <div className={styles.tutorMessage}>
+    <div className={styles.messageAuthor}>
+      <span className={styles.tutorAvatar}>C</span><strong>Chalk</strong>
+      <span>{message.time}</span>
+      {message.runStatus && <span className={`${styles.runStatus} ${styles[`run_${message.runStatus}`]}`}>{message.runStatus === "aborted" ? "已停止" : "未完成"}</span>}
+    </div>
+    {(pending || message.thinking === "running") && <div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />Thinking…</div>}
+    {!!message.tools?.length && <div className={styles.messageTools}>{message.tools.map((tool) => <ToolActivity
+      key={tool.toolCallId}
+      tool={tool}
+      onApprove={() => onDecideTool(tool.toolCallId, true)}
+      onDeny={() => onDecideTool(tool.toolCallId, false)}
+    />)}</div>}
+    {message.text && <div className={styles.tutorCopy}><ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        table: ({ children }) => <div className={styles.tableScroll} role="region" aria-label="表格内容" tabIndex={0}><table>{children}</table></div>,
+      }}
+    >{message.text}</ReactMarkdown></div>}
+  </div>;
 }
 
-function ToolActivity({ state, title, onApprove, onDeny }: { state: Exclude<ToolState, "idle">; title: string; onApprove: () => void; onDeny: () => void }) {
-  const detail = state === "approval" ? "Chalk 正在等待你的确认。" : state === "error" ? "这次工具调用没有完成。" : state === "running" ? "正在处理当前学习任务。" : "工具调用已完成。";
-  return <div className={`${styles.toolActivity} ${styles[`tool_${state}`]}`}><div className={styles.toolIcon}>{state === "running" ? <LoaderCircle size={15} className={styles.spin} /> : state === "error" ? <X size={15} /> : <Activity size={15} />}</div><div className={styles.toolCopy}><strong>{title}</strong><p>{detail}</p>{state === "approval" && <div className={styles.approvalActions}><button className={styles.approveButton} type="button" onClick={onApprove}><Check size={14} />允许</button><button className={styles.denyButton} type="button" onClick={onDeny}>拒绝</button></div>}</div></div>;
+function ToolActivity({ tool, onApprove, onDeny }: { tool: MessageTool; onApprove: () => void; onDeny: () => void }) {
+  const detail = tool.state === "approval" ? "这一步需要你的确认。" : tool.state === "error" ? "这次工具调用没有完成。" : tool.state === "rejected" ? "你已拒绝这次工具调用。" : tool.state === "running" ? "正在处理当前学习任务。" : "工具调用已完成。";
+  return <div className={`${styles.toolActivity} ${styles[`tool_${tool.state}`]}`}>
+    <div className={styles.toolIcon}>{tool.state === "running" ? <LoaderCircle size={15} className={styles.spin} /> : tool.state === "error" || tool.state === "rejected" ? <X size={15} /> : tool.state === "complete" ? <Check size={15} /> : <Activity size={15} />}</div>
+    <div className={styles.toolCopy}>
+      <strong title={tool.label}>{tool.label}</strong>
+      <p>{detail}</p>
+      {tool.result && <details className={styles.toolResult}>
+        <summary>查看结果<ChevronDown size={13} /></summary>
+        <p>{tool.result}</p>
+      </details>}
+      {tool.state === "approval" && <div className={styles.approvalActions}><button className={styles.approveButton} type="button" onClick={onApprove}><Check size={14} />允许</button><button className={styles.denyButton} type="button" onClick={onDeny}>拒绝</button></div>}
+    </div>
+  </div>;
 }

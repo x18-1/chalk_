@@ -64,6 +64,8 @@ describe("ForegroundSubagentExecutor", () => {
     expect(finished).toHaveBeenCalledWith(
       expect.objectContaining({ id: "audit-1" }),
     );
-    await expect(sessions.open(result.childSessionId)).resolves.toBeDefined();
+    await expect(
+      sessions.open("student-1", result.childSessionId),
+    ).resolves.toBeDefined();
   });
 });

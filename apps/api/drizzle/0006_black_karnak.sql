@@ -1,0 +1,1 @@
+ALTER TABLE "conversations" ADD COLUMN "title_source" text DEFAULT 'fallback' NOT NULL;
