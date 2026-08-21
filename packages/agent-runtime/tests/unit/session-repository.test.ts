@@ -68,6 +68,33 @@ describe("SessionRepository", () => {
     expect(await reopened.getTranscript()).toEqual([userMessage, assistantMessage]);
   });
 
+  it("opens a legacy session by its persisted path when it is outside the active root", async () => {
+    const activeDirectory = await mkdtemp(join(tmpdir(), "chalk-session-active-"));
+    const legacyDirectory = await mkdtemp(join(tmpdir(), "chalk-session-legacy-"));
+    temporaryDirectories.push(activeDirectory, legacyDirectory);
+    const legacyRepository = await createJsonlSessionRepository({
+      sessionsRoot: join(legacyDirectory, "sessions"),
+      cwd: legacyDirectory,
+    });
+    const legacy = await legacyRepository.create({ ownerId: "student-1" });
+    const repository = createJsonlSessionRepository({
+      sessionsRoot: join(activeDirectory, "sessions"),
+      cwd: activeDirectory,
+    });
+
+    const reopened = await repository.open(
+      "student-1",
+      legacy.descriptor.id,
+      legacy.descriptor.path,
+    );
+
+    expect(reopened.descriptor.path).toBe(legacy.descriptor.path);
+    expect(reopened.descriptor.ownerId).toBe("student-1");
+    await expect(
+      repository.open("student-2", legacy.descriptor.id, legacy.descriptor.path),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+
   it("keeps the original transcript after compaction", async () => {
     const repository = await createRepository();
     const created = await repository.create({ ownerId: "student-1" });

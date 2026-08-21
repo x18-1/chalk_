@@ -176,7 +176,7 @@ test('keeps thinking private while restoring multiple tool results from durable 
               timestamp: Date.now() - 2_000,
               content: [
                 { type: 'thinking', thinking: '先识别已知条件，再检查可以直接使用的关系。' },
-                { type: 'toolCall', id: 'history-tool-1', name: 'inspect_problem_structure' },
+                { type: 'toolCall', id: 'history-tool-1', name: 'fixture_inspection_tool' },
                 { type: 'toolCall', id: 'history-tool-2', name: 'mcp__geometry__very_long_relationship_verification_tool_name' },
               ],
             },
@@ -184,7 +184,7 @@ test('keeps thinking private while restoring multiple tool results from durable 
               role: 'toolResult',
               timestamp: Date.now() - 1_500,
               toolCallId: 'history-tool-1',
-              toolName: 'inspect_problem_structure',
+              toolName: 'fixture_inspection_tool',
               isError: false,
               content: [{ type: 'text', text: '已识别三条已知关系。' }],
             },
@@ -209,7 +209,7 @@ test('keeps thinking private while restoring multiple tool results from durable 
 
     await page.goto(`/chat?conversation=${conversationId}`);
     await expect(page.getByText('现在先写出最直接的一组等量关系。')).toBeVisible();
-    await expect(page.getByText('题目结构检查')).toBeVisible();
+    await expect(page.getByText('fixture inspection tool')).toBeVisible();
     await expect(page.getByText('MCP · very long relationship verification tool name')).toBeVisible();
     await expect(page.getByText('工具调用已完成。')).toHaveCount(2);
     await expect(page.getByText('先识别已知条件，再检查可以直接使用的关系。')).toHaveCount(0);

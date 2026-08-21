@@ -22,6 +22,7 @@ import { getDb } from '../db/client';
 import {
   createAgentSettingsDal,
   createAgentRunObservationsDal,
+  createConversationsDal,
   createCustomProvidersDal,
   createMcpServersDal,
   createSubagentRunsDal,
@@ -262,6 +263,21 @@ function parseCustomModels(value: unknown): CustomOpenAiModel[] {
   });
 }
 
+function createBuiltinTools() {
+  const conversations = createConversationsDal(getDb());
+  return createBuiltinToolRegistry({
+    conversationTitleUpdater: {
+      async update(input) {
+        const row = await conversations.update(input.ownerId, input.conversationId, {
+          title: input.title,
+          titleSource: 'manual',
+        });
+        return { title: row.title ?? input.title };
+      },
+    },
+  });
+}
+
 export async function selectModel(
   userId: string,
   requested?: ModelSelection,
@@ -312,7 +328,7 @@ export async function loadUserSkills(userId: string) {
 
 export async function getOrCreateRuntime(
   userId: string,
-  conversation: { id: string; sessionId: string },
+  conversation: { id: string; sessionId: string; sessionFilePath?: string },
   requestedModel?: ModelSelection,
 ) {
   const db = getDb();
@@ -335,7 +351,11 @@ export async function getOrCreateRuntime(
   }
   if (existing) await closeRuntime(conversation.id);
 
-  const session = await getSessionRepository().open(userId, conversation.sessionId);
+  const session = await getSessionRepository().open(
+    userId,
+    conversation.sessionId,
+    conversation.sessionFilePath,
+  );
 
   const { catalog, model } = await selectModel(userId, requestedModel);
   const skills = new SkillRegistry(process.cwd(), skillSources());
@@ -366,7 +386,7 @@ export async function getOrCreateRuntime(
   const observations = createAgentRunObservationsDal(db);
   const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
-  const registry = createBuiltinToolRegistry();
+  const registry = createBuiltinTools();
   for (const tool of mcp.proxyTools()) registry.register(tool);
 
   const childExecutor = new ForegroundSubagentExecutor({
@@ -507,17 +527,17 @@ export async function createSession(userId: string) {
   return getSessionRepository().create({ ownerId: userId });
 }
 
-export async function openSession(userId: string, sessionId: string) {
-  return getSessionRepository().open(userId, sessionId);
+export async function openSession(userId: string, sessionId: string, sessionFilePath?: string) {
+  return getSessionRepository().open(userId, sessionId, sessionFilePath);
 }
 
-export async function deleteSession(userId: string, sessionId: string) {
-  await getSessionRepository().delete(userId, sessionId);
+export async function deleteSession(userId: string, sessionId: string, sessionFilePath?: string) {
+  await getSessionRepository().delete(userId, sessionId, sessionFilePath);
 }
 
 export async function listRuntimeTools(userId: string) {
   if (!userId) throw new Error('Tools require an authenticated user');
-  const registry = createBuiltinToolRegistry();
+  const registry = createBuiltinTools();
   const mcp = new McpManager();
   try {
     const rows = await createMcpServersDal(getDb()).list(userId);

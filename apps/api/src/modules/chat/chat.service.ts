@@ -133,14 +133,14 @@ export class ChatService {
 
     // Postgres is the owner-visible source of truth. Failed transcript cleanup is
     // recoverable and should not resurrect a conversation that was already deleted.
-    await deleteSession(userId, conversation.sessionId).catch((error) => {
+    await deleteSession(userId, conversation.sessionId, conversation.sessionFilePath).catch((error) => {
       this.options.onSessionCleanupError?.(error, conversation.sessionId);
     });
   }
 
   async getMessages(userId: string, conversationId: string) {
     const conversation = await this.conversations.getById(userId, conversationId);
-    const session = await openSession(userId, conversation.sessionId);
+    const session = await openSession(userId, conversation.sessionId, conversation.sessionFilePath);
     return session.getTranscript();
   }
 

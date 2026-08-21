@@ -1,3 +1,5 @@
+import { readFile, stat } from "node:fs/promises";
+
 import {
   buildSessionContext,
   JsonlSessionRepo,
@@ -42,8 +44,8 @@ export interface RuntimeSession {
 
 export interface SessionRepository {
   create(options: CreateSessionOptions): Promise<RuntimeSession>;
-  open(ownerId: string, sessionId: string): Promise<RuntimeSession>;
-  delete(ownerId: string, sessionId: string): Promise<void>;
+  open(ownerId: string, sessionId: string, sessionFilePath?: string): Promise<RuntimeSession>;
+  delete(ownerId: string, sessionId: string, sessionFilePath?: string): Promise<void>;
 }
 
 export type JsonlSessionRepositoryOptions = {
@@ -108,6 +110,51 @@ function wrapSession(
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+async function metadataAtPath(
+  ownerId: string,
+  sessionId: string,
+  sessionFilePath: string,
+): Promise<JsonlSessionMetadata> {
+  try {
+    const [contents, fileStats] = await Promise.all([
+      readFile(sessionFilePath, "utf8"),
+      stat(sessionFilePath),
+    ]);
+    const firstLine = contents.split(/\r?\n/, 1)[0] ?? "";
+    const header = JSON.parse(firstLine) as Record<string, unknown>;
+    const metadata = isRecord(header.metadata)
+      ? header.metadata as JsonlSessionMetadata["metadata"]
+      : undefined;
+    if (
+      header.kind !== "header" ||
+      (header.version !== 3 && header.version !== 4) ||
+      header.id !== sessionId ||
+      typeof header.createdAt !== "number" ||
+      typeof header.cwd !== "string" ||
+      metadata?.ownerId !== ownerId
+    ) {
+      throw new SessionNotFoundError(sessionId);
+    }
+
+    return {
+      id: sessionId,
+      createdAt: header.createdAt,
+      cwd: header.cwd,
+      path: sessionFilePath,
+      modifiedAt: fileStats.mtimeMs,
+      sourceFormat: header.version,
+      ...(metadata ? { metadata } : {}),
+    };
+  } catch (error) {
+    if (error instanceof SessionNotFoundError) throw error;
+    throw new SessionNotFoundError(sessionId);
+  }
+}
+
 export function createJsonlSessionRepository(
   options: JsonlSessionRepositoryOptions,
 ): SessionRepository {
@@ -142,14 +189,18 @@ export function createJsonlSessionRepository(
       return wrapSession(session, metadata);
     },
 
-    async open(ownerId, sessionId) {
-      const metadata = await findMetadata(ownerId, sessionId);
+    async open(ownerId, sessionId, sessionFilePath) {
+      const metadata = sessionFilePath
+        ? await metadataAtPath(ownerId, sessionId, sessionFilePath)
+        : await findMetadata(ownerId, sessionId);
       const session = await repository.open(metadata);
       return wrapSession(session, metadata);
     },
 
-    async delete(ownerId, sessionId) {
-      const metadata = await findMetadata(ownerId, sessionId);
+    async delete(ownerId, sessionId, sessionFilePath) {
+      const metadata = sessionFilePath
+        ? await metadataAtPath(ownerId, sessionId, sessionFilePath)
+        : await findMetadata(ownerId, sessionId);
       await repository.delete(metadata);
     },
   };

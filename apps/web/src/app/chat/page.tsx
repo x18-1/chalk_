@@ -99,8 +99,6 @@ function toolCalls(content: unknown): MessageTool[] {
 
 function toolLabel(name: string) {
   const labels: Record<string, string> = {
-    inspect_problem_structure: "题目结构检查",
-    make_hint_ladder: "提示阶梯",
     run_subagent: "专项分析",
   };
   if (labels[name]) return labels[name];

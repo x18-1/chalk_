@@ -1,0 +1,122 @@
+import { Type, type Static } from 'typebox';
+
+import type { RuntimeTool } from '@chalk/agent-runtime';
+
+export type SearchRequest = {
+  query: string;
+  limit: number;
+  signal?: AbortSignal;
+};
+
+export type SearchResult = {
+  title: string;
+  url: string;
+  snippet: string;
+};
+
+export interface SearchProvider {
+  search(request: SearchRequest): Promise<readonly SearchResult[]>;
+}
+
+const searchParameters = Type.Object({
+  query: Type.String({ minLength: 2, maxLength: 200 }),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })),
+});
+
+type SearchArguments = Static<typeof searchParameters>;
+
+const defaultResources: readonly SearchResult[] = [
+  {
+    title: '三角形全等的判定',
+    url: 'https://chalk.local/math/triangle-congruence',
+    snippet: '从边角关系整理全等三角形的判定条件，并练习如何选择最短证明路径。',
+  },
+  {
+    title: '一次函数图象',
+    url: 'https://chalk.local/math/linear-functions',
+    snippet: '通过斜率和截距理解一次函数图象，连接表达式、表格和坐标系中的直线。',
+  },
+  {
+    title: '等差数列基础',
+    url: 'https://chalk.local/math/arithmetic-sequences',
+    snippet: '识别公差、通项和前 n 项和，先从相邻项的稳定变化开始观察。',
+  },
+  {
+    title: '几何证明的条件整理',
+    url: 'https://chalk.local/math/proof-conditions',
+    snippet: '把题目中的对象、已知关系和目标结论分开记录，再决定下一步验证什么。',
+  },
+];
+
+function normalized(value: string, maxLength: number) {
+  return value.replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function safeResult(result: SearchResult): SearchResult | undefined {
+  const title = normalized(result.title, 200);
+  const snippet = normalized(result.snippet, 500);
+  let url: URL;
+  try {
+    url = new URL(result.url);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+  if (!title || !snippet) return undefined;
+  return { title, url: url.toString(), snippet };
+}
+
+export function createStaticSearchProvider(
+  resources: readonly SearchResult[] = defaultResources,
+): SearchProvider {
+  return {
+    async search({ query, limit, signal }) {
+      if (signal?.aborted) throw new Error('Search was aborted');
+      const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+      return resources
+        .filter((resource) => {
+          const haystack = `${resource.title} ${resource.snippet}`.toLowerCase();
+          return terms.every((term) => haystack.includes(term));
+        })
+        .slice(0, limit);
+    },
+  };
+}
+
+export function createSearchTool(
+  provider: SearchProvider = createStaticSearchProvider(),
+): RuntimeTool<typeof searchParameters> {
+  return {
+    name: 'search_learning_resources',
+    label: '学习资源搜索',
+    description:
+      '在 Chalk 的可信学习资源索引中搜索相关内容。只返回少量结构化结果，' +
+      '不会执行网页内容，也不会修改用户数据。',
+    parameters: searchParameters,
+    source: 'chalk',
+    requiresApproval: false,
+    executionMode: 'sequential',
+    async execute(args: SearchArguments, _context, signal) {
+      const query = normalized(args.query, 200);
+      if (query.length < 2) throw new Error('Search query must contain at least 2 characters');
+      const limit = args.limit ?? 5;
+      const candidates = await provider.search({ query, limit, signal });
+      const seen = new Set<string>();
+      const results = candidates.flatMap((candidate) => {
+        const result = safeResult(candidate);
+        if (!result || seen.has(result.url)) return [];
+        seen.add(result.url);
+        return [result];
+      }).slice(0, limit);
+      const text = results.length === 0
+        ? '没有找到匹配的学习资源。'
+        : results.map((result, index) =>
+          `${index + 1}. ${result.title}\n${result.url}\n${result.snippet}`,
+        ).join('\n\n');
+      return {
+        content: [{ type: 'text', text }],
+        details: { query, count: results.length, results },
+      };
+    },
+  };
+}

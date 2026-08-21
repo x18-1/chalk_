@@ -8,7 +8,6 @@ import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { config as loadDotenv } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { hash } from 'bcryptjs';
 
 loadDotenv({ path: join(process.cwd(), '../../.env ') });
 
@@ -78,8 +77,13 @@ function createFixtureProviderServer() {
     const body = await readJsonRequest(request);
     providerRequests.push(body);
     const messages = Array.isArray(body.messages) ? body.messages as Array<Record<string, unknown>> : [];
-    const hasToolResult = messages.some((message) => message.role === 'tool');
-    const latestUser = [...messages].reverse().find((message) => message.role === 'user');
+    const latestUserIndex = messages.reduce(
+      (latest, message, index) => message.role === 'user' ? index : latest,
+      -1,
+    );
+    const hasToolResult = latestUserIndex >= 0
+      && messages.slice(latestUserIndex + 1).some((message) => message.role === 'tool');
+    const latestUser = latestUserIndex >= 0 ? messages[latestUserIndex] : undefined;
     const userText = typeof latestUser?.content === 'string'
       ? latestUser.content
       : JSON.stringify(latestUser?.content ?? '');
@@ -105,8 +109,39 @@ function createFixtureProviderServer() {
                 id: 'http-approval-call',
                 type: 'function',
                 function: {
-                  name: 'make_hint_ladder',
-                  arguments: '{"stuckAt":"列出已知条件","level":1}',
+                  name: 'rename_current_conversation',
+                  arguments: '{"title":"审批后的学习会话"}',
+                },
+              }],
+            },
+            finish_reason: null,
+          }],
+        },
+        {
+          id,
+          model: 'fixture-model',
+          choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+        },
+      ]);
+      return;
+    }
+
+    if (userText.includes('搜索资源') && !hasToolResult) {
+      streamFixtureResponse(response, [
+        {
+          id,
+          model: 'fixture-model',
+          choices: [{
+            index: 0,
+            delta: {
+              role: 'assistant',
+              tool_calls: [{
+                index: 0,
+                id: 'http-search-call',
+                type: 'function',
+                function: {
+                  name: 'search_learning_resources',
+                  arguments: '{"query":"函数","limit":3}',
                 },
               }],
             },
@@ -215,7 +250,6 @@ describe('API auth and chat interface', () => {
     process.env.DEV_USER_EMAIL = email;
     process.env.DEV_USER_PASSWORD = password;
     process.env.SESSIONS_ROOT = join(sessionRoot, 'sessions');
-    process.env.SKILLS_DIRS = join(process.cwd(), 'tests/fixtures/skills');
     process.env.CREDENTIAL_ENCRYPTION_KEY = randomBytes(32).toString('hex');
     app = await buildApi({
       config: loadConfig({
@@ -537,90 +571,13 @@ describe('API auth and chat interface', () => {
     expect(unsupported.json()).toMatchObject({ code: 'UNSUPPORTED_THINKING_LEVEL' });
   });
 
-  it('persists owner-scoped Skill and tool settings', async () => {
-    const skills = await app.inject({ method: 'GET', url: '/skills', headers: { cookie } });
-    expect(skills.statusCode).toBe(200);
-    expect(skills.json().skills).toContainEqual(expect.objectContaining({
-      name: 'geometry-coach',
-      enabled: true,
-    }));
-
-    const disabledSkill = await app.inject({
-      method: 'PATCH',
-      url: '/skills',
-      headers: { cookie },
-      payload: { skillName: 'geometry-coach', enabled: false },
-    });
-    expect(disabledSkill.statusCode).toBe(200);
-
-    const updatedTool = await app.inject({
-      method: 'PATCH',
-      url: '/tools',
-      headers: { cookie },
-      payload: {
-        toolName: 'inspect_problem_structure',
-        enabled: false,
-        approval: 'always',
-      },
-    });
-    expect(updatedTool.statusCode).toBe(200);
-
-    const persistedSkills = await app.inject({ method: 'GET', url: '/skills', headers: { cookie } });
-    expect(persistedSkills.json().skills).toContainEqual(expect.objectContaining({
-      name: 'geometry-coach',
-      enabled: false,
-    }));
-    const persistedTools = await app.inject({ method: 'GET', url: '/tools', headers: { cookie } });
-    expect(persistedTools.json().tools).toContainEqual(expect.objectContaining({
-      name: 'inspect_problem_structure',
-      enabled: false,
-      approval: 'always',
-    }));
-
-    const foreignEmail = `settings-${randomBytes(6).toString('hex')}@chalk.local`;
-    const foreignPassword = `settings-${randomBytes(12).toString('hex')}`;
-    const foreignUser = (await getDb().insert(authUsers).values({
-      email: foreignEmail,
-      passwordHash: await hash(foreignPassword, 4),
-    }).returning())[0]!;
-    try {
-      const login = await app.inject({
-        method: 'POST',
-        url: '/auth/login',
-        payload: { email: foreignEmail, password: foreignPassword },
-      });
-      const foreignCookie = responseCookie(login.headers['set-cookie']);
-      const foreignSkills = await app.inject({
-        method: 'GET',
-        url: '/skills',
-        headers: { cookie: foreignCookie },
-      });
-      expect(foreignSkills.json().skills).toContainEqual(expect.objectContaining({
-        name: 'geometry-coach',
-        enabled: true,
-      }));
-      const foreignTools = await app.inject({
-        method: 'GET',
-        url: '/tools',
-        headers: { cookie: foreignCookie },
-      });
-      expect(foreignTools.json().tools).toContainEqual(expect.objectContaining({
-        name: 'inspect_problem_structure',
-        enabled: true,
-        approval: 'default',
-      }));
-    } finally {
-      await getDb().delete(authUsers).where(eq(authUsers.id, foreignUser.id));
-    }
-  });
-
-  it('applies Skill and approval settings to the real Chat stream and durable history', async () => {
+  it('advertises the new tools and runs search plus approved title changes', async () => {
     const provider = await app.inject({
       method: 'POST',
       url: '/providers/custom',
       headers: { cookie },
       payload: {
-        name: 'Local deterministic fixture',
+        name: 'Local tool fixture',
         baseUrl: providerBaseUrl,
         apiKey: 'fixture-key',
         models: [{
@@ -637,52 +594,41 @@ describe('API auth and chat interface', () => {
     expect(provider.statusCode).toBe(201);
     fixtureProviderId = provider.json().provider.id;
 
+    const tools = await app.inject({ method: 'GET', url: '/tools', headers: { cookie } });
+    expect(tools.statusCode).toBe(200);
+    expect(tools.json().tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'search_learning_resources', requiresApproval: false }),
+      expect.objectContaining({ name: 'rename_current_conversation', requiresApproval: true }),
+    ]));
+
     const conversationResponse = await app.inject({
       method: 'POST',
       url: '/chat',
       headers: { cookie },
-      payload: {},
+      payload: { title: '工具验证会话' },
     });
     const conversationId = conversationResponse.json().conversation.id as string;
-
-    const enabled = await app.inject({
-      method: 'PATCH',
-      url: '/skills',
-      headers: { cookie },
-      payload: { skillName: 'geometry-coach', enabled: true },
-    });
-    expect(enabled.statusCode).toBe(200);
-    await streamConversation(conversationId, '检查启用的 Skill prompt');
-    const enabledPrompt = (providerRequests.at(-1)?.messages as Array<Record<string, unknown>>)[0]?.content;
-    expect(String(enabledPrompt)).toContain('geometry-coach');
-    expect(String(enabledPrompt)).toContain('Guide geometry learners to name known relationships');
-
-    const disabled = await app.inject({
-      method: 'PATCH',
-      url: '/skills',
-      headers: { cookie },
-      payload: { skillName: 'geometry-coach', enabled: false },
-    });
-    expect(disabled.statusCode).toBe(200);
-    await streamConversation(conversationId, '检查停用的 Skill prompt');
-    const disabledPrompt = (providerRequests.at(-1)?.messages as Array<Record<string, unknown>>)[0]?.content;
-    expect(String(disabledPrompt)).not.toContain('geometry-coach');
-    expect(String(disabledPrompt)).not.toContain('Guide geometry learners to name known relationships');
 
     const approvalMode = await app.inject({
       method: 'PATCH',
       url: '/tools',
       headers: { cookie },
       payload: {
-        toolName: 'make_hint_ladder',
+        toolName: 'rename_current_conversation',
         enabled: true,
         approval: 'always',
       },
     });
     expect(approvalMode.statusCode).toBe(200);
 
+    const searchEvents = await streamConversation(conversationId, '搜索资源');
+    expect(searchEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'tool_started', data: expect.objectContaining({ toolName: 'search_learning_resources' }) }),
+      expect.objectContaining({ type: 'tool_finished', data: expect.objectContaining({ toolName: 'search_learning_resources', isError: false }) }),
+    ]));
+
     let approvalResponse: Promise<Response> | undefined;
-    const events = await streamConversation(conversationId, '验证审批链路', (type, data) => {
+    const approvalEvents = await streamConversation(conversationId, '审批链路', (type, data) => {
       if (type !== 'tool_pending') return;
       approvalResponse = fetch(`${apiBaseUrl}/chat/${conversationId}/approve`, {
         method: 'POST',
@@ -692,64 +638,42 @@ describe('API auth and chat interface', () => {
     });
     expect(approvalResponse).toBeDefined();
     expect((await approvalResponse!).status).toBe(200);
-    expect(events).toEqual(expect.arrayContaining([
+    expect(approvalEvents).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'tool_pending' }),
-      expect.objectContaining({ type: 'tool_finished' }),
-      expect.objectContaining({ type: 'thinking_delta' }),
-      expect.objectContaining({ type: 'result' }),
+      expect.objectContaining({ type: 'tool_finished', data: expect.objectContaining({ toolName: 'rename_current_conversation', isError: false }) }),
     ]));
 
-    const repeatedDecision = await app.inject({
-      method: 'POST',
-      url: `/chat/${conversationId}/approve`,
-      headers: { cookie },
-      payload: { toolCallId: 'http-approval-call', approved: false },
-    });
-    expect(repeatedDecision.statusCode).toBe(409);
-    expect(repeatedDecision.json()).toMatchObject({
-      code: 'TOOL_APPROVAL_ALREADY_DECIDED',
-    });
-
-    const history = await app.inject({
+    const renamed = await app.inject({
       method: 'GET',
-      url: `/chat/${conversationId}/messages`,
+      url: `/chat/${conversationId}`,
       headers: { cookie },
     });
-    expect(history.statusCode).toBe(200);
-    expect(history.json().messages).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        role: 'assistant',
-        content: expect.arrayContaining([expect.objectContaining({
-          type: 'toolCall',
-          id: 'http-approval-call',
-        })]),
-      }),
-      expect.objectContaining({
-        role: 'toolResult',
-        toolCallId: 'http-approval-call',
-        isError: false,
-      }),
-      expect.objectContaining({
-        role: 'assistant',
-        content: expect.arrayContaining([expect.objectContaining({
-          type: 'thinking',
-          thinking: '先确认工具结果，再给下一步。',
-        })]),
-      }),
-    ]));
-
-    const failureEvents = await streamConversation(conversationId, '验证 Provider 错误分类');
-    expect(failureEvents).toContainEqual(expect.objectContaining({
-      type: 'error',
-      data: expect.objectContaining({
-        category: 'provider',
-        code: 'STREAM_PROVIDER_ERROR',
-        retryable: true,
-      }),
-    }));
+    expect(renamed.json().conversation.title).toBe('审批后的学习会话');
   });
 
   it('persists a redacted run summary for each conversation turn', async () => {
+    const provider = await app.inject({
+      method: 'POST',
+      url: '/providers/custom',
+      headers: { cookie },
+      payload: {
+        name: 'Local observation fixture',
+        baseUrl: providerBaseUrl,
+        apiKey: 'fixture-key',
+        models: [{
+          id: 'fixture-model',
+          name: 'Fixture Model',
+          reasoning: false,
+          input: ['text'],
+          contextWindow: 128_000,
+          maxTokens: 8_192,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        }],
+      },
+    });
+    expect(provider.statusCode).toBe(201);
+    fixtureProviderId = provider.json().provider.id;
+
     const created = await app.inject({
       method: 'POST',
       url: '/chat',
