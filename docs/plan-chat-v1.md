@@ -1,6 +1,10 @@
 # Chat v1 实现计划（全量 Agent Harness）
 
-> 状态：定稿，使用 JSONL session 存储方案；Web/API 已按前后端分离落地
+> 文档状态：Historical
+> 最后核验：2026-08-22
+> 说明：这是 Chat v1 的阶段性实施计划，用于解释既有决策和实现来源；当前仓库边界、后端分层、数据库和测试规范以 [文档索引](README.md) 中列出的 Accepted 文档为准。
+>
+> 原状态：定稿，使用 JSONL session 存储方案；Web/API 已按前后端分离落地
 > 范围：完整 Chat 功能 + 成熟 Agent Harness：session、memory、tools、MCP、skills、全 LLM 供应商、human-in-loop、鉴权、可观测性。  
 > Session 存储：JSONL 文件（单实例部署 + 持久化磁盘；暂不考虑多实例和 NFS）
 > 不含：几何渲染、Chalkboard 主线、题型识别、worker 任务队列。
@@ -136,7 +140,7 @@ src/
     registry.ts        createModels() + 应用注入 CredentialStore
     custom-openai.ts   自定义 OpenAI 兼容：createProvider() + baseUrl
   tools/
-    registry.ts        AgentTool[] 注册表（领域工具由应用 adapter 注入）
+    registry.ts        AgentTool[] 注册表（业务工具由应用 adapter 注入）
   skills/
     loader.ts          loadSkills / loadSourcedSkills 封装
     registry.ts        Skill[] 注册表（运行时热重载）
@@ -194,7 +198,7 @@ createModels({ credentials: appCredentialStore })
 - `execute(toolCallId, params, signal, onUpdate, ctx)` — ctx 含 userId + sessionId
 - `executionMode: "sequential" | "parallel"`
 
-Tool 参数 schema 使用 TypeBox，因为这是 `pi-agent-core` / `pi-ai` 的原生边界。Chalkboard、learning/evidence 和 API contract 使用 Zod；工具执行时先通过 TypeBox 校验 LLM 参数，再转换为 Chalk command 并通过 Zod 校验后进入领域逻辑。不要为同一个领域对象在两种库中各维护一份 schema。
+Tool 参数 schema 使用 TypeBox，因为这是 `pi-agent-core` / `pi-ai` 的原生边界。Chalkboard、learning/evidence 和 API contract 使用 Zod；工具执行时先通过 TypeBox 校验 LLM 参数，再转换为 Chalk command 并通过 Zod 校验后进入业务逻辑。不要为同一个业务对象在两种库中各维护一份 schema。
 
 `beforeToolCall` hook：
 - 检查工具白名单（per-user 配置）
@@ -602,7 +606,7 @@ const runtime = createAgentRuntime({ sessionRepo });
 ### 其他技术决策
 
 - **LLM 供应商**：`createModels()` 加载 pi-ai 内置所有 30+ provider；API adapter 实现 `CredentialStore` 接口，API key 加密存 `provider_credentials` 表，Web UI 和 env 双轨，credential store 优先。
-- **Schema 边界**：Chalkboard、learning/evidence 和 API contract 使用 Zod；pi AgentTool 的 `parameters` 使用 TypeBox。工具参数经 TypeBox 校验并转换为领域 command，再经 Zod 校验。
+- **Schema 边界**：Chalkboard、learning/evidence 和 API contract 使用 Zod；pi AgentTool 的 `parameters` 使用 TypeBox。工具参数经 TypeBox 校验并转换为业务 command，再经 Zod 校验。
 - **自定义 OpenAI 兼容**：`createProvider({ baseUrl, api: openai-completions })` 动态注册；配置存 `custom_providers` 表，加密 `api_key_enc`。
 - **HIL 工具审批**：`tool_approvals` 表持久化审批状态；进程重启后 pending 超时 → reject（fail closed）。
 - **MCP**：`@modelcontextprotocol/sdk`，工具映射为 `AgentTool`，连接池 per user-session。

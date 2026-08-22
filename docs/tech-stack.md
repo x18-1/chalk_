@@ -1,6 +1,8 @@
 # Chalk 技术栈
 
-> 状态：草案，随讨论迭代
+> 文档状态：Draft
+> 最后核验：2026-08-22
+> 说明：技术方向仍可迭代；`AGENTS.md` 已确认约束和 [Accepted 架构文档](README.md) 优先。
 > 配套：[功能定义](functional-spec.md)
 
 ## 1. 总原则
@@ -25,7 +27,7 @@
 | 几何渲染 / 动画 | **manim-web** | TypeScript，见第 4 节 |
 | 几何约束层 | **自建** | 见第 4 节。系统内唯一必须从零写的核心资产 |
 | 数学排版 | KaTeX | manim-web 内部也用它 |
-| 校验 | **Zod + TypeBox** | Chalk 领域模型、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。领域 schema 是主来源，工具边界通过明确 adapter 对接。将来若引入 Python，由 Zod 生成 JSON Schema → Pydantic |
+| 校验 | **Zod + TypeBox** | Chalk 业务结构、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。业务 schema 是主来源，工具边界通过明确 adapter 对接。将来若引入 Python，由 Zod 生成 JSON Schema → Pydantic |
 | 测试 | Vitest + Playwright + LLM eval | 见第 6 节 |
 | 观测 | pi-telemetry + OpenTelemetry | 见第 5 节 |
 
@@ -33,19 +35,19 @@
 
 项目使用两种校验工具，但职责不重叠：
 
-- **Zod** 是 Chalk 领域层的主 schema：课程课件 DSL、几何 DSL、学习证据、API 输入输出和持久化业务对象都用 Zod 定义。
+- **Zod** 是 Chalk 业务结构的主 schema：课程课件 DSL、几何 DSL、学习证据、API 输入输出和持久化业务对象都用 Zod 定义。
 - **TypeBox** 只用于 pi AgentTool 边界：`AgentTool.parameters` 直接使用 TypeBox schema，避免在 Agent runtime 内增加转换层。
-- 当一个工具要调用 Chalk 领域逻辑时，边界按以下顺序处理：
+- 当一个工具要调用 Chalk 业务逻辑时，边界按以下顺序处理：
 
 ```text
 LLM tool arguments
     ↓ TypeBox 校验
 工具参数 → Chalk command
     ↓ Zod 校验
-领域逻辑 / 数据库写入
+业务逻辑 / 数据库写入
 ```
 
-同一个领域结构不在两边手写两份。TypeBox schema 只描述 LLM 可调用的工具参数；领域对象仍以 Zod schema 为准。
+同一个业务结构不在两边手写两份。TypeBox schema 只描述 LLM 可调用的工具参数；业务对象仍以 Zod schema 为准。
 
 ### 明确不选
 
@@ -205,11 +207,11 @@ packages/chalkboard/src/internal/geometry/
 
 ```
 packages/
-  agent-runtime/    pi-agent-core 封装 + 权限 / 配额 / 审计 / 观测钩子
+  agent-runtime/    pi-agent-core 执行封装 + tools / compaction / 观测钩子
   chalkboard/       从 OpenMAIC 迁移并深化的课件模型、播放、渲染、互动与内部 Agent
 apps/
   web/                 Next.js 前端；只含页面、组件和 API client
-  api/                 Fastify 后端；认证、DB、DAL、对象存储、Agent 装配和业务路由
+  api/                 Fastify 后端；认证、DB、DAL、第三方 Provider、Agent 装配和业务路由
   worker/           课件编译 + 复习调度 + 后台任务
 tests/
   e2e/                跨 Web/API 的 Playwright 测试
@@ -219,6 +221,8 @@ eval/               确定性门禁 + LLM / 视觉评分 harness
 **后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）都放在 `apps/api`。`apps/web` 不能导入 Drizzle、Postgres、Pi runtime、认证实现或对象存储 SDK。
 
 `@chalk/chalkboard` 是一个深模块：内部拥有 Zod 课件 schema、Beat / Action / Checkpoint、结构 lint、播放状态、渲染和互动；外部只暴露解析、编译、运行和渲染所需的少量稳定接口。它承接 OpenMAIC 能力迁移，并加入 Chalk 的教学语义。
+
+LLM Provider 统一使用 `@earendil-works/pi-ai`。`apps/api/src/providers/llm/` 负责 Pi 模型目录、用户凭据、自定义 Provider 和模型选择的应用级装配，普通业务 Service 与 `@chalk/agent-runtime` 共用这套能力；`agent-runtime` 不另建一套 LLM Provider。
 
 默认依赖方向为：`apps/web` 通过 `NEXT_PUBLIC_API_URL` 调用 `apps/api` 的 HTTP/SSE 接口；`apps/api` 作为组合根使用 `@chalk/agent-runtime` 与 `@chalk/chalkboard`。workspace package 不应依赖任何 app 路径；数据库、认证和产品集成由 API 的 adapter / composition root 注入。
 

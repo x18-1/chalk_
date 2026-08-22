@@ -1,4 +1,8 @@
-# Chalk Ubiquitous Language
+# Chalk 产品与运行术语
+
+> 文档状态：Accepted
+> 适用范围：跨模块产品与运行术语
+> 最后核验：2026-08-22
 
 ## Agent Run
 

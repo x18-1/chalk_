@@ -1,5 +1,11 @@
 # Chalkboard / OpenMAIC V1 迁移 Handoff
 
+> 文档状态：Historical
+> 文档类型：Branch handoff
+> 适用分支：`feat/chalkboard-openmaic-migration`
+> 最后核验：2026-08-22
+> 说明：本文记录特定 worktree 的暂停快照，不定义主分支当前架构、数据库或测试规范。主项目规范见 `docs/README.md`。
+>
 > 暂停快照：2026-08-13
 >
 > 当前状态：**V1 主体实现已进入收口验收阶段，但尚未达到正式完成标准。**

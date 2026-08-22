@@ -4,11 +4,17 @@
 
 目标是：企业级项目。
 
-本文件只定义所有开发 Agent 共享的仓库规则。产品设计、技术调研和运行手册放在 `docs/`。
+本文件只定义所有开发 Agent 共享的仓库规则。产品设计、架构、技术调研和运行手册放在 `docs/`。
 注意：`docs/` 下的文档是初步版本，不合理的你可以提出，随着我们进行对话可以对起内容进行更新！！
 
+- 文档索引与权威顺序：`docs/README.md`
 - 功能定义：`docs/functional-spec.md`
 - 技术栈：`docs/tech-stack.md`
+- 仓库与 package 边界：`docs/architecture/repository-boundaries.md`
+- API 后端分层：`docs/architecture/backend-layers.md`
+- Worktree 开发：`docs/runbooks/worktree-development.md`
+- 数据库开发：`docs/runbooks/database-development.md`
+- 测试与验证：`docs/testing/verification-strategy.md`
 - 参考项目调研：`docs/researsh/`
 
 ## 项目约束

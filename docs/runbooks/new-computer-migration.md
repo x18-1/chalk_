@@ -1,5 +1,10 @@
 # 新电脑迁移手册
 
+> 文档状态：Historical
+> 适用快照：2026-08-13 生成的迁移包
+> 最后核验：2026-08-22
+> 说明：本文只用于恢复指定历史备份，不是日常 worktree 或数据库开发规范。日常流程见 [worktree-development.md](worktree-development.md) 和 [database-development.md](database-development.md)。
+
 本文档用于把 Chalk 开发环境从旧电脑迁移到新电脑。适用于 2026-08-13 生成的 `chalk-migration-2026-08-13.tar.gz` 备份包。
 
 迁移原则：代码从 GitHub 重新克隆；备份包只负责 Git 不会保存的密钥、数据库和本地 Agent 会话。不要迁移 `node_modules`、`.next`、`dist` 或 Turbo 缓存。
