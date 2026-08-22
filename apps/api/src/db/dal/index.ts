@@ -6,3 +6,4 @@ export * from './tool-approvals';
 export * from './agent-settings';
 export * from './attachments';
 export * from './agent-run-observations';
+export * from './auth-users';

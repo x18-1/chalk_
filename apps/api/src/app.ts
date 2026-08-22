@@ -11,6 +11,7 @@ import { registerConfigurationRoutes } from './modules/configuration/routes';
 import { registerMcpRoutes } from './modules/mcp/routes';
 import { registerTelemetryRoutes } from './modules/telemetry/routes';
 import { registerUploadRoutes } from './modules/uploads/routes';
+import { registerAdminRoutes } from './modules/admin/routes';
 import { startToolApprovalRecovery } from './agent/approval-recovery';
 import { configureAgentRuntime } from './agent/runtime-manager';
 
@@ -64,6 +65,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   registerMcpRoutes(app, auth);
   registerTelemetryRoutes(app, auth);
   registerUploadRoutes(app, auth);
+  registerAdminRoutes(app, auth);
 
   app.get('/health', async () => ({ status: 'ok' }));
   return app;

@@ -19,6 +19,7 @@ import {
   CircleAlert,
   Clock3,
   Database,
+  Users,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -259,6 +260,8 @@ export default function ObservabilityPage() {
       <nav className={styles.railNav} aria-label="管理模块">
         <span className={styles.railSection}>运行管理</span>
         <Link aria-current="page" href="/observability"><Activity size={16} />Agent Trace</Link>
+        <span className={styles.railSection}>账号管理</span>
+        <Link href="/admin/users"><Users size={16} />用户与权限</Link>
       </nav>
       <div className={styles.railFooter}>
         <span><ShieldCheck size={14} />管理员视图</span>
