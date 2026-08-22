@@ -1,12 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 
 import { hash } from 'bcryptjs';
 import { eq } from 'drizzle-orm';
-import { config as loadDotenv } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
-loadDotenv({ path: join(process.cwd(), '../../.env'), quiet: true });
 
 import { closeDb, getDb } from '../../src/db/client';
 import { createConversationsDal } from '../../src/db/dal';

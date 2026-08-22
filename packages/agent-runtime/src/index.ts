@@ -1,24 +1,11 @@
 export {
   AgentRuntime,
   createAgentRuntime,
+  type AgentLlm,
   type AgentRuntimeEvent,
   type CreateAgentRuntimeOptions,
   type RuntimeRunResult,
 } from "./runtime/agent-runtime";
-export {
-  ModelCatalog,
-  createModelCatalog,
-  MODEL_THINKING_LEVELS,
-  parseModelThinkingLevel,
-  type CreateModelCatalogOptions,
-  type CustomOpenAiProvider,
-  type CustomOpenAiModel,
-  type ModelRef,
-  type ModelSelection,
-  type ModelSummary,
-  type ProviderSummary,
-  UnsupportedThinkingLevelError,
-} from "./models/model-catalog";
 export {
   createJsonlSessionRepository,
   SessionNotFoundError,

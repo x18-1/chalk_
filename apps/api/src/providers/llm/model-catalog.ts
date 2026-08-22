@@ -6,10 +6,10 @@ import type {
   ModelThinkingLevel,
   Models,
   MutableModels,
-} from "@earendil-works/pi-ai";
-import { createProvider, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+} from '@earendil-works/pi-ai';
+import { createProvider, getSupportedThinkingLevels } from '@earendil-works/pi-ai';
+import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
+import { builtinModels } from '@earendil-works/pi-ai/providers/all';
 
 export type ModelRef = {
   providerId: string;
@@ -17,29 +17,29 @@ export type ModelRef = {
 };
 
 export const MODEL_THINKING_LEVELS = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
 ] as const satisfies readonly ModelThinkingLevel[];
 
 export const EXCLUDED_MODEL_PROVIDER_IDS = [
-  "amazon-bedrock",
-  "baseten",
-  "cerebras",
-  "cloudflare-ai-gateway",
-  "cloudflare-workers-ai",
-  "fireworks",
-  "github-copilot",
-  "huggingface",
+  'amazon-bedrock',
+  'baseten',
+  'cerebras',
+  'cloudflare-ai-gateway',
+  'cloudflare-workers-ai',
+  'fireworks',
+  'github-copilot',
+  'huggingface',
 ] as const;
 
 export function parseModelThinkingLevel(value: unknown): ModelThinkingLevel {
   if (
-    typeof value === "string" &&
+    typeof value === 'string' &&
     (MODEL_THINKING_LEVELS as readonly string[]).includes(value)
   ) {
     return value as ModelThinkingLevel;
@@ -83,7 +83,7 @@ export class UnsupportedThinkingLevelError extends Error {
     super(
       `Thinking level ${selection.thinkingLevel} is not supported by ${selection.providerId}/${selection.modelId}`,
     );
-    this.name = "UnsupportedThinkingLevelError";
+    this.name = 'UnsupportedThinkingLevelError';
   }
 }
 
@@ -99,7 +99,7 @@ export type CustomOpenAiModel = {
   id: string;
   name: string;
   reasoning: boolean;
-  input: readonly ("text" | "image")[];
+  input: readonly ('text' | 'image')[];
   contextWindow: number;
   maxTokens: number;
   cost: {
@@ -126,7 +126,7 @@ function registerCustomProviders(
         ({
           id: model.id,
           name: model.name,
-          api: "openai-completions",
+          api: 'openai-completions',
           provider: provider.id,
           baseUrl: provider.baseUrl,
           reasoning: model.reasoning,
@@ -135,7 +135,7 @@ function registerCustomProviders(
           contextWindow: model.contextWindow,
           maxTokens: model.maxTokens,
           ...(model.reasoning ? { compat: { supportsReasoningEffort: true } } : {}),
-        }) satisfies Model<"openai-completions">,
+        }) satisfies Model<'openai-completions'>,
     );
 
     models.setProvider(
@@ -161,10 +161,6 @@ function registerCustomProviders(
 
 export class ModelCatalog {
   constructor(private readonly models: Models) {}
-
-  getRawModels() {
-    return this.models;
-  }
 
   async listProviders(): Promise<ProviderSummary[]> {
     return Promise.all(
@@ -232,12 +228,10 @@ export class ModelCatalog {
     };
   }
 
-  async resolve(ref: ModelRef): Promise<Model<Api>> {
+  async resolveModel(ref: ModelRef): Promise<Model<Api>> {
     const model = this.models.getModel(ref.providerId, ref.modelId);
     if (!model) {
-      throw new Error(
-        `Model ${ref.providerId}/${ref.modelId} is not available`,
-      );
+      throw new Error(`Model ${ref.providerId}/${ref.modelId} is not available`);
     }
 
     const auth = await this.models.getAuth(model);
@@ -248,25 +242,37 @@ export class ModelCatalog {
     return model;
   }
 
-  async resolveSelection(selection: ModelSelection): Promise<Model<Api>> {
-    const model = await this.resolve(selection);
+  async resolveSelection(selection: ModelSelection) {
+    const model = await this.resolveModel(selection);
     const supportedLevels = getSupportedThinkingLevels(model);
     if (!supportedLevels.includes(selection.thinkingLevel)) {
       throw new UnsupportedThinkingLevelError(selection, supportedLevels);
     }
-    return model;
+    return {
+      models: this.models,
+      model,
+      thinkingLevel: selection.thinkingLevel,
+    };
+  }
+
+  async completeSimple(
+    ref: ModelRef,
+    context: Parameters<Models['completeSimple']>[1],
+    options?: Parameters<Models['completeSimple']>[2],
+  ) {
+    const model = await this.resolveModel(ref);
+    return this.models.completeSimple(model, context, options);
   }
 
   async testConnection(ref: ModelRef) {
-    const model = await this.resolve(ref);
     const startedAt = Date.now();
-    const response = await this.models.completeSimple(
-      model,
+    const response = await this.completeSimple(
+      ref,
       {
         messages: [
           {
-            role: "user",
-            content: [{ type: "text", text: "Reply with OK." }],
+            role: 'user',
+            content: [{ type: 'text', text: 'Reply with OK.' }],
             timestamp: Date.now(),
           },
         ],
@@ -280,9 +286,6 @@ export class ModelCatalog {
       usage: response.usage,
     };
   }
-
-  streamSimple: Models["streamSimple"] = (model, context, options) =>
-    this.models.streamSimple(model, context, options);
 }
 
 export function createModelCatalog(

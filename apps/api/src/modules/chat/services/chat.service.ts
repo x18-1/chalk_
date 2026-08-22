@@ -1,7 +1,5 @@
 import {
-  UnsupportedThinkingLevelError,
   type AgentRuntimeEvent,
-  type ModelSelection,
   type RuntimeRunResult,
 } from '@chalk/agent-runtime';
 import type { ImageContent } from '@earendil-works/pi-ai';
@@ -14,11 +12,15 @@ import {
   getActiveRuntime,
   getOrCreateRuntime,
   openSession,
-} from '../../agent/runtime-manager';
-import type { Database } from '../../db/client';
-import { createAttachmentsDal, createConversationsDal } from '../../db/dal';
-import { ApiError } from '../../http/errors';
-import { readUploadedObject } from '../../storage/s3';
+} from '../../../agent/runtime-manager';
+import type { Database } from '../../../db/client';
+import { createAttachmentsDal, createConversationsDal } from '../../../db/dal';
+import { ApiError } from '../../../http/errors';
+import {
+  UnsupportedThinkingLevelError,
+  type ModelSelection,
+} from '../../../providers/llm/model-catalog';
+import { readUploadedObject } from '../../../storage/s3';
 
 export type ChatStreamInput = {
   message: string;
@@ -105,9 +107,8 @@ export class ChatService {
 
   private async generateAutoTitle(userId: string, conversationId: string, message: string) {
     const catalog = await createUserModelCatalog(userId);
-    const model = await catalog.resolve(titleModel);
-    const response = await catalog.getRawModels().completeSimple(
-      model,
+    const response = await catalog.completeSimple(
+      titleModel,
       {
         systemPrompt: titlePrompt,
         messages: [{

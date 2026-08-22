@@ -45,8 +45,7 @@ describe("AgentRuntime", () => {
 
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "你是 Chalk 数学老师。",
     });
     const deltas: string[] = [];
@@ -78,8 +77,7 @@ describe("AgentRuntime", () => {
     const runtimeTelemetry = createRuntimeTelemetryContext(telemetry);
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "test",
       telemetry: {
         context: runtimeTelemetry,
@@ -98,25 +96,6 @@ describe("AgentRuntime", () => {
       attributes: expect.objectContaining({ status: "completed", finishReason: "stop" }),
     }));
     expect(JSON.stringify(spans)).not.toContain("PRIVATE_STUDENT_PROMPT");
-  });
-
-  it("fails closed when the selected model does not exist", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
-    temporaryDirectories.push(directory);
-    const sessions = createJsonlSessionRepository({
-      sessionsRoot: join(directory, "sessions"),
-      cwd: directory,
-    });
-    const session = await sessions.create({ ownerId: "student-1" });
-
-    await expect(
-      createAgentRuntime({
-        session,
-        models: createModels(),
-        model: { providerId: "missing", modelId: "missing", thinkingLevel: "off" },
-        systemPrompt: "test",
-      }),
-    ).rejects.toThrow("Model missing/missing is not available");
   });
 
   it("applies the selected thinking level to the provider request", async () => {
@@ -141,42 +120,13 @@ describe("AgentRuntime", () => {
     models.setProvider(faux.provider);
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: {
-        providerId: faux.provider.id,
-        modelId: faux.getModel().id,
-        thinkingLevel: "high",
-      },
+      llm: { models, model: faux.getModel(), thinkingLevel: "high" },
       systemPrompt: "你是 Chalk 数学老师。",
     });
 
     await runtime.run("怎么开始？");
 
     expect(observeReasoning).toHaveBeenCalledWith("high");
-  });
-
-  it("rejects a thinking level unsupported by the selected model", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
-    temporaryDirectories.push(directory);
-    const sessions = createJsonlSessionRepository({
-      sessionsRoot: join(directory, "sessions"),
-      cwd: directory,
-    });
-    const session = await sessions.create({ ownerId: "student-1" });
-    const faux = fauxProvider({ models: [{ id: "plain-model", reasoning: false }] });
-    const models = createModels();
-    models.setProvider(faux.provider);
-
-    await expect(createAgentRuntime({
-      session,
-      models,
-      model: {
-        providerId: faux.provider.id,
-        modelId: faux.getModel().id,
-        thinkingLevel: "high",
-      },
-      systemPrompt: "test",
-    })).rejects.toThrow("Thinking level high is not supported");
   });
 
   it("aborts an active stream and persists the aborted outcome", async () => {
@@ -196,8 +146,7 @@ describe("AgentRuntime", () => {
     models.setProvider(faux.provider);
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "test",
     });
 
@@ -236,8 +185,7 @@ describe("AgentRuntime", () => {
     models.setProvider(faux.provider);
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "test",
     });
     let steered = false;
@@ -283,8 +231,7 @@ describe("AgentRuntime", () => {
     models.setProvider(faux.provider);
     const options = {
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" as const },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" as const },
       systemPrompt: "test",
       compaction: { enabled: true, reserveTokens: 200, keepRecentTokens: 1 },
     };
@@ -334,8 +281,7 @@ describe("AgentRuntime", () => {
 
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "test",
     });
 
@@ -387,8 +333,7 @@ describe("AgentRuntime", () => {
     models.setProvider(faux.provider);
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "test",
     });
 
@@ -449,8 +394,7 @@ describe("AgentRuntime", () => {
     models.setProvider(faux.provider);
     const runtime = await createAgentRuntime({
       session,
-      models,
-      model: { providerId: faux.provider.id, modelId: faux.getModel().id, thinkingLevel: "off" },
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
       systemPrompt: "你是 Chalk 数学老师。",
       tools,
       telemetry: {

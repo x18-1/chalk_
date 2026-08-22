@@ -1,13 +1,14 @@
 import type {
-  CredentialStore,
+  AuthOperationOptions,
   Credential,
   CredentialInfo,
-  AuthOperationOptions,
+  CredentialStore,
 } from '@earendil-works/pi-ai';
+import { and, eq } from 'drizzle-orm';
+
 import type { Database } from '../../db';
 import { providerCredentials } from '../../db';
-import { eq, and } from 'drizzle-orm';
-import { encrypt, decrypt } from './encrypt';
+import { decrypt, encrypt } from '../../security/credential-encryption';
 
 export class DrizzleCredentialStore implements CredentialStore {
   private locks = new Map<string, Promise<unknown>>();
@@ -19,7 +20,10 @@ export class DrizzleCredentialStore implements CredentialStore {
     if (!userId) throw new Error('DrizzleCredentialStore requires a userId');
   }
 
-  async read(providerId: string, options?: AuthOperationOptions): Promise<Credential | undefined> {
+  async read(
+    providerId: string,
+    options?: AuthOperationOptions,
+  ): Promise<Credential | undefined> {
     options?.signal?.throwIfAborted();
 
     const row = await this.db
@@ -47,7 +51,7 @@ export class DrizzleCredentialStore implements CredentialStore {
       .from(providerCredentials)
       .where(eq(providerCredentials.userId, this.userId));
 
-    return rows.map((r) => ({ providerId: r.providerId, type: 'api_key' as const }));
+    return rows.map((row) => ({ providerId: row.providerId, type: 'api_key' as const }));
   }
 
   modify(
@@ -63,7 +67,7 @@ export class DrizzleCredentialStore implements CredentialStore {
       if (next === undefined) return current;
 
       if (next.type !== 'api_key') {
-        throw new Error(`DrizzleCredentialStore only supports api_key credentials`);
+        throw new Error('DrizzleCredentialStore only supports api_key credentials');
       }
 
       const apiKeyEnc = next.key ? encrypt(next.key) : null;

@@ -1,12 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 
 import { hash } from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { config as loadDotenv } from 'dotenv';
-
-loadDotenv({ path: join(process.cwd(), '../../.env '), quiet: true });
 
 import { buildApi } from '../../src/app';
 import { loadConfig } from '../../src/config';

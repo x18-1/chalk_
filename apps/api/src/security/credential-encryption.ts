@@ -22,7 +22,7 @@ export function encrypt(plaintext: string): string {
   const cipher = createCipheriv(ALGORITHM, key, iv);
   const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
-  // format: iv(12) + tag(16) + ciphertext, all base64
+  // Format: iv(12) + tag(16) + ciphertext, all base64.
   return Buffer.concat([iv, tag, encrypted]).toString('base64');
 }
 

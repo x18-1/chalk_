@@ -7,13 +7,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { eq } from 'drizzle-orm';
-import { config as loadDotenv } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
-loadDotenv({
-  path: resolve(fileURLToPath(new URL('../../../../.env', import.meta.url))),
-  quiet: true,
-});
 
 import { buildApi } from '../../src/app';
 import { loadConfig } from '../../src/config';

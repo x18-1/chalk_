@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Database } from '../client';
 import { AuthRequiredError, OwnershipError } from '../errors';
 import { agentSettings, conversations, skillSettings, subagentRuns, toolSettings } from '../schema';
-import type { ModelSelection } from '@chalk/agent-runtime';
+import type { ModelSelection } from '../../providers/llm/model-catalog';
 
 function requireUserId(userId: string) {
   if (!userId) throw new AuthRequiredError();

@@ -3,8 +3,8 @@ import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { AgentRunObservation } from '@chalk/agent-runtime';
 
 import type { Database } from '../client';
-import { AuthRequiredError, OwnershipError } from '../errors';
-import { agentRunObservations, conversations } from '../schema';
+import { AuthRequiredError, OwnershipError, PermissionDeniedError } from '../errors';
+import { agentRunObservations, authUsers, conversations } from '../schema';
 
 function requireUserId(userId: string) {
   if (!userId) throw new AuthRequiredError();
@@ -48,6 +48,16 @@ type AdminSummaryRow = {
 };
 
 export function createAgentRunObservationsDal(db: Database) {
+  async function requireAdmin(adminUserId: string) {
+    requireUserId(adminUserId);
+    const rows = await db
+      .select({ id: authUsers.id })
+      .from(authUsers)
+      .where(and(eq(authUsers.id, adminUserId), eq(authUsers.role, 'admin')))
+      .limit(1);
+    if (!rows[0]) throw new PermissionDeniedError();
+  }
+
   async function requireOwnedConversation(userId: string, conversationId: string) {
     const rows = await db
       .select({ id: conversations.id })
@@ -160,7 +170,12 @@ export function createAgentRunObservationsDal(db: Database) {
         .limit(limit);
     },
 
-    async listConversationSummariesForAdmin(limit = 50, offset = 0): Promise<AdminConversationSummary[]> {
+    async listConversationSummariesForAdmin(
+      adminUserId: string,
+      limit = 50,
+      offset = 0,
+    ): Promise<AdminConversationSummary[]> {
+      await requireAdmin(adminUserId);
       const summaries = await db
         .select(adminSummarySelection())
         .from(agentRunObservations)
@@ -172,7 +187,8 @@ export function createAgentRunObservationsDal(db: Database) {
       return hydrateAdminSummaries(summaries);
     },
 
-    async getConversationSummaryForAdmin(conversationId: string) {
+    async getConversationSummaryForAdmin(adminUserId: string, conversationId: string) {
+      await requireAdmin(adminUserId);
       const summaries = await db
         .select(adminSummarySelection())
         .from(agentRunObservations)
@@ -183,7 +199,12 @@ export function createAgentRunObservationsDal(db: Database) {
       return (await hydrateAdminSummaries(summaries))[0] ?? null;
     },
 
-    async listForConversationForAdmin(conversationId: string, limit = 100) {
+    async listForConversationForAdmin(
+      adminUserId: string,
+      conversationId: string,
+      limit = 100,
+    ) {
+      await requireAdmin(adminUserId);
       return db
         .select({
           id: agentRunObservations.id,

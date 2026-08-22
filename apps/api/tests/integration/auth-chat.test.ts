@@ -6,10 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { eq } from 'drizzle-orm';
-import { config as loadDotenv } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-
-loadDotenv({ path: join(process.cwd(), '../../.env ') });
 
 import { buildApi } from '../../src/app';
 import { loadConfig } from '../../src/config';

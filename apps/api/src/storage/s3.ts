@@ -42,6 +42,18 @@ export async function confirmUploadedObject(fileKey: string) {
   return client().send(new HeadObjectCommand({ Bucket: bucket(), Key: fileKey }));
 }
 
+export const s3UploadObjectStorage = {
+  publicUrl: publicObjectUrl,
+  createUploadUrl,
+  async inspectObject(fileKey: string) {
+    const object = await confirmUploadedObject(fileKey);
+    return {
+      ...(object.ContentLength !== undefined ? { size: object.ContentLength } : {}),
+      ...(object.ContentType ? { contentType: object.ContentType } : {}),
+    };
+  },
+};
+
 export async function readUploadedObject(fileKey: string) {
   const response = await client().send(new GetObjectCommand({ Bucket: bucket(), Key: fileKey }));
   if (!response.Body) throw new Error('Uploaded object has no body');

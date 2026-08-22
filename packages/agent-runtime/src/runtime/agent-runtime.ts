@@ -16,15 +16,13 @@ import {
   createAssistantMessageEventStream,
   type AssistantMessageEvent,
   type AssistantMessageEventStream,
+  type Api,
   type ImageContent,
+  type Model,
+  type ModelThinkingLevel,
   type Models,
 } from "@earendil-works/pi-ai";
 
-import {
-  createModelCatalogFromModels,
-  type ModelCatalog,
-  type ModelSelection,
-} from "../models/model-catalog";
 import type { RuntimeSession } from "../session/session-repository";
 import {
   defaultRuntimeTelemetry,
@@ -128,10 +126,15 @@ export type RuntimeRunResult = {
   error?: string;
 };
 
+export type AgentLlm = {
+  models: Models;
+  model: Model<Api>;
+  thinkingLevel: ModelThinkingLevel;
+};
+
 export type CreateAgentRuntimeOptions = {
   session: RuntimeSession;
-  models: Models | ModelCatalog;
-  model: ModelSelection;
+  llm: AgentLlm;
   systemPrompt: string;
   tools?: AgentTool[];
   telemetry?: RuntimeTelemetryOptions;
@@ -413,11 +416,7 @@ export class AgentRuntime {
 export async function createAgentRuntime(
   options: CreateAgentRuntimeOptions,
 ): Promise<AgentRuntime> {
-  const catalog =
-    options.models instanceof Object && "resolve" in options.models
-      ? (options.models as ModelCatalog)
-      : createModelCatalogFromModels(options.models as Models);
-  const model = await catalog.resolveSelection(options.model);
+  const { models, model, thinkingLevel } = options.llm;
   const allHistory = await options.session.getMessages();
   const lastSummaryIndex = allHistory.reduce(
     (index, message, current) =>
@@ -450,9 +449,6 @@ export async function createAgentRuntime(
     }
     const toSummarize = history.slice(0, Math.max(0, history.length - keep.length));
     if (toSummarize.length > 0) {
-      const models = options.models instanceof Object && "resolve" in options.models
-        ? (options.models as ModelCatalog).getRawModels()
-        : (options.models as Models);
       const compact = async () => generateSummary(
         toSummarize,
         models,
@@ -505,7 +501,8 @@ export async function createAgentRuntime(
   const agent = new Agent({
     streamFn: (requestModel, requestContext, streamOptions) =>
       modelStreamWithTelemetry(
-        catalog.streamSimple,
+        (streamModel, context, streamOptions) =>
+          models.streamSimple(streamModel, context, streamOptions),
         options.telemetry?.context,
         requestModel,
         requestContext,
@@ -517,7 +514,7 @@ export async function createAgentRuntime(
     initialState: {
       systemPrompt: options.systemPrompt,
       model,
-      thinkingLevel: options.model.thinkingLevel,
+      thinkingLevel,
       tools: options.tools ?? [],
       messages: history,
     },

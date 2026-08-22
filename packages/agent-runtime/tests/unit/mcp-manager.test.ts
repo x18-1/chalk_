@@ -141,12 +141,7 @@ describe("McpManager", () => {
       models.setProvider(faux.provider);
       const runtime = await createAgentRuntime({
         session,
-        models,
-        model: {
-          providerId: faux.provider.id,
-          modelId: faux.getModel().id,
-          thinkingLevel: "off",
-        },
+        llm: { models, model: faux.getModel(), thinkingLevel: "off" },
         systemPrompt: "Use the deterministic MCP tool.",
         tools,
       });

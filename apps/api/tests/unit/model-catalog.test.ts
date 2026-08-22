@@ -1,14 +1,14 @@
-import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
-import { describe, expect, it, vi } from "vitest";
+import { createModels, fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   createModelCatalog,
   createModelCatalogFromModels,
   EXCLUDED_MODEL_PROVIDER_IDS,
-} from "../../src/models/model-catalog";
+} from '../../src/providers/llm/model-catalog';
 
-describe("model catalog", () => {
-  it("omits product-excluded built-in providers", async () => {
+describe('model catalog', () => {
+  it('omits product-excluded built-in providers', async () => {
     const providers = await createModelCatalog().listProviders();
     const providerIds = providers.map((provider) => provider.id);
 
@@ -17,20 +17,20 @@ describe("model catalog", () => {
     );
   });
 
-  it("keeps user-defined providers in the same catalog", async () => {
-    const customProviderId = "85e6fc6a-1f83-41ad-826f-884fc29a71df";
+  it('keeps user-defined providers in the same catalog', async () => {
+    const customProviderId = '85e6fc6a-1f83-41ad-826f-884fc29a71df';
     const providers = await createModelCatalog({
       customProviders: [
         {
           id: customProviderId,
-          name: "School Gateway",
-          baseUrl: "https://models.example.test/v1",
-          apiKey: "test-key",
+          name: 'School Gateway',
+          baseUrl: 'https://models.example.test/v1',
+          apiKey: 'test-key',
           models: [{
-            id: "school-model",
-            name: "School Model",
+            id: 'school-model',
+            name: 'School Model',
             reasoning: true,
-            input: ["text", "image"],
+            input: ['text', 'image'],
             contextWindow: 256_000,
             maxTokens: 16_000,
             cost: { input: 1, output: 3, cacheRead: 0.1, cacheWrite: 1.25 },
@@ -42,7 +42,7 @@ describe("model catalog", () => {
     expect(providers).toContainEqual(
       expect.objectContaining({
         id: customProviderId,
-        name: "School Gateway",
+        name: 'School Gateway',
         configured: true,
         modelCount: 1,
       }),
@@ -50,37 +50,59 @@ describe("model catalog", () => {
     expect(createModelCatalog({
       customProviders: [{
         id: customProviderId,
-        name: "School Gateway",
-        baseUrl: "https://models.example.test/v1",
-        apiKey: "test-key",
+        name: 'School Gateway',
+        baseUrl: 'https://models.example.test/v1',
+        apiKey: 'test-key',
         models: [{
-          id: "school-model",
-          name: "School Model",
+          id: 'school-model',
+          name: 'School Model',
           reasoning: true,
-          input: ["text", "image"],
+          input: ['text', 'image'],
           contextWindow: 256_000,
           maxTokens: 16_000,
           cost: { input: 1, output: 3, cacheRead: 0.1, cacheWrite: 1.25 },
         }],
       }],
     }).listModels(customProviderId)).toContainEqual(expect.objectContaining({
-      id: "school-model",
-      name: "School Model",
+      id: 'school-model',
+      name: 'School Model',
       reasoning: true,
-      input: ["text", "image"],
+      input: ['text', 'image'],
       contextWindow: 256_000,
       maxTokens: 16_000,
       cost: { input: 1, output: 3, cacheRead: 0.1, cacheWrite: 1.25 },
     }));
   });
 
-  it("tests a provider with a bounded real model request", async () => {
+  it('fails closed when the selected model does not exist', async () => {
+    const catalog = createModelCatalogFromModels(createModels());
+
+    await expect(catalog.resolveSelection({
+      providerId: 'missing',
+      modelId: 'missing',
+      thinkingLevel: 'off',
+    })).rejects.toThrow('Model missing/missing is not available');
+  });
+
+  it('rejects a thinking level unsupported by the selected model', async () => {
+    const faux = fauxProvider({ models: [{ id: 'plain-model', reasoning: false }] });
+    const models = createModels();
+    models.setProvider(faux.provider);
+
+    await expect(createModelCatalogFromModels(models).resolveSelection({
+      providerId: faux.provider.id,
+      modelId: faux.getModel().id,
+      thinkingLevel: 'high',
+    })).rejects.toThrow('Thinking level high is not supported');
+  });
+
+  it('tests a provider with a bounded real model request', async () => {
     const observeRequest = vi.fn();
     const faux = fauxProvider();
     faux.setResponses([
       (context, options) => {
         observeRequest(context, options);
-        return fauxAssistantMessage("OK");
+        return fauxAssistantMessage('OK');
       },
     ]);
     const models = createModels();
@@ -97,7 +119,7 @@ describe("model catalog", () => {
     });
     expect(observeRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        messages: [expect.objectContaining({ role: "user" })],
+        messages: [expect.objectContaining({ role: 'user' })],
       }),
       expect.objectContaining({
         maxTokens: 8,

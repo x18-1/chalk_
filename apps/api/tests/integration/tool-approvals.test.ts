@@ -5,12 +5,9 @@ import { join } from 'node:path';
 
 import { hash } from 'bcryptjs';
 import { eq } from 'drizzle-orm';
-import { config as loadDotenv } from 'dotenv';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-loadDotenv({ path: join(process.cwd(), '../../.env'), quiet: true });
-
-import { encrypt } from '../../src/agent/credentials/encrypt';
+import { encrypt } from '../../src/security/credential-encryption';
 import {
   closeRuntime,
   createSession,
@@ -68,7 +65,7 @@ describe('tool approval persistence', () => {
 
   it('rejects only pending approvals whose deadline has elapsed', async () => {
     const db = getDb();
-    const now = new Date('2026-08-12T12:00:00.000Z');
+    const now = new Date();
     await db.insert(toolApprovals).values([
       {
         conversationId,
@@ -76,7 +73,7 @@ describe('tool approval persistence', () => {
         toolName: 'sensitive_tool',
         args: {},
         status: 'pending',
-        createdAt: new Date('2026-08-12T11:57:59.000Z'),
+        createdAt: new Date(now.getTime() - 121_000),
       },
       {
         conversationId,
@@ -84,7 +81,7 @@ describe('tool approval persistence', () => {
         toolName: 'sensitive_tool',
         args: {},
         status: 'pending',
-        createdAt: new Date('2026-08-12T11:59:30.000Z'),
+        createdAt: new Date(now.getTime() - 30_000),
       },
       {
         conversationId,
@@ -92,8 +89,8 @@ describe('tool approval persistence', () => {
         toolName: 'sensitive_tool',
         args: {},
         status: 'approved',
-        createdAt: new Date('2026-08-12T11:57:59.000Z'),
-        decidedAt: new Date('2026-08-12T11:58:10.000Z'),
+        createdAt: new Date(now.getTime() - 121_000),
+        decidedAt: new Date(now.getTime() - 110_000),
       },
     ]);
 

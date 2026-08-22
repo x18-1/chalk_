@@ -4,16 +4,12 @@ import {
   AgentRuntime,
   createAgentRuntime,
   createJsonlSessionRepository,
-  createModelCatalog,
-  parseModelThinkingLevel,
   McpManager,
   createRuntimeTelemetryContext,
   ForegroundSubagentExecutor,
   createSubagentTool,
   SkillRegistry,
   type ApprovalPort,
-  type CustomOpenAiModel,
-  type ModelSelection,
   type RuntimeSession,
   type ToolApprovalMode,
 } from '@chalk/agent-runtime';
@@ -30,11 +26,17 @@ import {
   createToolApprovalsDal,
   createToolSettingsDal,
 } from '../db/dal';
-import { decrypt } from './credentials/encrypt';
-import { DrizzleCredentialStore } from './credentials/store';
+import { decrypt } from '../security/credential-encryption';
 import { createBuiltinToolRegistry } from './builtin-tools';
 import { runtimeTelemetry } from './telemetry';
 import { ToolApprovalAlreadyDecidedError, ToolApprovalNotActiveError } from '../db/errors';
+import {
+  createModelCatalog,
+  parseModelThinkingLevel,
+  type CustomOpenAiModel,
+  type ModelSelection,
+} from '../providers/llm/model-catalog';
+import { DrizzleCredentialStore } from '../providers/llm/credential-store';
 
 let sessionRepository: ReturnType<typeof createJsonlSessionRepository> | undefined;
 
@@ -95,6 +97,8 @@ class ApprovalBroker implements ApprovalPort {
 
     return new Promise<{ approved: boolean; reason?: string }>((resolveDecision, rejectDecision) => {
       let settled = false;
+      // The timer is assigned after cleanup is defined so an already-aborted signal stays safe.
+      // eslint-disable-next-line prefer-const
       let timeout: NodeJS.Timeout | undefined;
 
       const cleanup = () => {
@@ -358,6 +362,7 @@ export async function getOrCreateRuntime(
   );
 
   const { catalog, model } = await selectModel(userId, requestedModel);
+  const llm = await catalog.resolveSelection(model);
   const skills = new SkillRegistry(process.cwd(), skillSources());
   const skillSnapshot = await skills.reload();
   const skillSettings = await createSkillSettingsDal(db).list(userId);
@@ -415,8 +420,7 @@ export async function getOrCreateRuntime(
     createRuntime: ({ session, context, focus }) =>
       createAgentRuntime({
         session,
-        models: catalog,
-        model,
+        llm,
         systemPrompt: [
           '你是 Chalk 的专项子 Agent。只处理父 Agent 分配的范围，不扩展任务，不直接与学生对话。',
           focus ? `本次重点：${focus}` : '',
@@ -468,8 +472,7 @@ export async function getOrCreateRuntime(
   ].filter(Boolean).join('\n\n');
   const runtime = await createAgentRuntime({
     session,
-    models: catalog,
-    model,
+    llm,
     systemPrompt,
     tools,
     telemetry: {

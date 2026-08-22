@@ -21,6 +21,7 @@ type RenameArguments = Static<typeof renameParameters>;
 function cleanTitle(value: string) {
   const title = value.replace(/\s+/g, ' ').trim();
   if (!title) throw new Error('Conversation title cannot be empty');
+  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(title)) {
     throw new Error('Conversation title contains a control character');
   }

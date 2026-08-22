@@ -43,12 +43,7 @@ describe("ForegroundSubagentExecutor", () => {
       createRuntime: ({ session }) =>
         createAgentRuntime({
           session,
-          models,
-          model: {
-            providerId: faux.provider.id,
-            modelId: faux.getModel().id,
-            thinkingLevel: "off",
-          },
+          llm: { models, model: faux.getModel(), thinkingLevel: "off" },
           systemPrompt: "只分析指定条件。",
         }),
     });
