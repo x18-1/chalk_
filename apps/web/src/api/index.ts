@@ -1,5 +1,6 @@
 export { ApiRequestError } from './client';
 export { authApi, type AuthUser } from './auth';
+export { adminApi, type AdminUser } from './admin';
 export {
   chatApi,
   type ChatMessage,
