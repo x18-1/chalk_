@@ -57,6 +57,7 @@ AGENTS.md 中已确认的项目约束
 docs/
 ├── README.md                 # 本索引
 ├── architecture/            # 已接受的长期模块与依赖规则
+├── handoff/                 # 功能分支的工作现场与交接记录
 ├── runbooks/                # 可执行的开发、迁移和恢复流程
 ├── testing/                 # 测试分层、门禁和评估方法
 ├── researsh/                # 既有调研资料；保留历史拼写，暂不迁移路径
@@ -65,7 +66,7 @@ docs/
 └── plan-*.md                # 阶段性计划，完成后转为 Historical
 ```
 
-`CHALKBOARD_OPENMAIC_HANDOFF.md` 是特定分支的交接快照，不是主分支架构规范。`CONTEXT.md` 是产品与运行术语表，不替代架构或运行手册。
+新的分支交接记录统一放在 [handoff/](handoff/README.md)，它们不是主分支架构规范。仓库根目录的 `CHALKBOARD_OPENMAIC_HANDOFF.md` 是旧迁移分支的历史快照；`CONTEXT.md` 是产品与运行术语表，二者都不替代架构或运行手册。
 
 ## 4. 更新规则
 
