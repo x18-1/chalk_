@@ -47,7 +47,7 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
       });
 
     return () => controller.abort();
-  }, [attempt, protectedPage]);
+  }, [attempt, pathname, protectedPage]);
 
   if (!protectedPage || state === "ready") return children;
 

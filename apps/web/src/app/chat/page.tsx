@@ -35,7 +35,7 @@ import {
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
 import { SettingsDialog } from "../../components/settings-dialog";
-import { ApiRequestError, chatApi, settingsApi, uploadsApi, type Conversation, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
+import { ApiRequestError, chatApi, settingsApi, uploadsApi, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chat.module.css";
 

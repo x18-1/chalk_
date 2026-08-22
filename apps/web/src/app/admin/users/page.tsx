@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Activity, ArrowLeft, ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, Search, ShieldCheck, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ApiRequestError, adminApi, authApi, type AdminUser } from "../../../api";
 import styles from "./users.module.css";
@@ -30,7 +30,11 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadUsers(nextPage = page, nextQuery = submittedQuery, nextRole = role) {
+  const loadUsers = useCallback(async (
+    nextPage: number,
+    nextQuery: string,
+    nextRole: "all" | AdminUser["role"],
+  ) => {
     setState("loading");
     setError(null);
     try {
@@ -53,9 +57,9 @@ export default function AdminUsersPage() {
       setError(loadError instanceof Error ? loadError.message : "无法读取用户列表");
       setState("error");
     }
-  }
+  }, []);
 
-  useEffect(() => { void loadUsers(0, "", "all"); }, []);
+  useEffect(() => { void loadUsers(0, "", "all"); }, [loadUsers]);
 
   function submitFilters(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,13 +104,13 @@ export default function AdminUsersPage() {
             {([['all', '全部'], ['admin', '管理员'], ['user', '用户']] as const).map(([value, label]) => <button key={value} className={role === value ? styles.roleActive : ""} type="button" onClick={() => changeRole(value)} aria-pressed={role === value}>{label}</button>)}
           </div>
         </section>
-        {state === "error" && <div className={styles.errorNotice} role="alert"><CircleAlert size={16} /><span>{error}</span><button type="button" onClick={() => void loadUsers()}>重试</button></div>}
+        {state === "error" && <div className={styles.errorNotice} role="alert"><CircleAlert size={16} /><span>{error}</span><button type="button" onClick={() => void loadUsers(page, submittedQuery, role)}>重试</button></div>}
         <section className={styles.tableSection} aria-label="用户列表">
           {state === "loading" ? <div className={styles.emptyState}><LoaderCircle className={styles.spin} size={19} />正在加载用户…</div>
             : users.length === 0 ? <div className={styles.emptyState}><Users size={20} /><strong>没有匹配的账号</strong><span>调整搜索词或角色筛选后重试。</span></div>
             : <div className={styles.tableScroller}><table><thead><tr><th>账号</th><th>角色</th><th>创建时间</th><th>账号 ID</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><strong>{user.name || "未设置姓名"}</strong><span>{user.email}</span></td><td><span className={`${styles.roleMark} ${user.role === "admin" ? styles.adminMark : ""}`}>{roleLabel(user.role)}</span></td><td>{formatDate(user.createdAt)}</td><td><code title={user.id}>{user.id.slice(0, 8)}…</code></td></tr>)}</tbody></table></div>}
         </section>
-        <footer className={styles.pagination}><span>{total === 0 ? "0" : `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, total)}`} / {total}</span><div><button type="button" disabled={!canPrevious || state === "loading"} onClick={() => { const next = page - 1; setPage(next); void loadUsers(next); }} aria-label="上一页"><ChevronLeft size={16} /></button><span>第 {page + 1} / {totalPages} 页</span><button type="button" disabled={!canNext || state === "loading"} onClick={() => { const next = page + 1; setPage(next); void loadUsers(next); }} aria-label="下一页"><ChevronRight size={16} /></button></div></footer>
+        <footer className={styles.pagination}><span>{total === 0 ? "0" : `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, total)}`} / {total}</span><div><button type="button" disabled={!canPrevious || state === "loading"} onClick={() => { const next = page - 1; setPage(next); void loadUsers(next, submittedQuery, role); }} aria-label="上一页"><ChevronLeft size={16} /></button><span>第 {page + 1} / {totalPages} 页</span><button type="button" disabled={!canNext || state === "loading"} onClick={() => { const next = page + 1; setPage(next); void loadUsers(next, submittedQuery, role); }} aria-label="下一页"><ChevronRight size={16} /></button></div></footer>
       </div>
     </section>
   </main>;
