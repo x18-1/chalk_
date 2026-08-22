@@ -6,18 +6,30 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "test": "turbo run test",
-    "lint": "turbo run lint",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "pnpm --filter @chalk/api test:integration",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "turbo run typecheck",
     "test:e2e": "playwright test",
+    "env:check": "node scripts/validate-worktree-env.mjs",
+    "infra:config": "pnpm env:check && docker compose config --quiet",
+    "infra:up": "pnpm env:check && docker compose up -d",
+    "infra:down": "pnpm env:check && docker compose down",
     "db:generate": "pnpm --filter @chalk/api db:generate",
     "db:migrate": "pnpm --filter @chalk/api db:migrate",
     "db:studio": "pnpm --filter @chalk/api db:studio"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@next/eslint-plugin-next": "15.5.23",
     "@playwright/test": "1.62.1",
     "@types/node": "^22.10.5",
+    "eslint": "10.8.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.11.0",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "typescript-eslint": "8.67.0"
   }
 }

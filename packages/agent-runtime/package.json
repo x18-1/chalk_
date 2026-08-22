@@ -18,6 +18,7 @@
   "scripts": {
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/index.js && esbuild src/session/session-repository.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/session/session-repository.js",
     "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
