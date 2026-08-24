@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-22
+> 最后核验：2026-08-24
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -31,15 +31,13 @@
 
 | 主题 | 权威来源 | 当前状态 |
 |---|---|---|
-| 产品功能 | [functional-spec.md](functional-spec.md) | Draft |
-| 技术选型 | [tech-stack.md](tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
+| 产品功能 | [spec/functional-spec.md](spec/functional-spec.md) | Draft |
+| 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
-| 测试与交付验证 | [testing/verification-strategy.md](testing/verification-strategy.md) | Accepted |
-| 新电脑恢复 | [runbooks/new-computer-migration.md](runbooks/new-computer-migration.md) | Historical |
 
 当规则冲突时，优先级为：
 
@@ -57,12 +55,12 @@ AGENTS.md 中已确认的项目约束
 docs/
 ├── README.md                 # 本索引
 ├── architecture/            # 已接受的长期模块与依赖规则
+├── agent/                    # Agent / 学科实验资料
+├── spec/                     # 产品功能定义
+├── plan/                     # 阶段性实施计划
 ├── runbooks/                # 可执行的开发、迁移和恢复流程
-├── testing/                 # 测试分层、门禁和评估方法
 ├── researsh/                # 既有调研资料；保留历史拼写，暂不迁移路径
-├── functional-spec.md       # 产品功能草案
-├── tech-stack.md            # 技术栈草案
-└── plan-*.md                # 阶段性计划，完成后转为 Historical
+└── ...                      # 其他按主题归档的资料
 ```
 
 `CHALKBOARD_OPENMAIC_HANDOFF.md` 是特定分支的交接快照，不是主分支架构规范。`CONTEXT.md` 是产品与运行术语表，不替代架构或运行手册。
@@ -87,4 +85,4 @@ docs/
 - E2E 尚不自动启动隔离的 Web/API、数据库、session 和对象存储。
 - 既有 API route 中仍有 schema、业务编排和 adapter 调用混在同一文件的情况。
 
-这些缺口按 [testing/verification-strategy.md](testing/verification-strategy.md) 和各 runbook 的目标状态逐步收敛。
+这些缺口按各 runbook 的目标状态和实际开发需要逐步收敛。

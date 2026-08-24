@@ -41,8 +41,8 @@ Chalk 将开放式 Chat 与结构化 Chalkboard 课程连接到同一套视觉�
 
 ## Evidence on Hand
 
-- `docs/functional-spec.md`：产品定位、Chat、Chalkboard、提示阶梯和学习记录定义。
-- `docs/plan-chat-v1.md`：第一阶段 Chat 与 Agent Harness 的功能范围。
+- `docs/spec/functional-spec.md`：产品定位、Chat、Chalkboard、提示阶梯和学习记录定义。
+- `docs/plan/plan-chat-v1.md`：第一阶段 Chat 与 Agent Harness 的功能范围。
 - `/home/xcodd/code/creatorflow/DESIGN.md`：用户指定的视觉系统参考。
 - `/home/xcodd/code/creatorflow/frontend/src/styles/`：参考系统已经实现的 tokens 与基础控件样式。
 

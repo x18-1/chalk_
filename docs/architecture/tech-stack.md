@@ -2,8 +2,8 @@
 
 > 文档状态：Draft
 > 最后核验：2026-08-22
-> 说明：技术方向仍可迭代；`AGENTS.md` 已确认约束和 [Accepted 架构文档](README.md) 优先。
-> 配套：[功能定义](functional-spec.md)
+> 说明：技术方向仍可迭代；`AGENTS.md` 已确认约束和 [Accepted 架构文档](../README.md) 优先。
+> 配套：[功能定义](../spec/functional-spec.md)
 
 ## 1. 总原则
 
