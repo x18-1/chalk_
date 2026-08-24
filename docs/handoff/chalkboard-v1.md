@@ -5,7 +5,7 @@
 > 适用分支：`feat/chalkboard-v1`
 > Worktree：`/home/xcodd/code/chalk_/.worktree/chalkboard-v1`
 > 基线提交：`c13ed26033f415bb296d96ed52c3643dd80b0056`
-> 最后核验：2026-08-22
+> 最后核验：2026-08-24
 
 本文记录 Chalkboard 新课堂分支的当前工作现场，不定义新的架构规则。长期约束以 [文档索引](../README.md)列出的权威文档和仓库根目录 `AGENTS.md` 为准。
 
@@ -31,7 +31,6 @@
 - [third-party-integrations.md](../architecture/third-party-integrations.md)
 - [worktree-development.md](../runbooks/worktree-development.md)
 - [database-development.md](../runbooks/database-development.md)
-- [verification-strategy.md](../testing/verification-strategy.md)
 
 ## 3. 隔离环境
 
@@ -44,8 +43,9 @@ MinIO host ports=9010/9011
 Web/API ports=3010/3011
 Development database=chalk_chalkboard_v1
 Integration database=chalk_chalkboard_v1_test
-E2E database=chalk_chalkboard_v1_e2e
 ```
+
+E2E 专用数据库流程尚未统一实现；当前不要把它当作本分支的启动前提。
 
 当前服务尚未启动，数据库和 volume 尚未创建。不得复用 `main` 或旧迁移 worktree 的数据库、session 目录和 MinIO volume。
 
