@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 test('student can sign in and open the real settings surface', async ({ page }) => {
-  const email = process.env.DEV_USER_EMAIL ?? 'dev@chalk.local';
-  const password = process.env.DEV_USER_PASSWORD ?? 'chalk-dev-2026';
+  const email = process.env.DEV_USER_EMAIL ?? 'user@qq.com';
+  const password = process.env.DEV_USER_PASSWORD ?? 'user123';
 
   await page.goto('/login');
   await page.getByLabel('邮箱').fill(email);

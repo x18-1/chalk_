@@ -26,8 +26,8 @@ import {
   openSession,
 } from '../../src/agent/runtime-manager';
 
-const email = `api-test-${randomBytes(6).toString('hex')}@chalk.local`;
-const password = `test-${randomBytes(12).toString('hex')}`;
+const developmentAdmin = { email: 'admin@qq.com', password: 'admin123' };
+const developmentUser = { email: 'user@qq.com', password: 'user123' };
 let sessionRoot: string;
 let app: Awaited<ReturnType<typeof buildApi>>;
 let userId: string;
@@ -244,8 +244,10 @@ describe('API auth and chat interface', () => {
     await new Promise<void>((resolve) => providerServer.listen(0, '127.0.0.1', resolve));
     providerBaseUrl = `http://127.0.0.1:${(providerServer.address() as AddressInfo).port}/v1`;
     sessionRoot = await mkdtemp(join(tmpdir(), 'chalk-api-test-'));
-    process.env.DEV_USER_EMAIL = email;
-    process.env.DEV_USER_PASSWORD = password;
+    process.env.DEV_ADMIN_EMAIL = developmentAdmin.email;
+    process.env.DEV_ADMIN_PASSWORD = developmentAdmin.password;
+    process.env.DEV_USER_EMAIL = developmentUser.email;
+    process.env.DEV_USER_PASSWORD = developmentUser.password;
     process.env.SESSIONS_ROOT = join(sessionRoot, 'sessions');
     process.env.CREDENTIAL_ENCRYPTION_KEY = randomBytes(32).toString('hex');
     app = await buildApi({
@@ -288,11 +290,11 @@ describe('API auth and chat interface', () => {
     const adminLogin = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: 'admin', password: 'admin123' },
+      payload: { email: developmentAdmin.email, password: developmentAdmin.password },
     });
     expect(adminLogin.statusCode).toBe(200);
     expect(adminLogin.json().user).toMatchObject({
-      email: 'admin@chalk.local',
+      email: developmentAdmin.email,
       role: 'admin',
     });
     const adminCookie = responseCookie(adminLogin.headers['set-cookie']);
@@ -313,11 +315,11 @@ describe('API auth and chat interface', () => {
     const userLogin = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: 'user', password: 'user123' },
+      payload: { email: developmentUser.email, password: developmentUser.password },
     });
     expect(userLogin.statusCode).toBe(200);
     expect(userLogin.json().user).toMatchObject({
-      email: 'user@chalk.local',
+      email: developmentUser.email,
       role: 'user',
     });
     const userTelemetry = await app.inject({
@@ -334,13 +336,38 @@ describe('API auth and chat interface', () => {
     });
     expect(userConversationTelemetry.statusCode).toBe(403);
     expect(userConversationTelemetry.json()).toMatchObject({ code: 'FORBIDDEN' });
+
+    for (const credentials of [
+      { email: 'admin@chalk.local', password: 'admin123' },
+      { email: 'user@chalk.local', password: 'user123' },
+      { email: 'dev@chalk.local', password: 'chalk-dev-2026' },
+    ]) {
+      const legacyLogin = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: credentials,
+      });
+      expect(legacyLogin.statusCode).toBe(401);
+    }
+
+    for (const credentials of [
+      { email: 'admin', password: 'admin123' },
+      { email: 'user', password: 'user123' },
+    ]) {
+      const invalidIdentifierLogin = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: credentials,
+      });
+      expect(invalidIdentifierLogin.statusCode).toBe(400);
+    }
   });
 
   it('logs in, exposes the session, and scopes conversations to the owner', async () => {
     const login = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email, password },
+      payload: { email: developmentUser.email, password: developmentUser.password },
     });
     expect(login.statusCode).toBe(200);
     cookie = responseCookie(login.headers['set-cookie']);
@@ -699,7 +726,7 @@ describe('API auth and chat interface', () => {
     const adminLogin = await app.inject({
       method: 'POST',
       url: '/auth/login',
-      payload: { email: 'admin', password: 'admin123' },
+      payload: { email: developmentAdmin.email, password: developmentAdmin.password },
     });
     const adminCookie = responseCookie(adminLogin.headers['set-cookie']);
     const summaries = await app.inject({

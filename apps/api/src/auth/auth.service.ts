@@ -22,22 +22,34 @@ function publicUser(user: typeof authUsers.$inferSelect): AuthenticatedUser {
   };
 }
 
-const developmentAccounts = [
-  {
-    alias: 'admin',
-    email: 'admin@chalk.local',
-    password: 'admin123',
-    role: 'admin' as const,
-    name: 'Chalk 管理员',
-  },
-  {
-    alias: 'user',
-    email: 'user@chalk.local',
-    password: 'user123',
-    role: 'user' as const,
-    name: '林同学',
-  },
-];
+const legacyDevelopmentEmails = new Set([
+  'admin@chalk.local',
+  'user@chalk.local',
+  'dev@chalk.local',
+]);
+
+function requiredDevelopmentValue(name: string) {
+  const value = process.env[name];
+  if (!value?.trim()) throw new Error(`${name} env var is not set`);
+  return value;
+}
+
+function loadDevelopmentAccounts() {
+  return [
+    {
+      email: requiredDevelopmentValue('DEV_ADMIN_EMAIL').trim().toLowerCase(),
+      password: requiredDevelopmentValue('DEV_ADMIN_PASSWORD'),
+      role: 'admin' as const,
+      name: 'Chalk 管理员',
+    },
+    {
+      email: requiredDevelopmentValue('DEV_USER_EMAIL').trim().toLowerCase(),
+      password: requiredDevelopmentValue('DEV_USER_PASSWORD'),
+      role: 'user' as const,
+      name: '林同学',
+    },
+  ];
+}
 
 export class AuthService {
   constructor(
@@ -46,15 +58,21 @@ export class AuthService {
   ) {}
 
   async login(credentials: LoginCredentials) {
-    const isDevelopmentAccount = this.config.nodeEnv !== 'production' &&
-      developmentAccounts.some((candidate) =>
-        (credentials.email === candidate.alias || credentials.email === candidate.email) &&
-        credentials.password === candidate.password,
-      );
+    const developmentAccounts = this.config.nodeEnv === 'production'
+      ? []
+      : loadDevelopmentAccounts();
+    if (
+      this.config.nodeEnv !== 'production' &&
+      legacyDevelopmentEmails.has(credentials.email)
+    ) {
+      return null;
+    }
+    const isDevelopmentAccount = developmentAccounts.some((candidate) =>
+      credentials.email === candidate.email && credentials.password === candidate.password,
+    );
     const user = isDevelopmentAccount
-      ? await this.ensureDevelopmentUser(credentials.email, credentials.password)
-      : (await this.findUser(credentials.email)) ??
-        (await this.ensureDevelopmentUser(credentials.email, credentials.password));
+      ? await this.ensureDevelopmentUser(credentials.email, developmentAccounts)
+      : await this.findUser(credentials.email);
 
     if (!user?.passwordHash || !(await compare(credentials.password, user.passwordHash))) {
       return null;
@@ -105,12 +123,12 @@ export class AuthService {
     return rows[0] ?? null;
   }
 
-  private async ensureDevelopmentUser(email: string, password: string) {
+  private async ensureDevelopmentUser(
+    email: string,
+    accounts: ReturnType<typeof loadDevelopmentAccounts>,
+  ) {
     if (this.config.nodeEnv === 'production') return null;
-    const account = developmentAccounts.find((candidate) =>
-      (email === candidate.alias || email === candidate.email) &&
-      password === candidate.password,
-    );
+    const account = accounts.find((candidate) => email === candidate.email);
     if (account) {
       await this.db
         .insert(authUsers)
@@ -130,21 +148,6 @@ export class AuthService {
         });
       return this.findUser(account.email);
     }
-
-    const developmentEmail = (process.env.DEV_USER_EMAIL ?? 'dev@chalk.local')
-      .toLowerCase();
-    const developmentPassword = process.env.DEV_USER_PASSWORD ?? 'chalk-dev-2026';
-    if (email !== developmentEmail || password !== developmentPassword) return null;
-
-    await this.db
-      .insert(authUsers)
-      .values({
-        email: developmentEmail,
-        passwordHash: await hash(developmentPassword, 12),
-        name: '林同学',
-        role: 'user',
-      })
-      .onConflictDoNothing({ target: authUsers.email });
-    return this.findUser(developmentEmail);
+    return null;
   }
 }

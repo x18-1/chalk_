@@ -37,8 +37,8 @@ export default function LoginPage() {
         </div>
         <form className={styles.form} onSubmit={submit}>
           <label className={styles.field}>
-            <span>邮箱或用户名</span>
-            <input type="text" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required />
+            <span>邮箱</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
           </label>
           <label className={styles.field}>
             <span>密码</span>
@@ -47,7 +47,7 @@ export default function LoginPage() {
           {error && <p className={styles.error} role="alert">{error}</p>}
           <button className={styles.submit} type="submit" disabled={pending}>{pending ? '正在进入…' : '进入 Chalk'}</button>
         </form>
-        {process.env.NODE_ENV !== 'production' && <p className={styles.hint}>开发环境可使用 `.env` 中的 DEV_USER_EMAIL 和 DEV_USER_PASSWORD。</p>}
+        {process.env.NODE_ENV !== 'production' && <p className={styles.hint}>开发账号：admin@qq.com / admin123；user@qq.com / user123。</p>}
       </section>
     </main>
   );
