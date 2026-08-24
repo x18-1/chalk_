@@ -5,16 +5,15 @@
 目标是：企业级项目。
 
 本文件只定义所有开发 Agent 共享的仓库规则。产品设计、架构、技术调研和运行手册放在 `docs/`。
-注意：`docs/` 下的文档是初步版本，不合理的你可以提出，随着我们进行对话可以对起内容进行更新！！
+注意：`docs/` 下的文档是持续维护的项目资料；发现内容、分类或规则不合理时，应在讨论确认后同步更新对应文档。
 
 - 文档索引与权威顺序：`docs/README.md`
-- 功能定义：`docs/functional-spec.md`
-- 技术栈：`docs/tech-stack.md`
+- 功能定义：`docs/spec/functional-spec.md`
+- 技术栈：`docs/architecture/tech-stack.md`
 - 仓库与 package 边界：`docs/architecture/repository-boundaries.md`
 - API 后端分层：`docs/architecture/backend-layers.md`
 - Worktree 开发：`docs/runbooks/worktree-development.md`
 - 数据库开发：`docs/runbooks/database-development.md`
-- 测试与验证：`docs/testing/verification-strategy.md`
 - 参考项目调研：`docs/researsh/`
 
 ## 项目约束
@@ -42,6 +41,13 @@
 - 不在代码、文档、日志或提交中写入密钥、Cookie、令牌或其他机密信息。
 - 前端使用 impeccable skills
 - 后端相关开发 使用Matt Pocock 风格的工程 skill 集。
+
+### 文档同步
+
+- `docs/README.md` 是文档分类、状态和权威顺序的索引；文档路径或分类发生变化时，必须同步更新该索引。
+- 移动、重命名或新增权威文档时，必须同步检查 `AGENTS.md`、`apps/`、`packages/` 和 `docs/` 中的交叉引用。
+- 行为、架构或开发流程发生变化时，在同一变更中更新对应的权威文档；阶段计划完成后移动到正确分类并标记为 `Historical`。
+- `docs/runbooks/` 中的命令和流程必须以当前仓库实际可验证的状态为准；目标状态要明确标注，不能写成已经可执行的流程。
 
 ## 验证
 

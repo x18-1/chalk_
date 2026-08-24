@@ -2,7 +2,7 @@
 
 > 文档状态：Historical
 > 最后核验：2026-08-22
-> 说明：这是 Chat v1 的阶段性实施计划，用于解释既有决策和实现来源；当前仓库边界、后端分层、数据库和测试规范以 [文档索引](README.md) 中列出的 Accepted 文档为准。
+> 说明：这是 Chat v1 的阶段性实施计划，用于解释既有决策和实现来源；当前仓库边界、后端分层和数据库规范以 [文档索引](../README.md) 中列出的 Accepted 文档为准。
 >
 > 原状态：定稿，使用 JSONL session 存储方案；Web/API 已按前后端分离落地
 > 范围：完整 Chat 功能 + 成熟 Agent Harness：session、memory、tools、MCP、skills、全 LLM 供应商、human-in-loop、鉴权、可观测性。  
