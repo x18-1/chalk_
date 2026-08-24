@@ -192,6 +192,9 @@ export function createSubagentTool(
       "让一个隔离的前台子 Agent 在独立会话中处理范围明确的子任务，并返回有界摘要。",
     parameters: subagentParameters,
     source: "subagent",
+    effects: ["process", "paid", "write"],
+    approvalPolicy: "required",
+    defaultEnabled: false,
     requiresApproval: true,
     executionMode: "sequential",
     async execute(

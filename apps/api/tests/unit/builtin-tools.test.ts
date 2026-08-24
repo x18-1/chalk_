@@ -3,6 +3,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { createBuiltinToolRegistry } from '../../src/agent/builtin-tools';
 
 describe('Chalk built-in tools', () => {
+  it('does not register a placeholder search tool without a provider', () => {
+    const registry = createBuiltinToolRegistry({
+      conversationTitleUpdater: { update: vi.fn() },
+    });
+
+    expect(registry.list().map((tool) => tool.name)).not.toContain('search_learning_resources');
+    expect(registry.list().map((tool) => tool.name)).not.toContain('read_resource');
+  });
+
+  it('registers Read only when an owned-file reader and cursor secret are supplied', () => {
+    const registry = createBuiltinToolRegistry({
+      conversationTitleUpdater: { update: vi.fn() },
+      readResourceReader: { read: vi.fn() },
+      readCursorSecret: 'test-secret',
+    });
+
+    expect(registry.list()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'read_resource', effects: ['read', 'network'], defaultEnabled: true }),
+    ]));
+  });
+
   it('searches through an injected provider and bounds untrusted results', async () => {
     const search = vi.fn(async () => [
       {

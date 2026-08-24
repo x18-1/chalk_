@@ -42,6 +42,28 @@ export async function confirmUploadedObject(fileKey: string) {
   return client().send(new HeadObjectCommand({ Bucket: bucket(), Key: fileKey }));
 }
 
+export async function inspectUploadedObject(fileKey: string) {
+  const object = await confirmUploadedObject(fileKey);
+  return {
+    size: object.ContentLength ?? 0,
+    ...(object.ETag ? { etag: object.ETag } : {}),
+    ...(object.LastModified ? { lastModified: object.LastModified.getTime() } : {}),
+    contentType: object.ContentType ?? 'application/octet-stream',
+  };
+}
+
+export async function readUploadedObjectRange(fileKey: string, startByte: number, maxBytes: number) {
+  if (!Number.isSafeInteger(startByte) || startByte < 0) throw new Error('Object range start must be a non-negative integer');
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 32_768) throw new Error('Object range size is outside the allowed limit');
+  const response = await client().send(new GetObjectCommand({
+    Bucket: bucket(),
+    Key: fileKey,
+    Range: `bytes=${startByte}-${startByte + maxBytes - 1}`,
+  }));
+  if (!response.Body) throw new Error('Uploaded object has no body');
+  return Buffer.from(await response.Body.transformToByteArray());
+}
+
 export const s3UploadObjectStorage = {
   publicUrl: publicObjectUrl,
   createUploadUrl,

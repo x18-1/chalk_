@@ -49,4 +49,21 @@ server.registerTool(
   },
 );
 
+server.registerResource(
+  "lesson_notes",
+  "chalk://fixture/lesson-notes",
+  {
+    title: "Lesson notes",
+    description: "Deterministic text resource for integration tests.",
+    mimeType: "text/plain",
+  },
+  async (uri) => ({
+    contents: [{
+      uri: uri.href,
+      mimeType: "text/plain",
+      text: "第一行资源内容\n第二行资源内容\n第三行资源内容\n",
+    }],
+  }),
+);
+
 await server.connect(new StdioServerTransport());

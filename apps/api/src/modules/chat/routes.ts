@@ -25,14 +25,13 @@ function streamError(error: unknown, fallback: StreamErrorCategory = 'network') 
   const code = error instanceof Error && 'code' in error && typeof error.code === 'string'
     ? error.code
     : undefined;
-  const haystack = `${error instanceof Error ? error.name : ''} ${code ?? ''} ${message}`.toLowerCase();
-  const category: StreamErrorCategory = haystack.includes('mcp')
+  const category: StreamErrorCategory = code === 'mcp_error'
     ? 'mcp'
-    : haystack.includes('approval') || haystack.includes('approve')
+    : code === 'approval_required' || code === 'approval_rejected' || code === 'approval_timed_out'
       ? 'approval'
-      : haystack.includes('tool')
+      : code === 'timed_out' || code === 'cancelled' || code === 'execution_failed' || code?.startsWith('read_')
         ? 'tool'
-        : haystack.includes('provider') || haystack.includes('model') || haystack.includes('credential') || haystack.includes('api key')
+        : code === 'provider_error'
           ? 'provider'
           : fallback;
   return {

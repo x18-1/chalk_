@@ -1,5 +1,7 @@
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
+import { realpath } from 'node:fs/promises';
 
+import { eq } from 'drizzle-orm';
 import {
   AgentRuntime,
   createAgentRuntime,
@@ -8,13 +10,17 @@ import {
   createRuntimeTelemetryContext,
   ForegroundSubagentExecutor,
   createSubagentTool,
+  createReadSkillTool,
   SkillRegistry,
   type ApprovalPort,
+  type ToolApprovalDecision,
   type RuntimeSession,
   type ToolApprovalMode,
+  ToolErrorChannel,
 } from '@chalk/agent-runtime';
 
 import { getDb } from '../db/client';
+import { authUsers } from '../db/schema';
 import {
   createAgentSettingsDal,
   createAgentRunObservationsDal,
@@ -28,6 +34,9 @@ import {
 } from '../db/dal';
 import { decrypt } from '../security/credential-encryption';
 import { createBuiltinToolRegistry } from './builtin-tools';
+import { createUploadedFileResourceAdapterFromDatabase } from './tools/read/uploaded-file-reader';
+import { createMcpResourceAdapter } from './tools/read/mcp-resource-reader';
+import { createResourceReader } from './tools/read/read-resource';
 import { runtimeTelemetry } from './telemetry';
 import { ToolApprovalAlreadyDecidedError, ToolApprovalNotActiveError } from '../db/errors';
 import {
@@ -53,8 +62,17 @@ function getSessionRepository() {
   return sessionRepository;
 }
 
+async function canUseStdioMcp(userId: string) {
+  const rows = await getDb()
+    .select({ role: authUsers.role })
+    .from(authUsers)
+    .where(eq(authUsers.id, userId))
+    .limit(1);
+  return rows[0]?.role === 'admin';
+}
+
 type PendingApproval = {
-  resolve: (decision: { approved: boolean; reason?: string }) => void;
+  resolve: (decision: ToolApprovalDecision) => void;
   reject: (error: Error) => void;
 };
 
@@ -79,10 +97,10 @@ class ApprovalBroker implements ApprovalPort {
     request: Parameters<ApprovalPort['request']>[0],
     signal?: AbortSignal,
     onPending?: () => void,
-  ) {
+  ): Promise<ToolApprovalDecision> {
     const conversationId = request.context.conversationId;
     if (!conversationId) {
-      return { approved: false, reason: 'Approval requires a conversation context' };
+      return { approved: false, reason: 'Approval requires a conversation context', errorCode: 'approval_rejected' };
     }
 
     const db = getDb();
@@ -95,7 +113,7 @@ class ApprovalBroker implements ApprovalPort {
     });
     const key = `${conversationId}:${request.toolCallId}`;
 
-    return new Promise<{ approved: boolean; reason?: string }>((resolveDecision, rejectDecision) => {
+    return new Promise<ToolApprovalDecision>((resolveDecision, rejectDecision) => {
       let settled = false;
       // The timer is assigned after cleanup is defined so an already-aborted signal stays safe.
       // eslint-disable-next-line prefer-const
@@ -106,7 +124,7 @@ class ApprovalBroker implements ApprovalPort {
         signal?.removeEventListener('abort', abort);
         if (timeout) clearTimeout(timeout);
       };
-      const resolve = (decision: { approved: boolean; reason?: string }) => {
+      const resolve = (decision: ToolApprovalDecision) => {
         if (settled) return;
         settled = true;
         cleanup();
@@ -147,12 +165,13 @@ class ApprovalBroker implements ApprovalPort {
             request.toolCallId,
             'rejected',
           );
-          current.resolve({ approved: false, reason: 'Tool approval timed out' });
+          current.resolve({ approved: false, reason: 'Tool approval timed out', errorCode: 'approval_timed_out' });
         } catch (error) {
           if (error instanceof ToolApprovalAlreadyDecidedError) {
             current.resolve({
               approved: error.status === 'approved',
               reason: `Tool approval was already ${error.status}`,
+              ...(error.status === 'approved' ? {} : { errorCode: 'approval_rejected' as const }),
             });
             return;
           }
@@ -183,6 +202,7 @@ class ApprovalBroker implements ApprovalPort {
         pending.resolve({
           approved: false,
           reason: `Tool approval was already ${error.status}`,
+          ...(error.status === 'approved' ? {} : { errorCode: 'approval_rejected' as const }),
         });
       }
       throw error;
@@ -209,17 +229,25 @@ type RuntimeEntry = {
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
 
-function skillSources() {
-  return (process.env.SKILLS_DIRS ?? '')
+async function skillSources() {
+  const configuredPaths = (process.env.SKILLS_DIRS ?? '')
     .split(':')
     .map((path) => path.trim())
-    .filter(Boolean)
-    .map((path, index) => ({
+    .filter(Boolean);
+  const builtinRoots = (await Promise.all([
+    realpath(resolve(process.cwd(), 'skills')).catch(() => undefined),
+    realpath(resolve(process.cwd(), 'apps/api/skills')).catch(() => undefined),
+  ])).filter((root): root is string => Boolean(root));
+  return Promise.all(configuredPaths.map(async (path, index) => {
+    const canonicalPath = await realpath(resolve(process.cwd(), path)).catch(() => resolve(process.cwd(), path));
+    const trusted = builtinRoots.some((root) => canonicalPath === root || canonicalPath.startsWith(`${root}${sep}`));
+    return {
       id: `configured-${index}`,
-      label: path,
-      path: resolve(process.cwd(), path),
-      trusted: true,
-    }));
+      label: `配置来源 ${index + 1}`,
+      path: canonicalPath,
+      trusted,
+    };
+  }));
 }
 
 async function createCatalog(userId: string) {
@@ -267,8 +295,9 @@ function parseCustomModels(value: unknown): CustomOpenAiModel[] {
   });
 }
 
-function createBuiltinTools() {
+function createBuiltinTools(mcp?: McpManager, readSkillTool?: ReturnType<typeof createReadSkillTool>) {
   const conversations = createConversationsDal(getDb());
+  const readCursorSecret = process.env.CREDENTIAL_ENCRYPTION_KEY;
   return createBuiltinToolRegistry({
     conversationTitleUpdater: {
       async update(input) {
@@ -279,6 +308,16 @@ function createBuiltinTools() {
         return { title: row.title ?? input.title };
       },
     },
+    ...(readCursorSecret
+      ? {
+        readResourceReader: createResourceReader([
+          createUploadedFileResourceAdapterFromDatabase(getDb()),
+          ...(mcp ? [createMcpResourceAdapter(mcp)] : []),
+        ]),
+        readCursorSecret,
+      }
+      : {}),
+    ...(readSkillTool ? { readSkillTool } : {}),
   });
 }
 
@@ -318,7 +357,7 @@ export async function createUserModelCatalog(userId: string) {
 
 export async function loadUserSkills(userId: string) {
   if (!userId) throw new Error('Skills require an authenticated user');
-  const skills = new SkillRegistry(process.cwd(), skillSources());
+  const skills = new SkillRegistry(process.cwd(), await skillSources());
   const snapshot = await skills.reload();
   const settings = await createSkillSettingsDal(getDb()).list(userId);
   const overrides = new Map(settings.map((setting) => [setting.skillName, setting.enabled]));
@@ -363,7 +402,7 @@ export async function getOrCreateRuntime(
 
   const { catalog, model } = await selectModel(userId, requestedModel);
   const llm = await catalog.resolveSelection(model);
-  const skills = new SkillRegistry(process.cwd(), skillSources());
+  const skills = new SkillRegistry(process.cwd(), await skillSources());
   const skillSnapshot = await skills.reload();
   const skillSettings = await createSkillSettingsDal(db).list(userId);
   const skillOverrides = new Map(skillSettings.map((setting) => [setting.skillName, setting.enabled]));
@@ -375,7 +414,8 @@ export async function getOrCreateRuntime(
   const approvals = new ApprovalBroker(userId);
   const mcp = new McpManager();
   const mcpRows = await createMcpServersDal(db).list(userId);
-  for (const row of mcpRows.filter((server) => server.enabled)) {
+  const canUseStdio = await canUseStdioMcp(userId);
+  for (const row of mcpRows.filter((server) => server.enabled && (canUseStdio || server.transport !== 'stdio'))) {
     mcp.register({
       id: row.id,
       name: row.name,
@@ -390,8 +430,9 @@ export async function getOrCreateRuntime(
   const toolSettings = await createToolSettingsDal(db).list(userId);
   const observations = createAgentRunObservationsDal(db);
   const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
+  const toolErrorChannel = new ToolErrorChannel();
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
-  const registry = createBuiltinTools();
+  const registry = createBuiltinTools(mcp, createReadSkillTool(skills, enabledSkillNames));
   for (const tool of mcp.proxyTools()) registry.register(tool);
 
   const childExecutor = new ForegroundSubagentExecutor({
@@ -458,12 +499,13 @@ export async function getOrCreateRuntime(
     approval: approvals,
     enabledToolNames: new Set(
       registry.list()
-        .filter((tool) => toolOverrides.get(tool.name)?.enabled ?? true)
+        .filter((tool) => toolOverrides.get(tool.name)?.enabled ?? tool.defaultEnabled)
         .map((tool) => tool.name),
     ),
     approvalModes: new Map(
       toolSettings.map((setting) => [setting.toolName, setting.approval as ToolApprovalMode]),
     ),
+    errorChannel: toolErrorChannel,
   });
   const systemPrompt = [
     '你是 Chalk，一位耐心、严谨的数学老师。目标是帮助学生掌握解题思路，而不是只报出答案。',
@@ -495,6 +537,7 @@ export async function getOrCreateRuntime(
         });
       },
     },
+    toolErrorChannel,
   });
   const entry = { ownerId: userId, runtime, session, approvals, mcp, model };
   activeRuntimes.set(conversation.id, entry);
@@ -540,11 +583,11 @@ export async function deleteSession(userId: string, sessionId: string, sessionFi
 
 export async function listRuntimeTools(userId: string) {
   if (!userId) throw new Error('Tools require an authenticated user');
-  const registry = createBuiltinTools();
   const mcp = new McpManager();
   try {
     const rows = await createMcpServersDal(getDb()).list(userId);
-    for (const row of rows.filter((server) => server.enabled)) {
+    const canUseStdio = await canUseStdioMcp(userId);
+    for (const row of rows.filter((server) => server.enabled && (canUseStdio || server.transport !== 'stdio'))) {
       mcp.register({
         id: row.id,
         name: row.name,
@@ -556,6 +599,8 @@ export async function listRuntimeTools(userId: string) {
         enabled: row.enabled,
       });
     }
+    const { registry: skills, enabledSkillNames } = await loadUserSkills(userId);
+    const registry = createBuiltinTools(mcp, createReadSkillTool(skills, enabledSkillNames));
     for (const tool of mcp.proxyTools()) registry.register(tool);
     return registry.list();
   } finally {
