@@ -69,6 +69,56 @@ describe("McpManager", () => {
     }
   });
 
+  it("reads a text resource through the MCP client", async () => {
+    const { manager } = await createFixtureManager();
+    try {
+      const result = await manager.readResource(
+        "fixture",
+        "chalk://fixture/lesson-notes",
+      );
+      expect(result.contents).toEqual([expect.objectContaining({
+        uri: "chalk://fixture/lesson-notes",
+        mimeType: "text/plain",
+        text: "第一行资源内容\n第二行资源内容\n第三行资源内容\n",
+      })]);
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("discovers resources through the proxy search", async () => {
+    const { manager } = await createFixtureManager();
+    try {
+      const [proxy] = manager.proxyTools();
+      const result = await proxy!.execute(
+        { action: "search", query: "lesson" },
+        { ownerId: "student-1", sessionId: "session-1" },
+      );
+      expect(JSON.stringify(result)).toContain("chalk://fixture/lesson-notes");
+      expect(result.details).toMatchObject({ resourceCount: 1 });
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("reconnects a previously discovered read-only tool after disconnect", async () => {
+    const { manager } = await createFixtureManager();
+    try {
+      await manager.connect("fixture");
+      const [tool] = manager.tools();
+      await manager.disconnect("fixture");
+
+      const result = await tool!.execute(
+        { left: 2, right: 3 },
+        { ownerId: "student-1", sessionId: "session-1" },
+      );
+      expect(result.content).toEqual([{ type: "text", text: "2 + 3 = 5" }]);
+      expect(manager.statuses()[0]).toMatchObject({ state: "connected", toolCount: 1 });
+    } finally {
+      await manager.close();
+    }
+  });
+
   it("closes its stdio child process", async () => {
     const { manager, exitFile } = await createFixtureManager();
     await manager.connect("fixture");

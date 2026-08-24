@@ -1,4 +1,4 @@
-import { ToolRegistry } from '@chalk/agent-runtime';
+import { ToolRegistry, type RuntimeTool } from '@chalk/agent-runtime';
 
 import {
   createRenameConversationTool,
@@ -8,15 +8,22 @@ import {
   createSearchTool,
   type SearchProvider,
 } from './tools/search';
+import { createReadResourceTool, type ResourceReader } from './tools/read/read-resource';
 
 export type BuiltinToolDependencies = {
   conversationTitleUpdater: ConversationTitleUpdater;
   searchProvider?: SearchProvider;
+  readResourceReader?: ResourceReader;
+  readCursorSecret?: string;
+  readSkillTool?: RuntimeTool;
 };
 
 export function createBuiltinToolRegistry(dependencies: BuiltinToolDependencies) {
-  return new ToolRegistry([
-    createSearchTool(dependencies.searchProvider),
-    createRenameConversationTool(dependencies.conversationTitleUpdater),
-  ]);
+  const tools: RuntimeTool[] = [createRenameConversationTool(dependencies.conversationTitleUpdater)];
+  if (dependencies.searchProvider) tools.unshift(createSearchTool(dependencies.searchProvider));
+  if (dependencies.readResourceReader && dependencies.readCursorSecret) {
+    tools.unshift(createReadResourceTool(dependencies.readResourceReader, dependencies.readCursorSecret));
+  }
+  if (dependencies.readSkillTool) tools.unshift(dependencies.readSkillTool);
+  return new ToolRegistry(tools);
 }

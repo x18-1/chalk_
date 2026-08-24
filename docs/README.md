@@ -36,6 +36,11 @@
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
+| Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和上传文本 adapter 已实现，知识库/Web adapter 待后续阶段 |
+| Tools 基础能力 | [spec/tools-foundation-spec.md](spec/tools-foundation-spec.md) | Draft；核心 runtime、统一 Read facade 和 MinIO 集成验证已实现，更多资源 adapter 待后续阶段 |
+| Tools 实施计划 | [plan/plan-tools-foundation.md](plan/plan-tools-foundation.md) | Draft；实现中 |
+| Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，CI 门禁待后续接入 |
+| Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
 

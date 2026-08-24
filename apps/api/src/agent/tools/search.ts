@@ -25,29 +25,6 @@ const searchParameters = Type.Object({
 
 type SearchArguments = Static<typeof searchParameters>;
 
-const defaultResources: readonly SearchResult[] = [
-  {
-    title: '三角形全等的判定',
-    url: 'https://chalk.local/math/triangle-congruence',
-    snippet: '从边角关系整理全等三角形的判定条件，并练习如何选择最短证明路径。',
-  },
-  {
-    title: '一次函数图象',
-    url: 'https://chalk.local/math/linear-functions',
-    snippet: '通过斜率和截距理解一次函数图象，连接表达式、表格和坐标系中的直线。',
-  },
-  {
-    title: '等差数列基础',
-    url: 'https://chalk.local/math/arithmetic-sequences',
-    snippet: '识别公差、通项和前 n 项和，先从相邻项的稳定变化开始观察。',
-  },
-  {
-    title: '几何证明的条件整理',
-    url: 'https://chalk.local/math/proof-conditions',
-    snippet: '把题目中的对象、已知关系和目标结论分开记录，再决定下一步验证什么。',
-  },
-];
-
 function normalized(value: string, maxLength: number) {
   return value.replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
@@ -67,7 +44,7 @@ function safeResult(result: SearchResult): SearchResult | undefined {
 }
 
 export function createStaticSearchProvider(
-  resources: readonly SearchResult[] = defaultResources,
+  resources: readonly SearchResult[],
 ): SearchProvider {
   return {
     async search({ query, limit, signal }) {
@@ -84,7 +61,7 @@ export function createStaticSearchProvider(
 }
 
 export function createSearchTool(
-  provider: SearchProvider = createStaticSearchProvider(),
+  provider: SearchProvider,
 ): RuntimeTool<typeof searchParameters> {
   return {
     name: 'search_learning_resources',
@@ -94,8 +71,11 @@ export function createSearchTool(
       '不会执行网页内容，也不会修改用户数据。',
     parameters: searchParameters,
     source: 'chalk',
+    effects: ['read', 'network'],
+    approvalPolicy: 'none',
+    defaultEnabled: true,
     requiresApproval: false,
-    executionMode: 'sequential',
+    executionMode: 'parallel',
     async execute(args: SearchArguments, _context, signal) {
       const query = normalized(args.query, 200);
       if (query.length < 2) throw new Error('Search query must contain at least 2 characters');

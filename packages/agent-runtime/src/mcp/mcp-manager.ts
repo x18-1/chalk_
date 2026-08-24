@@ -2,11 +2,21 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  CallToolResult,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import { Type, type Static, type TSchema } from "typebox";
 
-import type { RuntimeTool, ToolSummary } from "../tools/tool-registry";
+import {
+  DEFAULT_TOOL_RESULT_CHARACTERS,
+  DEFAULT_TOOL_TIMEOUT_MS,
+  DEFAULT_TOOL_UPDATE_CHARACTERS,
+  type RuntimeTool,
+  type ToolSummary,
+} from "../tools/tool-registry";
+import { assertSafeMcpHttpUrl, createSafeMcpFetch } from "./mcp-network-policy";
 
 export type McpServerConfig = {
   id: string;
@@ -34,14 +44,17 @@ export type McpManagerOptions = {
 };
 
 type RemoteTool = Awaited<ReturnType<Client["listTools"]>>["tools"][number];
+type RemoteResource = Awaited<ReturnType<Client["listResources"]>>["resources"][number];
 
 type Connection = {
   config: McpServerConfig;
   client?: Client;
   connectPromise?: Promise<ToolSummary[]>;
+  generation: number;
   status: McpServerStatus;
   tools: RuntimeTool[];
   remoteTools: RemoteTool[];
+  remoteResources: RemoteResource[];
 };
 
 const proxyParameters = Type.Object({
@@ -83,9 +96,14 @@ function transportFor(config: McpServerConfig) {
     throw new Error(`MCP server ${config.name} URL must not contain credentials`);
   }
 
-  return config.transport === "sse"
-    ? new SSEClientTransport(url)
-    : new StreamableHTTPClientTransport(url);
+  const safeFetch = createSafeMcpFetch();
+  if (config.transport === "sse") {
+    return new SSEClientTransport(url, {
+      fetch: safeFetch,
+      eventSourceInit: { fetch: safeFetch },
+    });
+  }
+  return new StreamableHTTPClientTransport(url, { fetch: safeFetch });
 }
 
 function resultContent(
@@ -114,22 +132,34 @@ function resultContent(
 }
 
 function toolSummary(tool: RuntimeTool): ToolSummary {
+  const readOnly = tool.approvalPolicy === "none" && tool.effects.includes("read");
   return {
     name: tool.name,
     label: tool.label,
     description: tool.description,
     source: tool.source,
-    requiresApproval:
-      typeof tool.requiresApproval === "function" ||
-      tool.requiresApproval === true,
+    effects: tool.effects,
+    approvalPolicy: tool.approvalPolicy,
+    limits: {
+      timeoutMs: tool.limits?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS,
+      maxResultCharacters: tool.limits?.maxResultCharacters ?? DEFAULT_TOOL_RESULT_CHARACTERS,
+      maxUpdateCharacters: tool.limits?.maxUpdateCharacters ?? DEFAULT_TOOL_UPDATE_CHARACTERS,
+    },
+    defaultEnabled: tool.defaultEnabled,
+    executionMode: tool.executionMode ?? "parallel",
+    requiresApproval: !readOnly,
   };
 }
 
 function toRuntimeTool(
   config: McpServerConfig,
-  client: Client,
   tool: RemoteTool,
-  callTimeoutMs: number,
+  call: (
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => Promise<CallToolResult>,
 ): RuntimeTool {
   const name = `mcp__${safeName(config.name)}__${safeName(tool.name)}`;
   return {
@@ -138,17 +168,13 @@ function toRuntimeTool(
     description: tool.description ?? `Tool from MCP server ${config.name}`,
     parameters: tool.inputSchema as TSchema,
     source: "mcp",
+    effects: tool.annotations?.readOnlyHint === true ? ["read", "network"] : ["write", "network"],
+    approvalPolicy: tool.annotations?.readOnlyHint === true ? "none" : "required",
+    defaultEnabled: true,
     requiresApproval: tool.annotations?.readOnlyHint !== true,
-    executionMode: "sequential",
+    executionMode: tool.annotations?.readOnlyHint === true ? "parallel" : "sequential",
     async execute(args, _context, signal) {
-      const result = (await client.callTool(
-        { name: tool.name, arguments: args as Record<string, unknown> },
-        undefined,
-        {
-          timeout: callTimeoutMs,
-          ...(signal ? { signal } : {}),
-        },
-      )) as CallToolResult;
+      const result = await call(config.id, tool.name, args as Record<string, unknown>, signal);
       return {
         content: resultContent(result.content),
         details: {
@@ -167,6 +193,17 @@ function publicRemoteTool(tool: RemoteTool) {
     title: tool.title,
     description: tool.description,
     readOnly: tool.annotations?.readOnlyHint === true,
+  };
+}
+
+function publicRemoteResource(config: McpServerConfig, resource: RemoteResource) {
+  return {
+    type: "resource" as const,
+    name: resource.name,
+    uri: resource.uri,
+    id: `${config.id}/${resource.uri}`,
+    description: resource.description,
+    mimeType: resource.mimeType,
   };
 }
 
@@ -192,6 +229,8 @@ export class McpManager {
       config,
       tools: [],
       remoteTools: [],
+      remoteResources: [],
+      generation: 0,
       status: {
         id: config.id,
         name: config.name,
@@ -218,11 +257,14 @@ export class McpManager {
     }
     if (connection.connectPromise) return connection.connectPromise;
 
-    connection.connectPromise = this.openConnection(connection, signal);
+    const connectPromise = this.openConnection(connection, signal);
+    connection.connectPromise = connectPromise;
     try {
-      return await connection.connectPromise;
+      return await connectPromise;
     } finally {
-      connection.connectPromise = undefined;
+      if (connection.connectPromise === connectPromise) {
+        connection.connectPromise = undefined;
+      }
     }
   }
 
@@ -250,9 +292,12 @@ export class McpManager {
     const connection = this.connections.get(serverId);
     if (!connection) return;
     const client = connection.client;
+    connection.generation += 1;
+    connection.connectPromise = undefined;
     connection.client = undefined;
     connection.tools = [];
     connection.remoteTools = [];
+    connection.remoteResources = [];
     connection.status = {
       id: connection.config.id,
       name: connection.config.name,
@@ -265,12 +310,36 @@ export class McpManager {
   async close() {
     const connections = Array.from(this.connections.values());
     this.connections.clear();
+    for (const connection of connections) {
+      connection.generation += 1;
+      connection.connectPromise = undefined;
+    }
     await Promise.allSettled(
       connections.map((connection) => connection.client?.close()),
     );
   }
 
+  async readResource(
+    serverId: string,
+    uri: string,
+    signal?: AbortSignal,
+  ): Promise<ReadResourceResult> {
+    return this.withReadOnlyReconnect(serverId, signal, async (connection) => {
+      if (!connection.client) {
+        throw new Error(`MCP server ${connection.config.name} is not connected`);
+      }
+      return connection.client.readResource(
+        { uri },
+        {
+          timeout: this.callTimeoutMs,
+          ...(signal ? { signal } : {}),
+        },
+      );
+    });
+  }
+
   private async openConnection(connection: Connection, signal?: AbortSignal) {
+    const generation = connection.generation;
     connection.status = {
       id: connection.config.id,
       name: connection.config.name,
@@ -284,12 +353,38 @@ export class McpManager {
         timeout: this.connectTimeoutMs,
         ...(signal ? { signal } : {}),
       };
-      await client.connect(transportFor(connection.config), requestOptions);
-      const listed = await client.listTools(undefined, requestOptions);
+      const transport = transportFor(connection.config);
+      if (connection.config.transport !== "stdio") {
+        await assertSafeMcpHttpUrl(new URL(connection.config.url!));
+      }
+      await client.connect(transport, requestOptions);
+      const listed = client.getServerCapabilities()?.tools
+        ? await this.listAllTools(client, requestOptions)
+        : [];
+      const listedResources = client.getServerCapabilities()?.resources
+        ? await this.listAllResources(client, requestOptions)
+        : [];
+      if (generation !== connection.generation) {
+        await client.close().catch(() => undefined);
+        throw new Error(`MCP server ${connection.config.name} was closed while connecting`);
+      }
       connection.client = client;
-      connection.remoteTools = listed.tools;
-      connection.tools = listed.tools.map((tool) =>
-        toRuntimeTool(connection.config, client, tool, this.callTimeoutMs),
+      client.onclose = () => {
+        if (connection.client !== client || connection.status.state !== "connected") return;
+        connection.client = undefined;
+        connection.status = {
+          id: connection.config.id,
+          name: connection.config.name,
+          state: "error",
+          toolCount: connection.tools.length,
+          error: "MCP connection closed unexpectedly",
+        };
+      };
+      connection.remoteTools = listed;
+      connection.remoteResources = listedResources;
+      connection.tools = listed.map((tool) =>
+        toRuntimeTool(connection.config, tool, (serverId, toolName, args, toolSignal) =>
+          this.callTool(serverId, toolName, args, toolSignal)),
       );
       connection.status = {
         id: connection.config.id,
@@ -303,6 +398,7 @@ export class McpManager {
       connection.client = undefined;
       connection.tools = [];
       connection.remoteTools = [];
+      connection.remoteResources = [];
       connection.status = {
         id: connection.config.id,
         name: connection.config.name,
@@ -315,16 +411,104 @@ export class McpManager {
     }
   }
 
+  private async listAllTools(
+    client: Client,
+    options: { timeout: number; signal?: AbortSignal },
+  ) {
+    const tools: RemoteTool[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const page = await client.listTools(cursor ? { cursor } : undefined, options);
+      tools.push(...page.tools);
+      cursor = page.nextCursor;
+      if (cursor && cursors.has(cursor)) {
+        throw new Error(`MCP server ${client.getServerVersion()?.name ?? 'unknown'} returned a repeated tools cursor`);
+      }
+      if (cursor) cursors.add(cursor);
+    } while (cursor);
+    return tools;
+  }
+
+  private async listAllResources(
+    client: Client,
+    options: { timeout: number; signal?: AbortSignal },
+  ) {
+    const resources: RemoteResource[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const page = await client.listResources(cursor ? { cursor } : undefined, options);
+      resources.push(...page.resources);
+      cursor = page.nextCursor;
+      if (cursor && cursors.has(cursor)) {
+        throw new Error(`MCP server ${client.getServerVersion()?.name ?? 'unknown'} returned a repeated resources cursor`);
+      }
+      if (cursor) cursors.add(cursor);
+    } while (cursor);
+    return resources;
+  }
+
+  private async callTool(
+    serverId: string,
+    toolName: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<CallToolResult> {
+    const connection = await this.connected(serverId, signal);
+    const remote = connection.remoteTools.find((tool) => tool.name === toolName);
+    if (!remote) throw new Error(`MCP tool ${toolName} was not found`);
+    return this.withReadOnlyReconnect(serverId, signal, async (current) => {
+      if (!current.client) throw new Error(`MCP server ${current.config.name} is not connected`);
+      return (await current.client.callTool(
+        { name: toolName, arguments: args },
+        undefined,
+        { timeout: this.callTimeoutMs, ...(signal ? { signal } : {}) },
+      )) as CallToolResult;
+    }, remote.annotations?.readOnlyHint === true);
+  }
+
+  private async connected(serverId: string, signal?: AbortSignal) {
+    await this.connect(serverId, signal);
+    const connection = this.connections.get(serverId);
+    if (!connection?.client || connection.status.state !== "connected") {
+      throw new Error(`MCP server ${serverId} is not connected`);
+    }
+    return connection;
+  }
+
+  private async withReadOnlyReconnect<T>(
+    serverId: string,
+    signal: AbortSignal | undefined,
+    operation: (connection: Connection) => Promise<T>,
+    retryReadOnly = true,
+  ): Promise<T> {
+    const connection = await this.connected(serverId, signal);
+    try {
+      return await operation(connection);
+    } catch (error) {
+      if (!retryReadOnly || signal?.aborted || /abort|timeout|timed out/i.test(error instanceof Error ? error.message : String(error))) {
+        throw error;
+      }
+      await this.disconnect(serverId);
+      const recovered = await this.connected(serverId, signal);
+      return operation(recovered);
+    }
+  }
+
   private createProxyTool(connection: Connection): RuntimeTool<typeof proxyParameters> {
     const config = connection.config;
     return {
       name: `mcp__${safeName(config.name, 32)}__${safeName(config.id, 8)}`,
       label: `MCP · ${config.name}`,
       description:
-        `按需搜索、查看并调用 ${config.name} 提供的 MCP 工具。` +
-        "先用 search 查找工具，再用 describe 查看参数，最后用 call 调用。",
+        `按需搜索、查看并调用 ${config.name} 提供的 MCP 工具，或发现它提供的 Resource。` +
+        "先用 search 查找；工具再用 describe 和 call，Resource 使用返回的 id 调用 read_resource。",
       parameters: proxyParameters,
       source: "mcp",
+      effects: ["network"],
+      approvalPolicy: "conditional",
+      defaultEnabled: true,
       executionMode: "sequential",
       requiresApproval: async (args: ProxyParameters, _context, signal) => {
         if (args.action !== "call") return false;
@@ -349,9 +533,24 @@ export class McpManager {
             })
             .slice(0, 20)
             .map(publicRemoteTool);
+          const resourceMatches = connection.remoteResources
+            .filter((resource) => {
+              if (!query) return true;
+              return [resource.name, resource.uri, resource.description]
+                .filter(Boolean)
+                .some((value) => value!.toLowerCase().includes(query));
+            })
+            .slice(0, 20)
+            .map((resource) => publicRemoteResource(config, resource));
           return {
-            content: [{ type: "text", text: JSON.stringify(matches) }],
-            details: { serverId: config.id, action: "search", count: matches.length },
+            content: [{ type: "text", text: JSON.stringify([...matches, ...resourceMatches]) }],
+            details: {
+              serverId: config.id,
+              action: "search",
+              count: matches.length + resourceMatches.length,
+              toolCount: matches.length,
+              resourceCount: resourceMatches.length,
+            },
           };
         }
 
@@ -375,15 +574,12 @@ export class McpManager {
           };
         }
 
-        if (!connection.client) throw new Error(`MCP server ${config.name} is not connected`);
-        const result = (await connection.client.callTool(
-          { name: remote.name, arguments: args.arguments ?? {} },
-          undefined,
-          {
-            timeout: this.callTimeoutMs,
-            ...(signal ? { signal } : {}),
-          },
-        )) as CallToolResult;
+        const result = await this.callTool(
+          config.id,
+          remote.name,
+          args.arguments ?? {},
+          signal,
+        );
         return {
           content: resultContent(result.content),
           details: {

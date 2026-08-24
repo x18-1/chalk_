@@ -59,7 +59,7 @@ export class RuntimeConfigurationService {
     return {
       tools: tools.map((tool) => ({
         ...tool,
-        enabled: overrides.get(tool.name)?.enabled ?? true,
+        enabled: overrides.get(tool.name)?.enabled ?? tool.defaultEnabled,
         approval: overrides.get(tool.name)?.approval ?? 'default',
       })),
     };
@@ -69,6 +69,14 @@ export class RuntimeConfigurationService {
     const tools = await listRuntimeTools(userId);
     if (!tools.some((tool) => tool.name === input.toolName)) {
       throw new ApiError(404, 'Tool not found', 'TOOL_NOT_FOUND');
+    }
+    const tool = tools.find((candidate) => candidate.name === input.toolName)!;
+    if (input.approval === 'never' && tool.requiresApproval) {
+      throw new ApiError(
+        400,
+        'This tool requires approval and cannot disable it',
+        'TOOL_APPROVAL_REQUIRED',
+      );
     }
     const setting = await this.toolSettings.upsert(userId, input.toolName, input);
     await closeUserRuntimes(userId);
