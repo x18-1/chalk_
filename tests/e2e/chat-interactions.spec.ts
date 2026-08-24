@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 const apiBaseUrl = (process.env.E2E_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
 
 async function signIn(page: import('@playwright/test').Page) {
-  const email = process.env.DEV_USER_EMAIL ?? 'dev@chalk.local';
-  const password = process.env.DEV_USER_PASSWORD ?? 'chalk-dev-2026';
+  const email = process.env.DEV_USER_EMAIL ?? 'user@qq.com';
+  const password = process.env.DEV_USER_PASSWORD ?? 'user123';
   await page.goto('/login');
   await page.getByLabel('邮箱').fill(email);
   await page.getByLabel('密码').fill(password);
