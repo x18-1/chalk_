@@ -9,6 +9,7 @@ import {
   ToolApprovalAlreadyDecidedError,
   ToolApprovalNotActiveError,
 } from '../db/errors';
+import { ProviderError } from '../providers/provider-error';
 
 export class ApiError extends Error {
   constructor(
@@ -62,6 +63,13 @@ export function registerErrorHandler(app: FastifyInstance) {
     }
     if (error instanceof ApiError) {
       return reply.code(error.statusCode).send({ error: error.message, code: error.code });
+    }
+    if (error instanceof ProviderError) {
+      const status = error.code === 'PROVIDER_NOT_CONFIGURED' ? 409
+        : error.code === 'AUTH_FAILED' ? 502
+          : error.code === 'INVALID_REQUEST' ? 400
+            : error.code === 'RATE_LIMITED' ? 429 : 502;
+      return reply.code(status).send({ error: error.message, code: error.code });
     }
 
     request.log.error({ err: error }, 'Unhandled API error');

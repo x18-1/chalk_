@@ -10,6 +10,7 @@
     "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "vitest run tests/unit",
     "test:integration": "pnpm --filter @chalk/agent-runtime build && node scripts/run-integration-tests.mjs",
+    "smoke:media": "tsx scripts/media-provider-smoke.ts",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

@@ -32,12 +32,19 @@
 | 主题 | 权威来源 | 当前状态 |
 |---|---|---|
 | 产品功能 | [spec/functional-spec.md](spec/functional-spec.md) | Draft |
+| Chalkboard V1 范围 | [spec/chalkboard-v1-scope.md](spec/chalkboard-v1-scope.md) | Accepted |
+| Chalkboard V1 Provider | [spec/chalkboard-v1-providers.md](spec/chalkboard-v1-providers.md) | Accepted |
+| Chalkboard V1 Provider 适配结构 | [spec/chalkboard-v1-provider-architecture.md](spec/chalkboard-v1-provider-architecture.md) | Accepted |
+| Chalkboard V1 课堂运行时 | [spec/chalkboard-v1-runtime.md](spec/chalkboard-v1-runtime.md) | Accepted |
+| Chalkboard V1 内容生成 | [spec/chalkboard-v1-generation.md](spec/chalkboard-v1-generation.md) | Accepted |
+| Chalkboard V1 课堂讨论 | [spec/chalkboard-v1-discussion.md](spec/chalkboard-v1-discussion.md) | Accepted |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
+| Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Accepted |
 
 当规则冲突时，优先级为：
 

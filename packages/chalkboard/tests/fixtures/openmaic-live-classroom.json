@@ -1,0 +1,1352 @@
+{
+  "id": "4DuyVUkWv3",
+  "stage": {
+    "id": "4DuyVUkWv3",
+    "name": "等式的性质与移项变号",
+    "languageDirective": "本课程全程使用中文教学。术语与讲解均使用中文，数学符号保留标准形式；面向七年级学生，语言简洁、直观，配合实例与互动帮助学生理解等式的性质及移项变号的原因。",
+    "videoManifest": {},
+    "style": "interactive",
+    "createdAt": 1787578789074,
+    "updatedAt": 1787578789074,
+    "agentIds": [
+      "default-1",
+      "default-2",
+      "default-3",
+      "default-4",
+      "default-5",
+      "default-6"
+    ]
+  },
+  "scenes": [
+    {
+      "id": "scene_1shvI_Q8Jr",
+      "stageId": "4DuyVUkWv3",
+      "title": "天平与等式",
+      "order": 1,
+      "actions": [
+        {
+          "id": "action_PMmrNclW",
+          "type": "spotlight",
+          "elementId": "text_Xi7jGXJr"
+        },
+        {
+          "id": "action_P1ZAbUyy",
+          "type": "speech",
+          "text": "同学们好，欢迎来到今天的数学课堂！今天我们要借助天平来理解等式。先看标题——天平与等式。"
+        },
+        {
+          "id": "action_ohdhV0y4",
+          "type": "spotlight",
+          "elementId": "image_dXEtx70C"
+        },
+        {
+          "id": "action_IXbCi4aT",
+          "type": "speech",
+          "text": "大家看，这是一架天平。当天平两边托盘里的重量完全一样时，它就会保持平衡。数学上，我们就说左右两边相等。就像屏幕上写的：天平平衡，左右两边相等；等式就像一架平衡的天平，左边等于右边。"
+        },
+        {
+          "id": "action_cHA-Pyb4",
+          "type": "spotlight",
+          "elementId": "text__MhwFJYX"
+        },
+        {
+          "id": "action_d_8m4eSu",
+          "type": "speech",
+          "text": "现在注意这个关键观察：如果天平两边同时拿走相同重量的物体，天平依然平衡。这告诉我们，等式两边同时减去同一个数，等式仍然成立。这就是以后解方程的重要依据。"
+        },
+        {
+          "id": "action_xO7caMFJ",
+          "type": "spotlight",
+          "elementId": "latex_KhibnHF8"
+        },
+        {
+          "id": "action_HM2pg7Tn",
+          "type": "speech",
+          "text": "所以，由天平平衡我们可以得到：x 等于 5。大家看，借助天平，我们就能形象地理解等式两边相等的关系。那老师想问大家一个问题——如果天平两边同时增加相同重量的物体，天平还会平衡吗？"
+        },
+        {
+          "id": "action_gsOSvJt1",
+          "type": "discussion",
+          "topic": "如果天平两边同时增加相同重量的物体，天平还会平衡吗？为什么？",
+          "prompt": "请结合天平平衡的道理，想一想等式两边同时加上同一个数，等式还成立吗？",
+          "agentId": "default-4"
+        }
+      ],
+      "outlineId": "scene_1",
+      "createdAt": 1787578985055,
+      "updatedAt": 1787578985055,
+      "type": "slide",
+      "content": {
+        "type": "slide",
+        "canvas": {
+          "id": "0uzIYcWwkVDB8S8rO_OMl",
+          "viewportSize": 1000,
+          "viewportRatio": 0.5625,
+          "theme": {
+            "backgroundColor": "#ffffff",
+            "themeColors": [
+              "#5b9bd5",
+              "#ed7d31",
+              "#a5a5a5",
+              "#ffc000",
+              "#4472c4"
+            ],
+            "fontColor": "#333333",
+            "fontName": "Microsoft YaHei",
+            "outline": {
+              "color": "#d14424",
+              "width": 2,
+              "style": "solid"
+            },
+            "shadow": {
+              "h": 0,
+              "v": 0,
+              "blur": 10,
+              "color": "#000000"
+            }
+          },
+          "elements": [
+            {
+              "id": "shape_ZPp1NN3n",
+              "type": "shape",
+              "left": 50,
+              "top": 64,
+              "width": 6,
+              "height": 42,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#ed7d31",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_Xi7jGXJr",
+              "type": "text",
+              "left": 60,
+              "top": 50,
+              "width": 880,
+              "height": 70,
+              "content": "<p style=\"font-size:32px;\"><strong>天平与等式</strong></p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#1f4e79",
+              "rotate": 0
+            },
+            {
+              "id": "shape_Et0QrpZg",
+              "type": "shape",
+              "left": 70,
+              "top": 128,
+              "width": 860,
+              "height": 3,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#5b9bd5",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_kYGxv1Y_",
+              "type": "text",
+              "left": 60,
+              "top": 145,
+              "width": 880,
+              "height": 46,
+              "content": "<p style=\"font-size:16px;\">借助天平，理解等式两边相等的关系</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#666666",
+              "rotate": 0
+            },
+            {
+              "id": "shape__o_g3xHc",
+              "type": "shape",
+              "left": 55,
+              "top": 205,
+              "width": 410,
+              "height": 235,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#f1f5f9",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "image_dXEtx70C",
+              "type": "image",
+              "left": 60,
+              "top": 210,
+              "width": 400,
+              "height": 225,
+              "src": "http://localhost:3200/api/classroom-media/4DuyVUkWv3/media/gen_img_GFBY7Qn3.jpeg",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "shape_DJpZ4V6X",
+              "type": "shape",
+              "left": 520,
+              "top": 210,
+              "width": 420,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#eef4fb",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "shape_O8XQvP9q",
+              "type": "shape",
+              "left": 520,
+              "top": 210,
+              "width": 5,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#5b9bd5",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_fb9GTkrw",
+              "type": "text",
+              "left": 545,
+              "top": 226,
+              "width": 370,
+              "height": 49,
+              "content": "<p style=\"font-size:18px;\">天平平衡 → 左右两边相等</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#333333",
+              "rotate": 0
+            },
+            {
+              "id": "shape_HQCsVIUt",
+              "type": "shape",
+              "left": 520,
+              "top": 306,
+              "width": 420,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#eef4fb",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "shape_TDH7NCUp",
+              "type": "shape",
+              "left": 520,
+              "top": 306,
+              "width": 5,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#ed7d31",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_3bUOuZG7",
+              "type": "text",
+              "left": 545,
+              "top": 322,
+              "width": 370,
+              "height": 49,
+              "content": "<p style=\"font-size:18px;\">等式：左=右，如同平衡天平</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#333333",
+              "rotate": 0
+            },
+            {
+              "id": "shape_tuHvOv4D",
+              "type": "shape",
+              "left": 520,
+              "top": 402,
+              "width": 420,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#eef4fb",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "shape_k8AuEApx",
+              "type": "shape",
+              "left": 520,
+              "top": 402,
+              "width": 5,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#70ad47",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text__MhwFJYX",
+              "type": "text",
+              "left": 545,
+              "top": 418,
+              "width": 370,
+              "height": 49,
+              "content": "<p style=\"font-size:18px;\">两边同时减少相同重量 → 仍平衡</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#333333",
+              "rotate": 0
+            },
+            {
+              "id": "shape_CBU1muig",
+              "type": "shape",
+              "left": 60,
+              "top": 450,
+              "width": 400,
+              "height": 56,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#fdf6e3",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "shape_sH3Se5pi",
+              "type": "shape",
+              "left": 60,
+              "top": 450,
+              "width": 5,
+              "height": 56,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#ed7d31",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_UfiLqBIe",
+              "type": "text",
+              "left": 75,
+              "top": 455,
+              "width": 150,
+              "height": 46,
+              "content": "<p style=\"font-size:16px;\">由天平平衡，得</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#333333",
+              "rotate": 0
+            },
+            {
+              "id": "latex_KhibnHF8",
+              "type": "latex",
+              "left": 220,
+              "top": 453,
+              "width": 200,
+              "height": 50,
+              "latex": "x = 5",
+              "color": "#333333",
+              "align": "left",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">5</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            }
+          ],
+          "background": {
+            "type": "solid",
+            "color": "#ffffff"
+          }
+        }
+      }
+    },
+    {
+      "id": "scene_7bGb3criKW",
+      "stageId": "4DuyVUkWv3",
+      "title": "两边同时减去同一个数",
+      "order": 2,
+      "actions": [
+        {
+          "id": "action_q4ABW_gp",
+          "type": "spotlight",
+          "elementId": "text_GdJh5YY2"
+        },
+        {
+          "id": "action_cEm1Yc61",
+          "type": "speech",
+          "text": "同学们，这就是今天我们要重点掌握的等式性质一：等式两边同时减去同一个数，等式仍然成立。"
+        },
+        {
+          "id": "action_a_HJNA4H",
+          "type": "spotlight",
+          "elementId": "latex_ylwRXp9N"
+        },
+        {
+          "id": "action_iZxrt0De",
+          "type": "speech",
+          "text": "我们来看一个具体例子。这个方程是 x 加 3 等于 8，我们的目标就是求出 x 等于多少。"
+        },
+        {
+          "id": "action_Syv4JaeO",
+          "type": "spotlight",
+          "elementId": "text_ohzpOQvf"
+        },
+        {
+          "id": "action_aMnCtNCW",
+          "type": "speech",
+          "text": "根据等式性质一，我们可以在等号两边同时减去 3。注意，是左边减 3，右边也减 3，这样等式才不会改变。"
+        },
+        {
+          "id": "action_r3hpi41q",
+          "type": "spotlight",
+          "elementId": "latex_OXkEeX2G"
+        },
+        {
+          "id": "action_M-bQWo_C",
+          "type": "speech",
+          "text": "看，就得到了 x 加 3 减 3 等于 8 减 3。左边的加 3 和减 3 正好抵消，这样 x 就被单独留出来了。"
+        },
+        {
+          "id": "action_H-NKnqqb",
+          "type": "spotlight",
+          "elementId": "latex_KZkxK8Xm"
+        },
+        {
+          "id": "action_rIQsvmOJ",
+          "type": "speech",
+          "text": "化简之后就是 x 等于 5。这一步非常重要，因为两边同时减去同一个数，正是解方程的关键思路。大家都掌握了吗？"
+        }
+      ],
+      "outlineId": "scene_2",
+      "createdAt": 1787579076274,
+      "updatedAt": 1787579076274,
+      "type": "slide",
+      "content": {
+        "type": "slide",
+        "canvas": {
+          "id": "sYiOMtKo2u15v-3zrgh2p",
+          "viewportSize": 1000,
+          "viewportRatio": 0.5625,
+          "theme": {
+            "backgroundColor": "#ffffff",
+            "themeColors": [
+              "#5b9bd5",
+              "#ed7d31",
+              "#a5a5a5",
+              "#ffc000",
+              "#4472c4"
+            ],
+            "fontColor": "#333333",
+            "fontName": "Microsoft YaHei",
+            "outline": {
+              "color": "#d14424",
+              "width": 2,
+              "style": "solid"
+            },
+            "shadow": {
+              "h": 0,
+              "v": 0,
+              "blur": 10,
+              "color": "#000000"
+            }
+          },
+          "elements": [
+            {
+              "id": "text_hDdSnPdk",
+              "type": "text",
+              "left": 60,
+              "top": 50,
+              "width": 880,
+              "height": 76,
+              "content": "<p style=\"font-size:36px;\"><strong>两边同时减去同一个数</strong></p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#2c3e50",
+              "rotate": 0
+            },
+            {
+              "id": "shape_3INsiP3K",
+              "type": "shape",
+              "left": 70,
+              "top": 134,
+              "width": 860,
+              "height": 3,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#5b9bd5",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "shape_YdYyzjzs",
+              "type": "shape",
+              "left": 60,
+              "top": 150,
+              "width": 880,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#e8f4fd",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_GdJh5YY2",
+              "type": "text",
+              "left": 80,
+              "top": 152,
+              "width": 840,
+              "height": 76,
+              "content": "<p style=\"font-size:18px; text-align:center;\"><strong>等式性质一</strong></p><p style=\"font-size:18px; text-align:center;\">等式两边同时减去同一个数，等式仍然成立</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#1e3a8a",
+              "rotate": 0
+            },
+            {
+              "id": "shape_YVdc_W86",
+              "type": "shape",
+              "left": 60,
+              "top": 250,
+              "width": 880,
+              "height": 170,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#fff8e1",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_KZk09Qik",
+              "type": "text",
+              "left": 90,
+              "top": 270,
+              "width": 180,
+              "height": 49,
+              "content": "<p style=\"font-size:18px; text-align:center;\">原方程</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#555555",
+              "rotate": 0
+            },
+            {
+              "id": "text_ohzpOQvf",
+              "type": "text",
+              "left": 330,
+              "top": 270,
+              "width": 300,
+              "height": 49,
+              "content": "<p style=\"font-size:18px; text-align:center;\">两边同时减 3</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#555555",
+              "rotate": 0
+            },
+            {
+              "id": "text_WTTcN19j",
+              "type": "text",
+              "left": 710,
+              "top": 270,
+              "width": 160,
+              "height": 49,
+              "content": "<p style=\"font-size:18px; text-align:center;\">化简得</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#555555",
+              "rotate": 0
+            },
+            {
+              "id": "line_TQ1cYU2b",
+              "type": "line",
+              "left": 280,
+              "top": 360,
+              "width": 3,
+              "start": [
+                0,
+                0
+              ],
+              "end": [
+                45,
+                0
+              ],
+              "style": "solid",
+              "color": "#5b9bd5",
+              "points": [
+                "",
+                "arrow"
+              ],
+              "rotate": 0
+            },
+            {
+              "id": "line_LJgU7dA5",
+              "type": "line",
+              "left": 645,
+              "top": 360,
+              "width": 3,
+              "start": [
+                0,
+                0
+              ],
+              "end": [
+                60,
+                0
+              ],
+              "style": "solid",
+              "color": "#5b9bd5",
+              "points": [
+                "",
+                "arrow"
+              ],
+              "rotate": 0
+            },
+            {
+              "id": "latex_ylwRXp9N",
+              "type": "latex",
+              "left": 90,
+              "top": 330,
+              "width": 180,
+              "height": 60,
+              "latex": "x + 3 = 8",
+              "color": "#333333",
+              "align": "center",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.6667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">3</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">8</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "latex_OXkEeX2G",
+              "type": "latex",
+              "left": 330,
+              "top": 330,
+              "width": 300,
+              "height": 60,
+              "latex": "x + 3 - 3 = 8 - 3",
+              "color": "#333333",
+              "align": "center",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.6667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">3</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">3</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">8</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">3</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "latex_KZkxK8Xm",
+              "type": "latex",
+              "left": 710,
+              "top": 330,
+              "width": 160,
+              "height": 60,
+              "latex": "x = 5",
+              "color": "#333333",
+              "align": "center",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">5</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "text_4h50y65Q",
+              "type": "text",
+              "left": 60,
+              "top": 460,
+              "width": 880,
+              "height": 49,
+              "content": "<p style=\"font-size:18px; text-align:center;\"><strong>这是解方程的重要一步</strong></p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#e67e22",
+              "rotate": 0
+            }
+          ],
+          "background": {
+            "type": "solid",
+            "color": "#ffffff"
+          }
+        }
+      }
+    },
+    {
+      "id": "scene_2DvQY_Z98A",
+      "stageId": "4DuyVUkWv3",
+      "title": "移项为什么要变号",
+      "order": 3,
+      "actions": [
+        {
+          "id": "action_upXEbjYE",
+          "type": "spotlight",
+          "elementId": "text_9desAa1H"
+        },
+        {
+          "id": "action_jxoCoIyH",
+          "type": "speech",
+          "text": "同学们，今天我们来看一个关键问题：移项为什么要变号？"
+        },
+        {
+          "id": "action_7LksJFJ5",
+          "type": "spotlight",
+          "elementId": "text_dJW_4Qv_"
+        },
+        {
+          "id": "action_x5hZiRiz",
+          "type": "speech",
+          "text": "答案其实藏在等式的性质里：等式两边同时加上或减去同一个数，等式仍然成立。这是我们今天推理论证的出发点。"
+        },
+        {
+          "id": "action_n1qTt5Gd",
+          "type": "spotlight",
+          "elementId": "latex_NyIuNNgw"
+        },
+        {
+          "id": "action_b2EW8Sc-",
+          "type": "speech",
+          "text": "来看这个简单的方程：x 加 3 等于 8。我们的目标是求出 x。"
+        },
+        {
+          "id": "action_WEO--Fl3",
+          "type": "spotlight",
+          "elementId": "text_x4GNR5it"
+        },
+        {
+          "id": "action_c4ONDov8",
+          "type": "speech",
+          "text": "根据等式的性质，为了让左边只剩下 x，我们应该在等式两边同时减去 3。注意，是两边都减 3，而不是把 3 直接“搬走”。"
+        },
+        {
+          "id": "action_LLgyU7ux",
+          "type": "spotlight",
+          "elementId": "text_9desAa1H"
+        },
+        {
+          "id": "action_mX6DCBTh",
+          "type": "speech",
+          "text": "仔细看这个过程：左边原来的加 3 被消掉了，而右边出现了 8 减 3。原本在左边的正 3，到了右边就变成了负 3。这就是我们常说的移项要变号。"
+        },
+        {
+          "id": "action_shHR_QmX",
+          "type": "spotlight",
+          "elementId": "latex_WoqAw9FT"
+        },
+        {
+          "id": "action_FWnn3jQS",
+          "type": "speech",
+          "text": "化简后，我们得到 x 等于 5。你看，结果完全正确。"
+        },
+        {
+          "id": "action_Asvo7Quk",
+          "type": "spotlight",
+          "elementId": "text_5NnDTADA"
+        },
+        {
+          "id": "action_ki0Hm6h3",
+          "type": "speech",
+          "text": "所以结论就是：移项不是简单地把一项搬走，而是在等式两边同时做了相反的运算。正因为如此，移到等号另一边时，符号才会改变。"
+        }
+      ],
+      "outlineId": "scene_3",
+      "createdAt": 1787579214905,
+      "updatedAt": 1787579214905,
+      "type": "slide",
+      "content": {
+        "type": "slide",
+        "canvas": {
+          "id": "VRJQvll6EaOcslLTpcAXR",
+          "viewportSize": 1000,
+          "viewportRatio": 0.5625,
+          "theme": {
+            "backgroundColor": "#ffffff",
+            "themeColors": [
+              "#5b9bd5",
+              "#ed7d31",
+              "#a5a5a5",
+              "#ffc000",
+              "#4472c4"
+            ],
+            "fontColor": "#333333",
+            "fontName": "Microsoft YaHei",
+            "outline": {
+              "color": "#d14424",
+              "width": 2,
+              "style": "solid"
+            },
+            "shadow": {
+              "h": 0,
+              "v": 0,
+              "blur": 10,
+              "color": "#000000"
+            }
+          },
+          "elements": [
+            {
+              "id": "text_9desAa1H",
+              "type": "text",
+              "left": 60,
+              "top": 50,
+              "width": 880,
+              "height": 70,
+              "content": "<p style=\"font-size:32px; text-align:center;\"><strong>移项为什么要变号？</strong></p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#1E3A8A",
+              "rotate": 0
+            },
+            {
+              "id": "shape_XiANIC8G",
+              "type": "shape",
+              "left": 100,
+              "top": 130,
+              "width": 800,
+              "height": 3,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#5B9BD5",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "shape_IH9pSlBo",
+              "type": "shape",
+              "left": 60,
+              "top": 155,
+              "width": 880,
+              "height": 80,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#E8F0FE",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_dJW_4Qv_",
+              "type": "text",
+              "left": 80,
+              "top": 171,
+              "width": 840,
+              "height": 49,
+              "content": "<p style=\"font-size:18px; text-align:center;\">等式性质：等式两边同时加（或减）同一个数，等式仍然成立</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#1E40AF",
+              "rotate": 0
+            },
+            {
+              "id": "shape_a2PFK9aQ",
+              "type": "shape",
+              "left": 60,
+              "top": 270,
+              "width": 220,
+              "height": 160,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#DBEAFE",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_4QfwK7wj",
+              "type": "text",
+              "left": 80,
+              "top": 282,
+              "width": 180,
+              "height": 43,
+              "content": "<p style=\"font-size:14px; text-align:center;\">① 原方程</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#1E40AF",
+              "rotate": 0
+            },
+            {
+              "id": "latex_NyIuNNgw",
+              "type": "latex",
+              "left": 80,
+              "top": 348,
+              "width": 180,
+              "height": 60,
+              "latex": "x + 3 = 8",
+              "color": "#1E3A8A",
+              "align": "center",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.6667em;vertical-align:-0.0833em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">+</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">3</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">8</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "shape_SypGuMFw",
+              "type": "shape",
+              "left": 370,
+              "top": 270,
+              "width": 220,
+              "height": 160,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#FEF3C7",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_rREfHliP",
+              "type": "text",
+              "left": 390,
+              "top": 282,
+              "width": 180,
+              "height": 43,
+              "content": "<p style=\"font-size:14px; text-align:center;\">② 移项后：+3变−3</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#B45309",
+              "rotate": 0
+            },
+            {
+              "id": "latex_ICvyiYjq",
+              "type": "latex",
+              "left": 390,
+              "top": 348,
+              "width": 180,
+              "height": 60,
+              "latex": "x = 8 - 3",
+              "color": "#92400E",
+              "align": "center",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.7278em;vertical-align:-0.0833em;\"></span><span class=\"mord\">8</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span><span class=\"mbin\">−</span><span class=\"mspace\" style=\"margin-right:0.2222em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">3</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "shape_gvPyEN0f",
+              "type": "shape",
+              "left": 680,
+              "top": 270,
+              "width": 220,
+              "height": 160,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#DCFCE7",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_GSXhZo8P",
+              "type": "text",
+              "left": 730,
+              "top": 282,
+              "width": 180,
+              "height": 43,
+              "content": "<p style=\"font-size:14px; text-align:center;\">③ 解得</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#166534",
+              "rotate": 0
+            },
+            {
+              "id": "latex_WoqAw9FT",
+              "type": "latex",
+              "left": 730,
+              "top": 348,
+              "width": 180,
+              "height": 60,
+              "latex": "x = 5",
+              "color": "#166534",
+              "align": "center",
+              "html": "<span class=\"katex-display\"><span class=\"katex\"><span class=\"katex-html\" aria-hidden=\"true\"><span class=\"base\"><span class=\"strut\" style=\"height:0.4306em;\"></span><span class=\"mord mathnormal\">x</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span><span class=\"mrel\">=</span><span class=\"mspace\" style=\"margin-right:0.2778em;\"></span></span><span class=\"base\"><span class=\"strut\" style=\"height:0.6444em;\"></span><span class=\"mord\">5</span></span></span></span></span>",
+              "fixedRatio": true,
+              "rotate": 0
+            },
+            {
+              "id": "text_x4GNR5it",
+              "type": "text",
+              "left": 280,
+              "top": 288,
+              "width": 90,
+              "height": 43,
+              "content": "<p style=\"font-size:14px; text-align:center;\">两边同减3</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#4B5563",
+              "rotate": 0
+            },
+            {
+              "id": "line_oXhqJi8G",
+              "type": "line",
+              "left": 305,
+              "top": 350,
+              "width": 3,
+              "start": [
+                0,
+                0
+              ],
+              "end": [
+                40,
+                0
+              ],
+              "style": "solid",
+              "color": "#6B7280",
+              "points": [
+                "",
+                "arrow"
+              ],
+              "rotate": 0
+            },
+            {
+              "id": "text_nFf6TnX5",
+              "type": "text",
+              "left": 605,
+              "top": 288,
+              "width": 60,
+              "height": 43,
+              "content": "<p style=\"font-size:14px; text-align:center;\">化简</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#4B5563",
+              "rotate": 0
+            },
+            {
+              "id": "line_j5i6tEp3",
+              "type": "line",
+              "left": 615,
+              "top": 350,
+              "width": 3,
+              "start": [
+                0,
+                0
+              ],
+              "end": [
+                40,
+                0
+              ],
+              "style": "solid",
+              "color": "#6B7280",
+              "points": [
+                "",
+                "arrow"
+              ],
+              "rotate": 0
+            },
+            {
+              "id": "shape_7d2zPQMf",
+              "type": "shape",
+              "left": 60,
+              "top": 460,
+              "width": 880,
+              "height": 50,
+              "path": "M 0 0 L 1 0 L 1 1 L 0 1 Z",
+              "viewBox": [
+                1,
+                1
+              ],
+              "fill": "#1E40AF",
+              "fixedRatio": false,
+              "rotate": 0
+            },
+            {
+              "id": "text_5NnDTADA",
+              "type": "text",
+              "left": 80,
+              "top": 461,
+              "width": 840,
+              "height": 49,
+              "content": "<p style=\"font-size:18px; text-align:center; color:#FFFFFF;\">结论：移项要变号，本质是两边同时做相反运算</p>",
+              "defaultFontName": "Microsoft YaHei",
+              "defaultColor": "#FFFFFF",
+              "rotate": 0
+            }
+          ],
+          "background": {
+            "type": "solid",
+            "color": "#ffffff"
+          }
+        }
+      }
+    },
+    {
+      "id": "scene_o1z3O35bg1",
+      "stageId": "4DuyVUkWv3",
+      "title": "互动探索：天平与方程",
+      "order": 4,
+      "actions": [
+        {
+          "id": "action_AsYZuMNs",
+          "type": "speech",
+          "text": "同学们好！今天我们不急着背“移项变号”的规则，先用天平亲手感受一下，等式的平衡到底是怎么一回事。"
+        },
+        {
+          "id": "action_Bv3iRTPl",
+          "type": "widget_highlight",
+          "target": "#mainBtn",
+          "content": "点击“开始”按钮，载入基础方程。"
+        },
+        {
+          "id": "action__jLQMPcH",
+          "type": "widget_highlight",
+          "target": "#equationPreview",
+          "content": "天平上方会同步显示当前对应的方程。"
+        },
+        {
+          "id": "action_kRVgWVeH",
+          "type": "speech",
+          "text": "开始之后，你会看到天平左边是 3 个 x 加 2 个砝码，右边是 1 个 x 加 6 个砝码；现在天平正好平衡，对应的方程就是 3x+2=x+6。"
+        },
+        {
+          "id": "action_cGnAa87L",
+          "type": "widget_highlight",
+          "target": "#add-btn",
+          "content": "点击这里，为两边同时加上同一个数。"
+        },
+        {
+          "id": "action_O6MfZ1Ev",
+          "type": "speech",
+          "text": "点几次“加砝码”试试看：只要两边加的一样多，天平就不会倾斜，等式也不会被破坏。"
+        },
+        {
+          "id": "action_eofb5TAC",
+          "type": "widget_highlight",
+          "target": "#remove-x-btn",
+          "content": "再点击这里，从两边同时去掉一个 x，观察移项过程。"
+        },
+        {
+          "id": "action_JjMnrkWv",
+          "type": "speech",
+          "text": "注意看，当右边的 x 被移到左边时，它在方程里就变成了“减去 x”。所以移项要变号，不是死记硬背的规则，而是因为两边必须做完全相同的操作，天平才能继续保持平衡。"
+        }
+      ],
+      "outlineId": "scene_4",
+      "createdAt": 1787579526012,
+      "updatedAt": 1787579526012,
+      "type": "interactive",
+      "content": {
+        "type": "interactive",
+        "url": "",
+        "html": "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes\">\n<title>等式天平平衡 - 互动模拟</title>\n<script type=\"application/json\" id=\"widget-config\">\n{\n  \"type\": \"simulation\",\n  \"concept\": \"equation_balance_scale\",\n  \"description\": \"学生通过模拟天平操作，直观感受两边同时加减同一个数时等式保持平衡，并自己总结移项变号的原因。\",\n  \"variables\": [\n    { \"name\": \"leftX\", \"label\": \"左边x的系数\", \"min\": 0, \"max\": 5, \"default\": 3, \"unit\": \"\" },\n    { \"name\": \"leftC\", \"label\": \"左边常数\", \"min\": 0, \"max\": 12, \"default\": 2, \"unit\": \"\" },\n    { \"name\": \"rightX\", \"label\": \"右边x的系数\", \"min\": 0, \"max\": 5, \"default\": 1, \"unit\": \"\" },\n    { \"name\": \"rightC\", \"label\": \"右边常数\", \"min\": 0, \"max\": 12, \"default\": 6, \"unit\": \"\" },\n    { \"name\": \"xVal\", \"label\": \"x的值\", \"min\": 0, \"max\": 10, \"default\": 3, \"unit\": \"\" },\n    { \"name\": \"addVal\", \"label\": \"两边同时加减的数\", \"min\": 1, \"max\": 5, \"default\": 2, \"unit\": \"\" }\n  ],\n  \"presets\": [\n    { \"name\": \"基础方程 3x+2=x+6\", \"variables\": { \"leftX\": 3, \"leftC\": 2, \"rightX\": 1, \"rightC\": 6, \"xVal\": 3, \"addVal\": 2 } },\n    { \"name\": \"简单方程 2x+1=x+5\", \"variables\": { \"leftX\": 2, \"leftC\": 1, \"rightX\": 1, \"rightC\": 5, \"xVal\": 4, \"addVal\": 1 } },\n    { \"name\": \"移项体验 x+3=7\", \"variables\": { \"leftX\": 1, \"leftC\": 3, \"rightX\": 0, \"rightC\": 7, \"xVal\": 4, \"addVal\": 3 } },\n    { \"name\": \"同一变量 5x=2x+6\", \"variables\": { \"leftX\": 5, \"leftC\": 0, \"rightX\": 2, \"rightC\": 6, \"xVal\": 2, \"addVal\": 2 } }\n  ]\n}\n</script>\n<style>\n* { box-sizing: border-box; margin: 0; padding: 0; }\nhtml, body { height: 100%; font-family: \"PingFang SC\", \"Microsoft YaHei\", \"Helvetica Neue\", sans-serif; background: #f0fdf4; touch-action: manipulation; }\n.app { display: flex; flex-direction: column; min-height: 100vh; }\n@media (min-width: 768px) { .app { flex-direction: row; } }\n.controls-panel { width: 100%; max-height: 45vh; overflow-y: auto; padding: 14px; background: #fafaf9; border-bottom: 1px solid #e7e5e4; order: 2; z-index: 10; }\n@media (min-width: 768px) { .controls-panel { width: 320px; max-height: 100vh; border-right: 1px solid #e7e5e4; border-bottom: none; order: 1; flex-shrink: 0; } }\n.canvas-area { flex: 1; min-height: 55vh; position: relative; order: 1; background: linear-gradient(135deg, #f0fdf4, #d1fae5); }\n@media (min-width: 768px) { .canvas-area { min-height: 100vh; order: 2; } }\n#canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }\n.equation-overlay { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.92); padding: 8px 18px; border-radius: 14px; font-size: 18px; font-weight: 700; color: #1e293b; box-shadow: 0 2px 10px rgba(0,0,0,0.1); white-space: nowrap; z-index: 5; pointer-events: none; letter-spacing: 1px; border: 1.5px solid #c7d2fe; }\n.status-overlay { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.9); padding: 8px 16px; border-radius: 12px; font-size: 13px; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center; z-index: 5; pointer-events: none; max-width: 90%; }\n.toast { position: fixed; top: 20px; left: 50%; transform: translate(-50%, -100px); background: #4f46e5; color: #fff; padding: 12px 24px; border-radius: 999px; font-size: 15px; font-weight: 600; z-index: 999; box-shadow: 0 8px 24px rgba(0,0,0,0.25); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); pointer-events: none; text-align: center; max-width: 90%; }\n.toast.show { transform: translate(-50%, 0); }\n.card { border-radius: 14px; background: #fff; padding: 12px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #f0f0f0; }\n.card-title { font-size: 13px; font-weight: 700; color: #6d28d9; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }\n.slider-row { margin-bottom: 10px; }\n.slider-label { display: flex; justify-content: space-between; font-size: 12px; color: #374151; margin-bottom: 2px; }\n.slider-label .val { font-weight: 700; font-family: ui-monospace, monospace; color: #4f46e5; }\ninput[type=\"range\"] { width: 100%; height: 28px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }\ninput[type=\"range\"]::-webkit-slider-runnable-track { height: 6px; background: #e2e8f0; border-radius: 3px; }\ninput[type=\"range\"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #7c3aed; border: 3px solid #ddd6fe; box-shadow: 0 2px 6px rgba(0,0,0,0.2); margin-top: -8px; touch-action: manipulation; }\ninput[type=\"range\"]::-moz-range-track { height: 6px; background: #e2e8f0; border-radius: 3px; }\ninput[type=\"range\"]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #7c3aed; border: 3px solid #ddd6fe; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }\n.btn { min-height: 44px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 12px; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }\n.btn:active { transform: scale(0.96); }\n.btn:focus { outline: 2px solid #a78bfa; outline-offset: 2px; }\n.btn-green { background: #10b981; color: #fff; }\n.btn-rose { background: #f43f5e; color: #fff; }\n.btn-blue { background: #3b82f6; color: #fff; }\n.btn-indigo { background: #6366f1; color: #fff; }\n.btn-gray { background: #6b7280; color: #fff; }\n.btn-amber { background: #f59e0b; color: #fff; }\n.preset-btn { flex: 1 1 45%; min-height: 44px; border: 1.5px solid #c7d2fe; background: #eef2ff; color: #4338ca; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 8px; transition: all 0.2s; }\n.preset-btn:active { background: #e0e7ff; transform: scale(0.97); }\n.preset-btn:focus { outline: 2px solid #a78bfa; outline-offset: 2px; }\n.history-item { font-size: 12px; color: #475569; padding: 3px 8px; border-radius: 6px; background: #f1f5f9; margin-bottom: 4px; font-family: ui-monospace, monospace; }\n.equation-preview { background: #f5f3ff; border-radius: 10px; padding: 10px 14px; text-align: center; font-size: 19px; font-weight: 700; color: #5b21b6; margin-bottom: 6px; letter-spacing: 1px; border: 1.5px dashed #c4b5fd; }\n.help-text { font-size: 11px; color: #94a3b8; margin-top: 4px; line-height: 1.5; }\n.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }\n.main-btn { width: 100%; min-height: 48px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.15); margin-bottom: 10px; }\n.main-btn:active { transform: scale(0.96); }\n.main-btn.start { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }\n.main-btn.pause { background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; }\n.main-btn.resume { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }\n.main-btn.reset { background: linear-gradient(135deg, #f43f5e, #e11d48); color: #fff; }\n.balance-icon { font-size: 28px; }\nh1 { font-size: 18px; font-weight: 800; color: #4c1d95; margin-bottom: 4px; }\n.subtitle { font-size: 12px; color: #6b7280; margin-bottom: 12px; }\n@media (max-width: 767px) {\n  .controls-panel { max-height: 42vh; }\n  h1 { font-size: 16px; }\n  .equation-overlay { font-size: 15px; padding: 6px 12px; }\n}\n</style>\n\n<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css\">\n<script src=\"https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js\"></script>\n<script src=\"https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js\"></script>\n<script>\ndocument.addEventListener(\"DOMContentLoaded\", function() {\n    const katexOptions = {\n        delimiters: [\n            {left: '\\\\[', right: '\\\\]', display: true},\n            {left: '\\\\(', right: '\\\\)', display: false},\n            {left: '$$', right: '$$', display: true},\n            {left: '$', right: '$', display: false}\n        ],\n        throwOnError: false,\n        strict: false,\n        trust: true\n    };\n\n    let renderTimeout;\n    function safeRender() {\n        if (renderTimeout) clearTimeout(renderTimeout);\n        renderTimeout = setTimeout(() => {\n            renderMathInElement(document.body, katexOptions);\n        }, 100);\n    }\n\n    renderMathInElement(document.body, katexOptions);\n\n    const observer = new MutationObserver((mutations) => {\n        let shouldRender = false;\n        mutations.forEach((mutation) => {\n            if (mutation.target &&\n                mutation.target.className &&\n                typeof mutation.target.className === 'string' &&\n                mutation.target.className.includes('katex')) {\n                return;\n            }\n            shouldRender = true;\n        });\n\n        if (shouldRender) {\n            safeRender();\n        }\n    });\n\n    observer.observe(document.body, {\n        childList: true,\n        subtree: true,\n        characterData: true\n    });\n\n    setInterval(() => {\n        const text = document.body.innerText;\n        if (text.includes('\\\\(') || text.includes('$$')) {\n            safeRender();\n        }\n    }, 2000);\n});\n</script>\n</head>\n<body>\n<div class=\"app\">\n  <!-- 控制面板 -->\n  <div class=\"controls-panel\" id=\"controlsPanel\">\n    <h1>⚖ 等式天平平衡</h1>\n    <div class=\"subtitle\">体验等式性质，理解移项变号</div>\n\n    <button id=\"mainBtn\" class=\"main-btn start\">▶ 自动演示</button>\n\n    <div class=\"card\">\n      <div class=\"equation-preview\" id=\"equationPreview\">3x + 2 = x + 6</div>\n\n      <div class=\"slider-row\">\n        <div class=\"slider-label\"><span>左边 x 的系数</span><span class=\"val\" id=\"leftX-label\">3</span></div>\n        <input type=\"range\" id=\"leftX-slider\" min=\"0\" max=\"5\" step=\"1\" value=\"3\" data-var=\"leftX\">\n      </div>\n      <div class=\"slider-row\">\n        <div class=\"slider-label\"><span>左边 常数项</span><span class=\"val\" id=\"leftC-label\">2</span></div>\n        <input type=\"range\" id=\"leftC-slider\" min=\"0\" max=\"12\" step=\"1\" value=\"2\" data-var=\"leftC\">\n      </div>\n      <div class=\"slider-row\">\n        <div class=\"slider-label\"><span>右边 x 的系数</span><span class=\"val\" id=\"rightX-label\">1</span></div>\n        <input type=\"range\" id=\"rightX-slider\" min=\"0\" max=\"5\" step=\"1\" value=\"1\" data-var=\"rightX\">\n      </div>\n      <div class=\"slider-row\">\n        <div class=\"slider-label\"><span>右边 常数项</span><span class=\"val\" id=\"rightC-label\">6</span></div>\n        <input type=\"range\" id=\"rightC-slider\" min=\"0\" max=\"12\" step=\"1\" value=\"6\" data-var=\"rightC\">\n      </div>\n      <div class=\"slider-row\">\n        <div class=\"slider-label\"><span>x 的值（试值）</span><span class=\"val\" id=\"xVal-label\">3</span></div>\n        <input type=\"range\" id=\"xVal-slider\" min=\"0\" max=\"10\" step=\"0.5\" value=\"3\" data-var=\"xVal\">\n      </div>\n      <div class=\"help-text\">拖动 x 的值，观察天平倾斜。天平平衡时就是方程的解！</div>\n    </div>\n\n    <div class=\"card\">\n      <div class=\"card-title\">🧮 两边同时操作</div>\n      <div class=\"slider-row\">\n        <div class=\"slider-label\"><span>同时加/减的数</span><span class=\"val\" id=\"addVal-label\">2</span></div>\n        <input type=\"range\" id=\"addVal-slider\" min=\"1\" max=\"5\" step=\"1\" value=\"2\" data-var=\"addVal\">\n      </div>\n      <div class=\"btn-row\">\n        <button id=\"add-btn\" class=\"btn btn-green\">同时加 2</button>\n        <button id=\"subtract-btn\" class=\"btn btn-rose\">同时减 2</button>\n      </div>\n      <div class=\"btn-row\">\n        <button id=\"remove-x-btn\" class=\"btn btn-blue\">两边同时减 x</button>\n      </div>\n      <div class=\"btn-row\">\n        <button id=\"reset-btn\" class=\"btn btn-gray\">恢复初始</button>\n      </div>\n      <div class=\"help-text\">操作会同时作用于两边，天平balance保持！这就是等式性质。</div>\n    </div>\n\n    <div class=\"card\">\n      <div class=\"card-title\">📋 预设场景</div>\n      <div class=\"btn-row\">\n        <button class=\"preset-btn\" data-preset-index=\"0\">基础方程<br>3x+2=x+6</button>\n        <button class=\"preset-btn\" data-preset-index=\"1\">简单方程<br>2x+1=x+5</button>\n      </div>\n      <div class=\"btn-row\">\n        <button class=\"preset-btn\" data-preset-index=\"2\">移项体验<br>x+3=7</button>\n        <button class=\"preset-btn\" data-preset-index=\"3\">同一变量<br>5x=2x+6</button>\n      </div>\n    </div>\n\n    <div class=\"card\">\n      <div class=\"card-title\">📝 操作记录</div>\n      <div id=\"historyList\">\n        <div class=\"history-item\" style=\"color:#94a3b8;\">暂无操作</div>\n      </div>\n    </div>\n  </div>\n\n  <!-- 画布区 -->\n  <div class=\"canvas-area\" id=\"canvasArea\">\n    <canvas id=\"canvas\"></canvas>\n    <div class=\"equation-overlay\" id=\"equationOverlay\">3x + 2 = x + 6</div>\n    <div class=\"status-overlay\" id=\"statusOverlay\">拖动 x 的值找平衡点</div>\n  </div>\n</div>\n\n<div class=\"toast\" id=\"toast\"></div>\n\n<script>\n(function(){\n  'use strict';\n\n  // ====== 状态 ======\n  let initialEquation = { leftX: 3, leftC: 2, rightX: 1, rightC: 6 };\n  let eq = { ...initialEquation };\n  let xVal = 3;\n  let addVal = 2;\n  let history = [];\n\n  // 演示状态\n  let demo = { running: false, paused: false, ended: false, stepIndex: 0 };\n  let demoTimer = null;\n  let demoSteps = [];\n\n  // 动画/脉冲\n  let pulseAmount = 0;\n  let animFrameId = null;\n\n  // ====== 元素 ======\n  const $ = id => document.getElementById(id);\n  const canvas = $('canvas');\n  const ctx = canvas.getContext('2d');\n\n  // ====== 配置 ======\n  const config = JSON.parse(document.getElementById('widget-config').textContent);\n\n  // ====== 工具函数 ======\n  function roundRect(x, y, w, h, r) {\n    ctx.beginPath();\n    ctx.moveTo(x + r, y);\n    ctx.arcTo(x + w, y, x + w, y + h, r);\n    ctx.arcTo(x + w, y + h, x, y + h, r);\n    ctx.arcTo(x, y + h, x, y, r);\n    ctx.arcTo(x, y, x + w, y, r);\n    ctx.closePath();\n  }\n\n  function formatSide(xc, c) {\n    let s = '';\n    if (xc > 0) s += (xc === 1 ? 'x' : xc + 'x');\n    if (c > 0) s += (s ? ' + ' : '') + c;\n    if (!s) s = '0';\n    return s;\n  }\n\n  function formatEquation() {\n    return formatSide(eq.leftX, eq.leftC) + ' = ' + formatSide(eq.rightX, eq.rightC);\n  }\n\n  function leftWeight() { return eq.leftX * xVal + eq.leftC; }\n  function rightWeight() { return eq.rightX * xVal + eq.rightC; }\n  function isBalanced() { return Math.abs(leftWeight() - rightWeight()) < 0.05; }\n\n  // ====== Toast ======\n  let toastTimer = null;\n  function showToast(msg, dur) {\n    const el = $('toast');\n    el.textContent = msg;\n    el.classList.add('show');\n    clearTimeout(toastTimer);\n    toastTimer = setTimeout(() => el.classList.remove('show'), dur || 2600);\n  }\n\n  // ====== 滑块同步 ======\n  function syncSlidersFromEquation() {\n    $('leftX-slider').value = eq.leftX;\n    $('leftC-slider').value = eq.leftC;\n    $('rightX-slider').value = eq.rightX;\n    $('rightC-slider').value = eq.rightC;\n    updateLabels();\n  }\n\n  function syncSlidersFromState() {\n    $('leftX-slider').value = eq.leftX;\n    $('leftC-slider').value = eq.leftC;\n    $('rightX-slider').value = eq.rightX;\n    $('rightC-slider').value = eq.rightC;\n    $('xVal-slider').value = xVal;\n    $('addVal-slider').value = addVal;\n    updateLabels();\n  }\n\n  function updateLabels() {\n    $('leftX-label').textContent = eq.leftX;\n    $('leftC-label').textContent = eq.leftC;\n    $('rightX-label').textContent = eq.rightX;\n    $('rightC-label').textContent = eq.rightC;\n    $('xVal-label').textContent = xVal;\n    $('addVal-label').textContent = addVal;\n    $('equationPreview').textContent = formatEquation();\n    $('add-btn').textContent = '同时加 ' + addVal;\n    $('subtract-btn').textContent = '同时减 ' + addVal;\n    $('equationOverlay').textContent = formatEquation();\n    updateStatus();\n    updateHistoryUI();\n  }\n\n  function updateStatus() {\n    const el = $('statusOverlay');\n    const lw = leftWeight();\n    const rw = rightWeight();\n    if (isBalanced()) {\n      el.innerHTML = '✔ 天平平衡！<b style=\"color:#059669\">x = ' + xVal + '</b> 是方程的解！';\n      el.style.background = 'rgba(236,253,245,0.95)';\n      el.style.border = '1.5px solid #10b981';\n    } else if (lw > rw) {\n      el.innerHTML = '左边重（<b>'+Math.round(lw)+'</b> vs '+Math.round(rw)+'）→ 天平左倾';\n      el.style.background = 'rgba(255,255,255,0.9)';\n      el.style.border = '1.5px solid #fca5a5';\n    } else {\n      el.innerHTML = '右边重（'+Math.round(lw)+' vs <b>'+Math.round(rw)+'</b>）→ 天平右倾';\n      el.style.background = 'rgba(255,255,255,0.9)';\n      el.style.border = '1.5px solid #fca5a5';\n    }\n    el.innerHTML += '<br><span style=\"font-size:11px;color:#94a3b8;\">左边=' + lw + '，右边=' + rw + '，天平差值=' + Math.abs(Math.round((lw-rw)*10)/10) + '</span>';\n  }\n\n  function updateHistoryUI() {\n    const list = $('historyList');\n    if (history.length === 0) {\n      list.innerHTML = '<div class=\"history-item\" style=\"color:#94a3b8;\">暂无操作</div>';\n      return;\n    }\n    list.innerHTML = history.map((h, i) => `<div class=\"history-item\">${i+1}. ${h}</div>`).join('');\n  }\n\n  // ====== 操作 ======\n  function applyOperation(type) {\n    if (demo.running || demo.paused) cancelDemo();\n\n    if (type === 'add') {\n      eq.leftC += addVal;\n      eq.rightC += addVal;\n      history.push('两边同时加 ' + addVal);\n    } else if (type === 'subtract') {\n      if (eq.leftC < addVal || eq.rightC < addVal) {\n        showToast('⚠ 有一个盘的常数不够减 ' + addVal + '，无法保持非负');\n        return;\n      }\n      eq.leftC -= addVal;\n      eq.rightC -= addVal;\n      history.push('两边同时减 ' + addVal);\n    } else if (type === 'remove_x') {\n      if (eq.leftX < 1 || eq.rightX < 1) {\n        showToast('⚠ 有一个盘没有 x 可以减');\n        return;\n      }\n      eq.leftX -= 1;\n      eq.rightX -= 1;\n      history.push('两边同时减 x');\n    }\n    syncSlidersFromEquation();\n    triggerPulse();\n    draw();\n    showToast('操作后：' + formatEquation());\n  }\n\n  function resetEquation() {\n    eq = { ...initialEquation };\n    history = [];\n    syncSlidersFromEquation();\n    if (!demo.ended) {\n      // 不改变 x 值，让用户体验\n    }\n    draw();\n    showToast('已恢复初始方程：' + formatEquation());\n  }\n\n  function applyPreset(idx) {\n    cancelDemo();\n    const p = config.presets[idx].variables;\n    initialEquation = { leftX: p.leftX, leftC: p.leftC, rightX: p.rightX, rightC: p.rightC };\n    eq = { ...initialEquation };\n    xVal = p.xVal;\n    addVal = p.addVal;\n    history = [];\n    syncSlidersFromState();\n    draw();\n    showToast('已载入：' + config.presets[idx].name);\n  }\n\n  // ====== 自动演示 ======\n  function cancelDemo() {\n    clearTimeout(demoTimer);\n    demo.running = false;\n    demo.paused = false;\n    demo.ended = false;\n    demo.stepIndex = 0;\n    demoSteps = [];\n    $('mainBtn').className = 'main-btn start';\n    $('mainBtn').textContent = '▶ 自动演示';\n  }\n\n  function generateDemoSteps() {\n    const steps = [];\n    const e = { ...eq };\n    steps.push({ type: 'msg', text: '原方程：' + formatSide(e.leftX, e.leftC) + ' = ' + formatSide(e.rightX, e.rightC) });\n\n    const minC = Math.min(e.leftC, e.rightC);\n    if (minC > 0) {\n      steps.push({ type: 'subtract_const', value: minC });\n      e.leftC -= minC;\n      e.rightC -= minC;\n      steps.push({ type: 'msg', text: '两边同时减 ' + minC + '：' + formatSide(e.leftX, e.leftC) + ' = ' + formatSide(e.rightX, e.rightC) });\n      steps.push({ type: 'wait' });\n    }\n\n    const minX = Math.min(e.leftX, e.rightX);\n    if (minX > 0) {\n      steps.push({ type: 'subtract_x', value: minX });\n      e.leftX -= minX;\n      e.rightX -= minX;\n      steps.push({ type: 'msg', text: '两边同时减 x（' + minX + '个）：' + formatSide(e.leftX, e.leftC) + ' = ' + formatSide(e.rightX, e.rightC) });\n      steps.push({ type: 'wait' });\n    }\n\n    if (e.leftX > 0) {\n      const sol = Math.round(e.rightC / e.leftX * 10) / 10;\n      steps.push({ type: 'set_x', value: sol });\n      steps.push({ type: 'msg', text: '解得 x = ' + sol + '！' });\n      steps.push({ type: 'wait' });\n    } else {\n      steps.push({ type: 'msg', text: '0·x = ' + e.rightC + '，无唯一解' });\n      steps.push({ type: 'wait' });\n    }\n    return steps;\n  }\n\n  function startDemo() {\n    if (!demo.running && !demo.paused && !demo.ended) {\n      // 从初始状态开始\n      resetEquation();\n    }\n    demo.running = true;\n    demo.paused = false;\n    demo.ended = false;\n    demo.stepIndex = 0;\n    demoSteps = generateDemoSteps();\n    $('mainBtn').className = 'main-btn pause';\n    $('mainBtn').textContent = '⏸ 暂停演示';\n    runNextDemoStep();\n  }\n\n  function pauseDemo() {\n    demo.running = false;\n    demo.paused = true;\n    clearTimeout(demoTimer);\n    $('mainBtn').className = 'main-btn resume';\n    $('mainBtn').textContent = '▶ 继续演示';\n  }\n\n  function resumeDemo() {\n    demo.running = true;\n    demo.paused = false;\n    $('mainBtn').className = 'main-btn pause';\n    $('mainBtn').textContent = '⏸ 暂停演示';\n    demoTimer = setTimeout(runNextDemoStep, 800);\n  }\n\n  function runNextDemoStep() {\n    if (!demo.running) return;\n    if (demo.stepIndex >= demoSteps.length) {\n      demo.running = false;\n      demo.paused = false;\n      demo.ended = true;\n      $('mainBtn').className = 'main-btn reset';\n      $('mainBtn').textContent = '🔄 重新演示';\n      showToast('✨ 演示完成！总结：方程两边同时加减同一个数，等式仍然成立。', 4000);\n      draw();\n      return;\n    }\n    const step = demoSteps[demo.stepIndex++];\n    applyDemoStep(step);\n    demoTimer = setTimeout(runNextDemoStep, step.type === 'msg' ? 1300 : 900);\n  }\n\n  function applyDemoStep(step) {\n    if (step.type === 'msg') {\n      showToast(step.text, 1800);\n    } else if (step.type === 'subtract_const') {\n      eq.leftC -= step.value;\n      eq.rightC -= step.value;\n      history.push('两边同时减 ' + step.value);\n      syncSlidersFromEquation();\n      triggerPulse();\n    } else if (step.type === 'subtract_x') {\n      eq.leftX -= step.value;\n      eq.rightX -= step.value;\n      history.push('两边同时减 x(' + step.value + '个)');\n      syncSlidersFromEquation();\n      triggerPulse();\n    } else if (step.type === 'set_x') {\n      xVal = step.value;\n      $('xVal-slider').value = xVal;\n      $('xVal-label').textContent = xVal;\n      triggerPulse();\n    } else if (step.type === 'wait') {\n      // 等待一个间隔\n    }\n    draw();\n  }\n\n  function handleMainBtn() {\n    if (demo.ended) {\n      cancelDemo();\n      resetEquation();\n      startDemo();\n    } else if (demo.running) {\n      pauseDemo();\n    } else if (demo.paused) {\n      resumeDemo();\n    } else {\n      startDemo();\n    }\n  }\n\n  // ====== 绘制 ======\n  function resizeCanvas() {\n    const container = $('canvasArea');\n    const dpr = window.devicePixelRatio || 1;\n    const w = container.clientWidth;\n    const h = container.clientHeight;\n    canvas.width = Math.round(w * dpr);\n    canvas.height = Math.round(h * dpr);\n    canvas.style.width = w + 'px';\n    canvas.style.height = h + 'px';\n    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);\n    draw();\n  }\n\n  function draw() {\n    const w = canvas.clientWidth;\n    const h = canvas.clientHeight;\n    if (w === 0 || h === 0) return;\n\n    ctx.clearRect(0, 0, w, h);\n\n    // 背景网格\n    ctx.strokeStyle = 'rgba(0,0,0,0.04)';\n    ctx.lineWidth = 1;\n    for (let gx = 0; gx < w; gx += 40) {\n      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke();\n    }\n    for (let gy = 0; gy < h; gy += 40) {\n      ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke();\n    }\n\n    // 计算天平几何\n    const cx = w * 0.5;\n    const cy = h * 0.52;\n    const beamLen = Math.min(w * 0.33, 270);\n\n    const lw = leftWeight();\n    const rw = rightWeight();\n    const maxDiff = Math.max(Math.abs(lw), Math.abs(rw), 10);\n    const tiltRatio = (rw - lw) / maxDiff;\n    const tilt = Math.max(-0.28, Math.min(0.28, tiltRatio * 0.22));\n    const cosT = Math.cos(tilt);\n    const sinT = Math.sin(tilt);\n\n    // 平衡时金色光晕\n    if (isBalanced()) {\n      ctx.save();\n      const glowR = 90 + Math.sin(Date.now() / 400) * 14;\n      const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, glowR);\n      grad.addColorStop(0, 'rgba(245, 158, 11, 0.35)');\n      grad.addColorStop(1, 'rgba(245, 158, 11, 0)');\n      ctx.fillStyle = grad;\n      ctx.beginPath();\n      ctx.arc(cx, cy, glowR, 0, Math.PI * 2);\n      ctx.fill();\n      ctx.restore();\n    }\n\n    // 脉冲效果\n    if (pulseAmount > 0.02) {\n      ctx.save();\n      ctx.globalAlpha = pulseAmount * 0.6;\n      const pr = 40 + (1 - pulseAmount) * 100;\n      ctx.strokeStyle = '#8b5cf6';\n      ctx.lineWidth = 3;\n      ctx.beginPath();\n      ctx.arc(cx, cy, pr, 0, Math.PI * 2);\n      ctx.stroke();\n      ctx.restore();\n    }\n\n    // 底座（三角形）\n    ctx.fillStyle = '#7c3aed';\n    ctx.beginPath();\n    ctx.moveTo(cx, cy);\n    ctx.lineTo(cx - 24, cy + 58);\n    ctx.lineTo(cx + 24, cy + 58);\n    ctx.closePath();\n    ctx.fill();\n    ctx.strokeStyle = '#5b21b6';\n    ctx.lineWidth = 2;\n    ctx.stroke();\n\n    // 底座装饰线\n    ctx.fillStyle = '#fbbf24';\n    ctx.fillRect(cx - 18, cy + 8, 36, 4);\n    ctx.fillStyle = '#fecaca';\n    ctx.fillRect(cx - 17, cy + 15, 34, 2);\n\n    // 支撑柱\n    ctx.fillStyle = '#8b5e3c';\n    ctx.fillRect(cx - 6, cy - 35, 12, 35);\n    ctx.strokeStyle = '#5c3a21';\n    ctx.strokeRect(cx - 6, cy - 35, 12, 35);\n\n    // 横梁（旋转）\n    ctx.save();\n    ctx.translate(cx, cy);\n    ctx.rotate(tilt);\n    ctx.fillStyle = '#92400e';\n    roundRect(-beamLen, -6, beamLen * 2, 12, 6);\n    ctx.fill();\n    ctx.strokeStyle = '#78350f';\n    ctx.lineWidth = 1.5;\n    roundRect(-beamLen, -6, beamLen * 2, 12, 6);\n    ctx.stroke();\n    // 横梁装饰\n    ctx.fillStyle = '#fbbf24';\n    for (let i = -2; i <= 2; i++) {\n      ctx.fillRect(i * beamLen / 2.4 - 3, -2, 6, 4);\n    }\n    ctx.restore();\n\n    // 枢轴点\n    ctx.fillStyle = '#fbbf24';\n    ctx.beginPath();\n    ctx.arc(cx, cy, 9, 0, Math.PI * 2);\n    ctx.fill();\n    ctx.strokeStyle = '#92400e';\n    ctx.lineWidth = 2;\n    ctx.stroke();\n\n    // 秤盘位置\n    const leftPanX = cx - beamLen * cosT;\n    const leftPanY = cy - beamLen * sinT;\n    const rightPanX = cx + beamLen * cosT;\n    const rightPanY = cy + beamLen * sinT;\n\n    // 左盘\n    drawPan(ctx, leftPanX, leftPanY, eq.leftX, eq.leftC, lw);\n    // 右盘\n    drawPan(ctx, rightPanX, rightPanY, eq.rightX, eq.rightC, rw);\n\n    // 平衡状态显示\n    if (isBalanced()) {\n      ctx.fillStyle = '#059669';\n      ctx.font = 'bold 22px sans-serif';\n      ctx.textAlign = 'center';\n      ctx.textBaseline = 'bottom';\n      ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 500) * 0.2;\n      ctx.fillText('⚖ 平衡！', cx, cy - 60);\n      ctx.globalAlpha = 1;\n    }\n  }\n\n  function drawPan(ctx, panX, panY, xCoeff, constVal, weight) {\n    const blockSize = 26;\n    const gap = 3;\n    const maxCols = 4;\n    const chainLen = 48;\n\n    const xRows = xCoeff > 0 ? Math.ceil(xCoeff / maxCols) : 0;\n    const constRows = constVal > 0 ? Math.ceil(constVal / maxCols) : 0;\n    const totalRows = Math.max(xRows + constRows, 1);\n    const totalWidth = maxCols * blockSize + (maxCols - 1) * gap;\n    const panWidth = Math.max(120, totalWidth + 20);\n\n    const topY = panY + chainLen;\n\n    // 链条\n    ctx.strokeStyle = '#9ca3af';\n    ctx.lineWidth = 1.5;\n    ctx.beginPath();\n    ctx.moveTo(panX - panWidth / 2 + 12, panY);\n    ctx.lineTo(panX - panWidth / 2 + 12, topY - 4);\n    ctx.stroke();\n    ctx.beginPath();\n    ctx.moveTo(panX + panWidth / 2 - 12, panY);\n    ctx.lineTo(panX + panWidth / 2 - 12, topY - 4);\n    ctx.stroke();\n\n    // 连链横条\n    ctx.fillStyle = '#d1d5db';\n    ctx.fillRect(panX - panWidth / 2 + 6, panY - 2, 12, 4);\n    ctx.fillRect(panX + panWidth / 2 - 18, panY - 2, 12, 4);\n\n    // 秤盘（弧形碟）\n    ctx.fillStyle = '#d1d5db';\n    ctx.strokeStyle = '#6b7280';\n    ctx.lineWidth = 2;\n    ctx.beginPath();\n    ctx.moveTo(panX - panWidth / 2, topY);\n    ctx.quadraticCurveTo(panX, topY + 10, panX + panWidth / 2, topY);\n    ctx.lineTo(panX + panWidth / 2, topY + 6);\n    ctx.quadraticCurveTo(panX, topY + 16, panX - panWidth / 2, topY + 6);\n    ctx.closePath();\n    ctx.fill();\n    ctx.stroke();\n\n    // 砝码方块\n    let baseY = topY - 8;\n\n    // x 方块（蓝色）\n    if (xCoeff > 0) {\n      for (let i = 0; i < xCoeff; i++) {\n        const col = i % maxCols;\n        const row = Math.floor(i / maxCols);\n        const bx = panX - totalWidth / 2 + col * (blockSize + gap) + blockSize / 2;\n        const by = baseY - row * (blockSize + gap) - blockSize / 2 + 13;\n        drawBlock(ctx, bx, by, blockSize, blockSize, '#3b82f6', '#1e40af', 'x');\n      }\n      baseY -= xRows * (blockSize + gap);\n    }\n\n    // 常数方块（橙色）\n    if (constVal > 0) {\n      for (let i = 0; i < constVal; i++) {\n        const col = i % maxCols;\n        const row = Math.floor(i / maxCols);\n        const bx = panX - totalWidth / 2 + col * (blockSize + gap) + blockSize / 2;\n        const by = baseY - row * (blockSize + gap) - blockSize / 2 + 13;\n        drawBlock(ctx, bx, by, blockSize, blockSize, '#f59e0b', '#92400e', '1');\n      }\n    }\n\n    // 重量标签\n    ctx.fillStyle = 'rgba(0,0,0,0.65)';\n    ctx.font = 'bold 13px ui-monospace, monospace';\n    ctx.textAlign = 'center';\n    ctx.textBaseline = 'top';\n    ctx.fillText('= ' + Math.round(weight * 10) / 10, panX, topY + 22);\n  }\n\n  function drawBlock(ctx, x, y, w, h, fill, stroke, label) {\n    ctx.fillStyle = fill;\n    ctx.strokeStyle = stroke;\n    ctx.lineWidth = 1.5;\n    roundRect(x - w / 2, y - h / 2, w, h, 4);\n    ctx.fill();\n    ctx.stroke();\n    // 高光\n    ctx.fillStyle = 'rgba(255,255,255,0.25)';\n    roundRect(x - w / 2 + 2, y - h / 2 + 2, w - 4, h / 3, 3);\n    ctx.fill();\n    // 标签\n    ctx.fillStyle = '#ffffff';\n    ctx.font = 'bold 14px sans-serif';\n    ctx.textAlign = 'center';\n    ctx.textBaseline = 'middle';\n    ctx.fillText(label, x, y + 1);\n  }\n\n  // ====== 脉冲 ======\n  function triggerPulse() {\n    pulseAmount = 1;\n    if (animFrameId === null) {\n      animFrameId = requestAnimationFrame(pulseLoop);\n    }\n  }\n\n  function pulseLoop() {\n    if (pulseAmount > 0.02) {\n      pulseAmount *= 0.86;\n      draw();\n      animFrameId = requestAnimationFrame(pulseLoop);\n    } else {\n      pulseAmount = 0;\n      draw();\n      animFrameId = null;\n    }\n  }\n\n  // ====== 事件绑定 ======\n  $('mainBtn').addEventListener('click', handleMainBtn);\n\n  $('add-btn').addEventListener('click', () => applyOperation('add'));\n  $('subtract-btn').addEventListener('click', () => applyOperation('subtract'));\n  $('remove-x-btn').addEventListener('click', () => applyOperation('remove_x'));\n  $('reset-btn').addEventListener('click', () => { cancelDemo(); resetEquation(); });\n\n  // 滑块\n  const sliderMap = {\n    'leftX': 'leftX', 'leftC': 'leftC', 'rightX': 'rightX', 'rightC': 'rightC', 'xVal': 'xVal', 'addVal': 'addVal'\n  };\n\n  ['leftX', 'leftC', 'rightX', 'rightC'].forEach(v => {\n    $(v + '-slider').addEventListener('input', function() {\n      if (demo.running || demo.paused) cancelDemo();\n      eq[v] = parseInt(this.value);\n      // 同步初始方程\n      initialEquation = { ...eq };\n      history = [];\n      updateLabels();\n      draw();\n    });\n  });\n\n  $('xVal-slider').addEventListener('input', function() {\n    if (demo.running || demo.paused) cancelDemo();\n    xVal = parseFloat(this.value);\n    $('xVal-label').textContent = xVal;\n    updateStatus();\n    draw();\n  });\n\n  $('addVal-slider').addEventListener('input', function() {\n    addVal = parseInt(this.value);\n    $('addVal-label').textContent = addVal;\n    $('add-btn').textContent = '同时加 ' + addVal;\n    $('subtract-btn').textContent = '同时减 ' + addVal;\n  });\n\n  // 预设按钮\n  document.querySelectorAll('.preset-btn').forEach(btn => {\n    btn.addEventListener('click', () => applyPreset(parseInt(btn.dataset.presetIndex)));\n  });\n\n  // 键盘快捷键\n  document.addEventListener('keydown', function(e) {\n    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;\n    if (e.code === 'Space') {\n      e.preventDefault();\n      handleMainBtn();\n    } else if (e.key === 'r' || e.key === 'R') {\n      e.preventDefault();\n      resetEquation();\n    }\n  });\n\n  // ====== postMessage ======\n  window.addEventListener('message', function(event) {\n    const { type, target, state, content } = event.data || {};\n\n    switch (type) {\n      case 'SET_WIDGET_STATE':\n        if (state) {\n          Object.entries(state).forEach(([key, value]) => {\n            const el = document.querySelector('[data-var=\"' + key + '\"]') || $(key + '-slider');\n            if (el) {\n              el.value = value;\n              el.dispatchEvent(new Event('input', { bubbles: true }));\n            }\n          });\n        }\n        break;\n      case 'HIGHLIGHT_ELEMENT': {\n        const el = $(target);\n        if (el) {\n          el.style.outline = '3px solid rgba(139, 92, 246, 0.8)';\n          el.style.outlineOffset = '4px';\n          el.style.animation = 'pulse-highlight 2s infinite';\n          setTimeout(() => { el.style.outline = ''; el.style.animation = ''; }, 3000);\n        }\n        break;\n      }\n      case 'ANNOTATE_ELEMENT': {\n        const el = $(target);\n        if (el && content) {\n          const rect = el.getBoundingClientRect();\n          const tooltip = document.createElement('div');\n          tooltip.className = 'teacher-annotation';\n          tooltip.style.cssText = 'position:fixed; top:' + (rect.top - 42) + 'px; left:' + rect.left + 'px; background:rgba(139,92,246,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:14px; z-index:1000; animation:fadeIn 0.3s; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.2);';\n          tooltip.textContent = content;\n          document.body.appendChild(tooltip);\n          setTimeout(() => tooltip.remove(), 4000);\n        }\n        break;\n      }\n      case 'REVEAL_ELEMENT': {\n        const el = $(target);\n        if (el) {\n          el.style.display = '';\n          el.style.opacity = '1';\n        }\n        break;\n      }\n    }\n  });\n\n  // 注入动画样式\n  const styleEl = document.createElement('style');\n  styleEl.textContent = '@keyframes pulse-highlight { 0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 50% { outline-color: rgba(139, 92, 246, 0.3); } } @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }';\n  document.head.appendChild(styleEl);\n\n  // ====== 初始化 ======\n  window.addEventListener('resize', resizeCanvas);\n  resizeCanvas();\n  updateLabels();\n  draw();\n})();\n</script>\n</body>\n</html>",
+        "widgetType": "simulation",
+        "widgetConfig": {
+          "type": "simulation",
+          "concept": "equation_balance_scale",
+          "description": "学生通过模拟天平操作，直观感受两边同时加减同一个数时等式保持平衡，并自己总结移项变号的原因。",
+          "variables": [
+            {
+              "name": "leftX",
+              "label": "左边x的系数",
+              "min": 0,
+              "max": 5,
+              "default": 3,
+              "unit": ""
+            },
+            {
+              "name": "leftC",
+              "label": "左边常数",
+              "min": 0,
+              "max": 12,
+              "default": 2,
+              "unit": ""
+            },
+            {
+              "name": "rightX",
+              "label": "右边x的系数",
+              "min": 0,
+              "max": 5,
+              "default": 1,
+              "unit": ""
+            },
+            {
+              "name": "rightC",
+              "label": "右边常数",
+              "min": 0,
+              "max": 12,
+              "default": 6,
+              "unit": ""
+            },
+            {
+              "name": "xVal",
+              "label": "x的值",
+              "min": 0,
+              "max": 10,
+              "default": 3,
+              "unit": ""
+            },
+            {
+              "name": "addVal",
+              "label": "两边同时加减的数",
+              "min": 1,
+              "max": 5,
+              "default": 2,
+              "unit": ""
+            }
+          ],
+          "presets": [
+            {
+              "name": "基础方程 3x+2=x+6",
+              "variables": {
+                "leftX": 3,
+                "leftC": 2,
+                "rightX": 1,
+                "rightC": 6,
+                "xVal": 3,
+                "addVal": 2
+              }
+            },
+            {
+              "name": "简单方程 2x+1=x+5",
+              "variables": {
+                "leftX": 2,
+                "leftC": 1,
+                "rightX": 1,
+                "rightC": 5,
+                "xVal": 4,
+                "addVal": 1
+              }
+            },
+            {
+              "name": "移项体验 x+3=7",
+              "variables": {
+                "leftX": 1,
+                "leftC": 3,
+                "rightX": 0,
+                "rightC": 7,
+                "xVal": 4,
+                "addVal": 3
+              }
+            },
+            {
+              "name": "同一变量 5x=2x+6",
+              "variables": {
+                "leftX": 5,
+                "leftC": 0,
+                "rightX": 2,
+                "rightC": 6,
+                "xVal": 2,
+                "addVal": 2
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "scene_Hfvr4nop2V",
+      "stageId": "4DuyVUkWv3",
+      "title": "小测验",
+      "order": 5,
+      "actions": [
+        {
+          "id": "action_EflepzSE",
+          "type": "speech",
+          "text": "同学们，学完这一部分内容，我们来做个小测验吧！请先独立完成每一道题，凭自己的理解作答。"
+        },
+        {
+          "id": "action_MqaHXCVK",
+          "type": "speech",
+          "text": "提交之后，我会和你一起逐题分析，把你还不清楚的地方讲明白。现在开始吧！"
+        }
+      ],
+      "outlineId": "scene_5",
+      "createdAt": 1787579554501,
+      "updatedAt": 1787579554501,
+      "type": "quiz",
+      "content": {
+        "type": "quiz",
+        "questions": [
+          {
+            "id": "q1",
+            "type": "single",
+            "question": "将方程 3x + 5 = 20 移项后，下列哪一个方程是正确的？",
+            "options": [
+              {
+                "value": "A",
+                "label": "3x = 20 + 5"
+              },
+              {
+                "value": "B",
+                "label": "3x = 20 - 5"
+              },
+              {
+                "value": "C",
+                "label": "3x + 5 + 20 = 0"
+              },
+              {
+                "value": "D",
+                "label": "3x = 20 × 5"
+              }
+            ],
+            "answer": [
+              "B"
+            ],
+            "analysis": "移项的依据是等式的性质：等式两边同时减去 5，左边 3x+5-5=3x，右边 20-5，所以移项后为 3x=20-5。A 选项没有变号，C 选项改变了原等式的结构，D 选项运算错误。",
+            "points": 10,
+            "hasAnswer": true
+          },
+          {
+            "id": "q2",
+            "type": "multiple",
+            "question": "下列移项变形正确的是？（多选）",
+            "options": [
+              {
+                "value": "A",
+                "label": "由 x + 3 = 8，移项得 x = 8 + 3"
+              },
+              {
+                "value": "B",
+                "label": "由 2x - 5 = 7，移项得 2x = 7 + 5"
+              },
+              {
+                "value": "C",
+                "label": "由 4x + 6 = 3x，移项得 4x - 3x = -6"
+              },
+              {
+                "value": "D",
+                "label": "由 x - 2 = 5，移项得 x = 5 - 2"
+              }
+            ],
+            "answer": [
+              "B",
+              "C"
+            ],
+            "analysis": "移项必须变号。B：把 -5 移到右边变成 +5，正确；C：把 6 移到右边变成 -6，把 3x 移到左边变成 -3x，得到 4x-3x=-6，正确；A：+3 移到右边应变 -3，应得 x=8-3；D：-2 移到右边应变 +2，应得 x=5+2。",
+            "points": 15,
+            "hasAnswer": true
+          },
+          {
+            "id": "q3",
+            "type": "short_answer",
+            "question": "将方程 5x + 2 = 3x - 8 移项：把含 x 的项移到等号左边，常数项移到等号右边，并说明每一步依据的等式性质。",
+            "commentPrompt": "评分要点：(1) 移项后得到 5x - 3x = -8 - 2，占 40%；(2) 说明含 x 的项移动时符号改变，3x 从右边移到左边变为 -3x，占 20%；(3) 说明常数项 2 从左边移到右边变为 -2，-8 留在右边，占 20%；(4) 提到依据是等式两边同时加上或减去同一个数，等式仍然成立，占 20%。",
+            "analysis": "参考解答：把 3x 从右边移到左边，要变号为 -3x；把 2 从左边移到右边，要变号为 -2。得到 5x - 3x = -8 - 2，即 2x = -10，所以 x = -5。依据是等式的性质：等式两边同时加上或减去同一个整式，所得结果仍是等式。",
+            "points": 20,
+            "hasAnswer": false
+          }
+        ]
+      }
+    }
+  ],
+  "createdAt": "2026-08-24T13:53:04.637Z"
+}

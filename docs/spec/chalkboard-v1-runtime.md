@@ -1,0 +1,75 @@
+# Chalkboard V1 课堂运行时
+
+> 文档状态：Accepted
+> 适用分支：`feat/chalkboard-v1`
+
+## 课堂模型
+
+课堂消费 OpenMAIC 兼容的：
+
+```text
+Stage -> Scene -> Action
+```
+
+支持 `slide`、`interactive`、`quiz`。`pbl` 必须返回明确的 unsupported 错误，
+不能显示空白页面。
+
+## 播放行为
+
+运行时必须支持：
+
+- start、pause、resume；
+- previous、next、jump；
+- restart、complete；
+- authored Action 和 live Action 使用同一套白板状态入口；
+- 跳转或重新开始时重建可重放的白板状态；
+- TTS、视频、iframe 或媒体失败时保留可继续的课堂状态。
+
+播放编排由 `packages/chalkboard/src/playback.ts` 的
+`ChalkboardPlaybackController` 负责：它在 runtime cursor 之上管理异步 Action
+生命周期、暂停/恢复、取消过期执行和自动推进。Web 端只注入浏览器能力；当前
+课堂 fixture 已实现 `speech`、`spotlight`、`laser`、`discussion`、`play_video` 和
+Interactive 的 `widget_highlight` / `widget_setState` 连续播放；前端同时兼容
+`widget_annotation` / `widget_reveal`，并在 iframe reload 后重放最近一次状态。
+视频自动播放被浏览器策略拒绝时会以静音重试，保证动画仍可见，不把媒体错误伪装成
+已播放完成。
+`play_video` 只从当前 lesson viewport 解析目标，避免命中场景缩略图中的同 ID video；
+切页后主画布尚未完成挂载时，执行器在有限时间内等待目标出现。
+
+## OpenMAIC Web 适配
+
+Web 端通过适配层消费 OpenMAIC 的 `{ success, classroom }` 响应：先校验并解包为
+`StageDocument`，再创建 Chalkboard runtime 和 scene view。当前真实课堂动作映射为：
+
+- `speech` -> 浏览器原生 `speechSynthesis`；
+- `spotlight` -> slide canvas 元素聚焦；
+- `laser` -> slide canvas 元素激光标记；
+- `play_video` -> 当前 slide 的 video 元素播放（含播放速率同步）；
+- `widget_highlight` -> sandboxed interactive iframe 的 `postMessage`；
+- `widget_setState` -> OpenMAIC 的 `SET_WIDGET_STATE` 消息；
+- `widget_annotation` / `widget_reveal` -> 对应的 iframe 消息；
+- `discussion` -> 教师栏中的可继续课堂提问。
+
+普通 `speech` 和 Interactive action 的 `content` 只属于讲义/动作元数据，不得自动写入课堂 Chat；课堂 Chat 只在 authored `discussion` 或学生主动追问时出现内容。
+
+Web 适配层不持有 Provider 密钥；interactive HTML 使用 sandbox iframe，动作没有对应
+浏览器能力时显示明确的可继续状态，不阻塞 cursor 导航。
+
+## 持久化与恢复
+
+持久化对象至少包括：
+
+- 课程制品及版本；
+- `classroomId`、owner 和 Stage 引用；
+- scene/action cursor 和播放模式；
+- 白板重建所需的状态或 Action history；
+- Quiz attempt；
+- 媒体 task/asset 引用；
+- 生成任务状态。
+
+所有用户数据由 DAL 强制 owner 校验，认证异常 fail closed。并发保存必须有版本
+检查；过期写入返回稳定冲突错误。
+
+刷新浏览器、API 进程重启或 worker 重启后，系统必须能够读取最新有效快照，
+重建运行时并继续课堂。恢复失败时必须显示明确错误，不能静默回到默认身份或
+默认 cursor。

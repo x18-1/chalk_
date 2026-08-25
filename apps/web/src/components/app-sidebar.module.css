@@ -51,6 +51,16 @@
 .deleteConfirmActions .deleteConfirmDanger { color: var(--chalk-paper); background: var(--chalk-danger); border-color: var(--chalk-danger); }
 .deleteConfirmActions .deleteConfirmDanger:hover { background: #913c35; border-color: #913c35; }
 .emptyConversations { margin: 14px 8px; color: var(--chalk-stone); font-size: 12px; }
+.chalkboardHistory { padding: 18px 0 0; margin: 8px 8px 0; border-top: 1px solid var(--chalk-border-light); }
+.chalkboardHistoryHeading { display: flex; padding: 0 8px 7px; align-items: center; justify-content: space-between; color: var(--chalk-stone); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.chalkboardHistoryHeading small { color: var(--chalk-stone-light); font-size: 10px; font-weight: 500; }
+.chalkboardHistoryList { display: flex; flex-direction: column; gap: 2px; }
+.chalkboardHistoryItem { display: flex; min-width: 0; min-height: 38px; padding: 7px 8px; align-items: center; gap: 8px; color: var(--chalk-stone); text-decoration: none; border-radius: 6px; }
+.chalkboardHistoryItem:hover { color: var(--chalk-ink); background: var(--chalk-paper); }
+.chalkboardHistoryItemActive { color: var(--chalk-clay-hover); background: var(--chalk-paper); box-shadow: inset 2px 0 0 var(--chalk-clay); }
+.chalkboardHistoryItem > span { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.chalkboardHistoryItem strong { overflow: hidden; color: currentColor; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.chalkboardHistoryItem small { color: var(--chalk-stone); font-size: 9px; }
 
 .userArea { position: relative; padding-top: 12px; margin-top: auto; border-top: 1px solid var(--chalk-border); }
 .userButton { display: grid; width: 100%; min-height: 48px; padding: 6px 8px; grid-template-columns: 30px minmax(0, 1fr) 20px; align-items: center; gap: 9px; color: var(--chalk-ink); text-align: left; cursor: pointer; background: transparent; border: 0; border-radius: 7px; }
@@ -86,6 +96,7 @@
 .apiSubtab:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
 .apiSubtabActive { color: var(--chalk-ink); background: var(--chalk-paper-soft); border-color: var(--chalk-border-light); }
 .apiSubtabActive svg { color: var(--chalk-clay); }
+.voiceSubnav { display: flex; padding: 0 0 14px; margin: -8px 0 18px; align-items: center; gap: 4px; border-bottom: 1px solid var(--chalk-border-light); }
 .settingsTitle { display: flex; min-height: 42px; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
 .settingsTitle h3 { margin: 0; color: var(--chalk-ink); font-size: 17px; font-weight: 600; }
 .settingsTitle p { margin: 6px 0 0; color: var(--chalk-stone); font-size: 13px; line-height: 1.55; }
@@ -190,8 +201,30 @@
 .settingsAlert button, .settingsNotice button { display: grid; width: 24px; height: 24px; padding: 0; color: currentColor; cursor: pointer; place-items: center; background: transparent; border: 0; border-radius: 5px; }
 .settingsAlert button:hover, .settingsNotice button:hover { background: rgba(43, 41, 38, 0.06); }
 .settingsActions { display: inline-flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 6px; }
+.settingsFieldInput { min-width: 220px; height: 34px; padding: 0 10px; color: var(--chalk-ink); font: inherit; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 6px; }
+.settingsFieldInput:focus { outline: 2px solid color-mix(in srgb, var(--chalk-clay) 35%, transparent); outline-offset: 1px; border-color: var(--chalk-clay); }
 .textButton { min-height: 30px; padding: 0 8px; color: var(--chalk-stone); font-size: 11px; cursor: pointer; background: transparent; border: 0; border-radius: 5px; }
 .textButton:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
+.settingsHint { padding: 8px 0 0; margin: 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.5; }
+.mediaConfigSection, .mediaModelSection { padding-top: 2px; margin-top: 18px; border-top: 1px solid var(--chalk-border-light); }
+.mediaConfigGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.mediaConfigGrid .settingsField { margin-bottom: 4px; }
+.mediaModelList { display: flex; flex-direction: column; border-top: 1px solid var(--chalk-border-light); }
+.mediaModelCard { display: grid; padding: 12px 8px 13px; grid-template-columns: minmax(170px, 0.75fr) minmax(250px, 1.25fr); align-items: start; gap: 20px; border-bottom: 1px solid var(--chalk-border-light); }
+.mediaModelCardSelected { background: var(--chalk-paper-soft); }
+.mediaModelCardButton { display: flex; width: 100%; min-height: 32px; padding: 0; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--chalk-ink); text-align: left; cursor: pointer; background: transparent; border: 0; }
+.mediaModelCardButton:focus-visible { outline: 2px solid var(--chalk-clay); outline-offset: 3px; border-radius: 4px; }
+.mediaModelIdentity { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.mediaModelIdentity strong { overflow: hidden; color: var(--chalk-ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.mediaModelIdentity small { overflow: hidden; color: var(--chalk-stone); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.mediaModelFacts { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mediaModelFact { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.mediaModelFact small { color: var(--chalk-stone); font-size: 10px; }
+.mediaModelFact strong { overflow: hidden; color: var(--chalk-ink-soft); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.settingsNoticeInline, .settingsErrorInline { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 1.4; }
+.settingsNoticeInline { color: var(--chalk-success); }
+.settingsErrorInline { color: var(--chalk-danger); }
+.settingsInlineField { display: flex; max-width: 460px; padding-top: 14px; flex-direction: column; gap: 6px; color: var(--chalk-ink-soft); font-size: 11px; font-weight: 600; }
 .settingsSubsection { padding-top: 26px; margin-top: 26px; border-top: 1px solid var(--chalk-border); }
 .inlineSettingsForm { display: grid; padding-bottom: 18px; grid-template-columns: 0.8fr 1.35fr 1.15fr 1fr 34px; align-items: center; gap: 7px; }
 .inlineSettingsForm input { min-width: 0; height: 34px; padding: 0 9px; color: var(--chalk-ink); font-size: 11px; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 6px; outline: 0; }
@@ -217,7 +250,11 @@
   .settingsRow > .settingsActions { grid-column: 2; justify-content: flex-start; }
   .providerWorkspace { grid-template-columns: 180px minmax(0, 1fr); }
   .providerDetail { padding-inline: 18px; }
+  .settingsActions { flex-wrap: wrap; justify-content: flex-start; }
+  .settingsFieldInput { flex: 1 1 220px; min-width: 0; }
   .providerModelList article { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .mediaModelCard { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .mediaModelFacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .providerModelFacts, .providerModelPrices { grid-template-columns: repeat(2, minmax(90px, 1fr)); }
   .customModelPrices > div { grid-template-columns: repeat(2, minmax(110px, 1fr)); }
 }

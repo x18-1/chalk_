@@ -10,6 +10,7 @@
     "typecheck": "node scripts/next.mjs typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@chalk/chalkboard": "workspace:*",
     "@fontsource-variable/noto-sans-sc": "^5.1.1",
     "lucide-react": "^0.468.0",
     "katex": "0.18.4",
