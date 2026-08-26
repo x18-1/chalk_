@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-24
+> 最后核验：2026-08-26
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -44,7 +44,8 @@
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
-| Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Accepted |
+| Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
+| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Accepted |
 
 当规则冲突时，优先级为：
 

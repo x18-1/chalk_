@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：功能分支的暂停、恢复与交接记录
-> 最后核验：2026-08-22
+> 最后核验：2026-08-26
 
 `docs/handoff/` 保存正在开发或已经暂停的工作现场，使下一次会话可以从明确的代码、环境和验证状态继续。Handoff 不是架构规范、产品规格或长期计划。
 
@@ -36,8 +36,11 @@
 - 分支合并或停止开发后，将文档状态改为 `Historical`，保留最终结果和后续入口；
 - 已稳定的结论必须回写权威文档，不能长期只留在 handoff。
 
-当前活跃记录：
+当前活跃记录：无。创建 `feat/chalkboard-v2` worktree 后再创建对应 handoff，不能预写未经
+验证的端口、数据库或服务状态。
 
-- [chalkboard-v1.md](chalkboard-v1.md)
+历史记录：
+
+- [chalkboard-v1.md](chalkboard-v1.md) — V1 前端迁移最终现场
 
 旧迁移分支的历史快照仍见仓库根目录 `CHALKBOARD_OPENMAIC_HANDOFF.md`，仅作为参考实现索引，不作为新分支的实施规范。

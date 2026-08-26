@@ -1,29 +1,33 @@
 # Chalkboard V1 Handoff
 
-> 文档状态：Accepted
-> 文档类型：Active branch handoff
+> 文档状态：Historical
+> 文档类型：Completed branch handoff
 > 适用分支：`feat/chalkboard-v1`
 > Worktree：`/home/xcodd/code/chalk_/.worktree/chalkboard-v1`
 > 基线提交：`c13ed26033f415bb296d96ed52c3643dd80b0056`
+> 前端迁移实现提交：`7af0613`
 > 最后核验：2026-08-26
 
-本文是 Chalkboard V1 当前工作现场的交接记录，不是新的架构规范。架构、仓库边界、数据库和开发流程以 [docs/README.md](../README.md)、仓库根目录 `AGENTS.md` 及其链接的权威文档为准。
+本文是 Chalkboard V1 前端迁移阶段的最终工作现场记录，不是新的架构规范。架构、仓库
+边界、数据库和开发流程以 [docs/README.md](../README.md)、仓库根目录 `AGENTS.md` 及其
+链接的权威文档为准。后续实现入口是
+[Chalkboard V2 工程迁移计划](../plan/plan-chalkboard-v2.md)。
 
-## 1. 当前阶段结论与下一目标
+## 1. 阶段结论与后续入口
 
 OpenMAIC 课堂的前端迁移审查已经完成：两门真实课堂经过同一套 adapter、runtime、
 presentation executor 和 scene renderer；播放恢复、场景状态重建、题目/白板/讨论隔离、
-内容安全、窄屏布局和文件边界均有回归验证。下一阶段不应继续凭参考仓库文件数量补 UI，
-而应在以下两个方向中选择一个明确切片：
+内容安全、窄屏布局和文件边界均有回归验证。该结果已由提交 `7af0613` 固化并推送。
 
-1. 接 API/DAL 的 classroom artifact、cursor、Quiz attempt、discussion/Chat transcript 和白板产物持久化；
-2. 继续迁移本计划中的内容生成或 scripted discussion 服务端链路。
+后端、AI 和真实数据闭环统一转入 `feat/chalkboard-v2` 工程阶段；该名称表示第二个迁移
+阶段，产品规格仍是 Chalkboard V1。实施顺序、已确认领域模型、测试 seams 和决策门见
+[V2 计划](../plan/plan-chalkboard-v2.md)。
 
 PBL、编辑器、导出和完整 live Roundtable 仍不在本轮前端迁移范围内。
 
-## 2. 工作环境
+## 2. 历史工作环境
 
-当前 worktree 使用以下本地服务约定：
+本阶段 worktree 使用以下本地服务约定；它们不预设为 V2 worktree 的端口：
 
 ```text
 Web:        http://localhost:3102
@@ -35,9 +39,10 @@ API health: http://localhost:3101/health
 
 启动前先检查 `/health`。Chalkboard 默认优先使用 Chalk 固化的本地 fixture；只有课堂尚未固化或显式设置远程模式时才访问 OpenMAIC。因此 OpenMAIC 不是播放固定课堂的前置条件，只用于协议比对和未迁移课堂的参考。远程地址由 `OPENMAIC_BASE_URL` 决定，不要在文档中假定固定端口。
 
-当前工作区包含 2026-08-26 前端迁移审查新增的播放边界、测试和文档改动，尚未提交。继续开发时必须保留，不得使用 `git reset --hard`、`git checkout`、`git stash` 或 `git clean`。
+2026-08-26 前端迁移审查新增的播放边界、测试和文档改动已提交为 `7af0613`。V1 分支
+关闭后不再承载后端或 AI 新功能。
 
-## 3. 当前数据与行为事实
+## 3. 阶段结束时的数据与行为事实
 
 ### 3.1 两门课堂
 
@@ -63,7 +68,7 @@ API health: http://localhost:3101/health
 
 OpenMAIC 的 agent 数据可能带 `/avatars/*`、颜色和角色字段；等式课则主要只有 `default-*` agent id。当前前端不再加载 OpenMAIC 头像资源，两门课统一使用 Chalk 自己的首字头像和暖色调色板。头像差异不应再由课堂数据决定。
 
-### 3.3 当前已实现的课堂行为
+### 3.3 阶段结束时已实现的课堂行为
 
 - 播放控制顺序：音量、倍速、上一页、播放、下一页、自动播放、白板；音量为 0–100 竖向滑杆。
 - 默认播放只消费当前 scene；打开自动播放后，完成的 slide 才会进入下一 scene，interactive / quiz 完成自身动作后停住，不再无条件贯穿整门课。
@@ -81,7 +86,7 @@ OpenMAIC 的 agent 数据可能带 `/avatars/*`、颜色和角色字段；等式
 - 桌面保留完整工作区；平板使用可收起侧层；手机使用横向 scene strip 和纵向课堂布局，粗指针交互目标至少 44px。
 - `/chat` 只显示对话历史，`/chalkboard` 只显示课堂历史，`/chats` 合并显示两类历史；两个傅里叶课堂别名归并为一个记录。
 
-## 4. 文件组织现状
+## 4. 阶段结束时的文件组织
 
 ```text
 apps/web/src/app/chalkboard/page.tsx
@@ -131,7 +136,7 @@ tests/e2e/chalkboard.spec.ts
 `classroom-client.ts`，浏览器媒体生命周期在 presentation hook，scene rail 和样式均在
 feature 内。不要再为减少行数拆出只转发 props 的薄组件。
 
-## 5. 未完成和明确不等价的部分
+## 5. 转入 V2 和明确不等价的部分
 
 - classroom artifact/playback 的服务端持久化、版本冲突和 owner 校验链路；当前 cursor 与课堂历史是浏览器 `localStorage`。
 - 课堂 discussion transcript、学生回答、Chat transcript 和 quiz attempt 尚未接 API 持久化。
@@ -153,7 +158,7 @@ feature 内。不要再为减少行数拆出只转发 props 的薄组件。
 因此本轮未擅自删除。`apps/web/src/app/api/openmaic/*` 仍是过渡性的 server route；正式
 artifact/media/owner 链路应迁入 API 分层，而不是继续扩展 Web route。
 
-## 7. 最近验证
+## 7. 最终验证
 
 以下命令已在 Web `3102`、API `3101` 运行期间实际执行：
 
@@ -178,18 +183,16 @@ metadata、数学画布色阶和 4–10px 内部半径；没有把这些机械�
 属于实际书写画布，不是装饰网格。URL detector 因仓库未安装 Puppeteer 未运行，但相同
 390×844 页面已由 Playwright E2E 验证无横向溢出。
 
-## 8. 新对话启动步骤
+## 8. V2 阶段启动步骤
 
 ```text
-1. 阅读本 handoff、docs/spec/chalkboard-v1-runtime.md、docs/plan/plan-chalkboard-v1.md、docs/architecture/repository-boundaries.md、docs/architecture/backend-layers.md。
-2. 执行 git status，保留所有未提交改动；不要 reset、checkout、stash 或 clean。
-3. 检查 http://localhost:3101/health；确认 Web 运行在 3102。
-4. 先运行 Chalkboard E2E，确认 9 tests 基线，再打开两个课堂：
-   /chalkboard?id=4DuyVUkWv3
-   /chalkboard?id=681PbzeDfm
-5. 不再重复前端迁移清单；从服务端 persistence、generation 或 scripted discussion 选择一个 seam。
-6. 每次只处理一个服务端垂直切片：先写/补回归测试，再修改代码，再运行受影响的 typecheck、lint、test。
-7. 完成一轮后更新本 handoff 的“当前状态、未完成项、验证记录和下一步”。
+1. 合并 feat/chalkboard-v1 后，从确认的集成分支创建 feat/chalkboard-v2。
+2. 创建 .worktree/chalkboard-v2，并按 worktree runbook 分配独立端口和数据库。
+3. 创建 docs/handoff/chalkboard-v2.md，记录准确基线、环境和实际服务状态。
+4. 阅读 docs/plan/plan-chalkboard-v2.md、Chalkboard V1 specs、repository boundaries 和 backend layers。
+5. 在第一条数据库 migration 前确认 Classroom owner 与学生访问授权模型。
+6. 从 Classroom 目录与 Artifact 读取切片开始，按已确认 TDD seam 推进。
+7. 先运行 V1 Chalkboard package/E2E 基线，再修改后端或前端行为。
 ```
 
 ## 9. 参考来源

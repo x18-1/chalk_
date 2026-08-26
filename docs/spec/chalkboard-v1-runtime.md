@@ -1,7 +1,7 @@
 # Chalkboard V1 课堂运行时
 
 > 文档状态：Accepted
-> 适用分支：`feat/chalkboard-v1`
+> 适用范围：Chalkboard V1 产品能力；实现跨 `feat/chalkboard-v1` 与 `feat/chalkboard-v2` 工程阶段
 
 ## 课堂模型
 
@@ -69,15 +69,28 @@ interactive HTML 只在不含 `allow-same-origin` 的 sandbox iframe 中执行�
 
 ## 持久化与恢复
 
+长期持久化模型区分以下对象：
+
+- `Classroom` 是跨内容修订保持稳定的课堂身份；
+- `Classroom Artifact` 是已发布且不可变的课堂版本；修改内容必须发布新 Artifact；
+- `Learning Session` 是一名学生针对某个确定 Artifact 的可恢复学习过程；
+- `Playback Cursor` 是 Learning Session 中最近一次持久化的播放位置和播放模式；
+- `Classroom Draft` 是尚未发布的生成或编辑结果，不能被学生学习流程当作 Artifact 消费。
+
+Learning Session 必须绑定明确的 Artifact 版本。新 Artifact 发布后，已有 Learning Session
+继续读取原版本；系统不得把旧 cursor、答题或白板状态静默套用到新版本。跨版本继续学习
+需要后续明确的迁移行为，不属于默认恢复。
+
 持久化对象至少包括：
 
-- 课程制品及版本；
-- `classroomId`、owner 和 Stage 引用；
+- Classroom、不可变的 Classroom Artifact 及版本；
+- owner/访问关系和 Artifact 内容引用；
+- Learning Session 与 Playback Cursor；
 - scene/action cursor 和播放模式；
 - 白板重建所需的状态或 Action history；
 - Quiz attempt；
 - 媒体 task/asset 引用；
-- 生成任务状态。
+- Generation Run 与 Classroom Draft 状态。
 
 所有用户数据由 DAL 强制 owner 校验，认证异常 fail closed。并发保存必须有版本
 检查；过期写入返回稳定冲突错误。

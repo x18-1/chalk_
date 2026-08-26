@@ -1,7 +1,7 @@
 # Chalkboard V1 Provider 适配结构
 
 > 文档状态：Accepted
-> 适用分支：`feat/chalkboard-v1`
+> 适用范围：Chalkboard V1 产品能力；实现跨 `feat/chalkboard-v1` 与 `feat/chalkboard-v2` 工程阶段
 > 参考来源：OpenMAIC 固定提交 `1466a55eef9e31e229a0e2e60a0811020d7b06e2`
 
 ## 目标

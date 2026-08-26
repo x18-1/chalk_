@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：跨模块产品与运行术语
-> 最后核验：2026-08-22
+> 最后核验：2026-08-26
 
 ## Agent Run
 
@@ -19,3 +19,32 @@ Trace 中有边界、耗时和结果的一个操作，例如模型调用、工�
 ## Teaching Semantic Event
 
 表达教学过程状态的结构化事件，例如等待学生回答、进入讨论室或提示层级变化。它服务于学生体验和学习证据，不能与运行诊断的 Telemetry 混为同一类事实。
+
+## Classroom
+
+学生可以进入并持续学习的一项教学内容，其身份在内容修订后保持稳定。
+
+## Classroom Artifact
+
+某个 Classroom 已发布且不可变的版本，包含完成课堂所需的教学内容和媒体引用。
+_避免使用_：`Stage`、课堂包、课程制品。
+
+## Learning Session
+
+一名学生针对某个确定 Classroom Artifact 开展的一次可恢复学习过程，承载进度、回答和课堂交互状态。
+_避免使用_：Classroom Session、播放会话。
+
+## Playback Cursor
+
+Learning Session 在 Classroom Artifact 中最近一次持久化的播放位置和播放模式。
+_避免使用_：进度条、页面索引。
+
+## Generation Run
+
+从教学要求生成一个 Classroom Artifact 草稿的一次可追踪尝试，具有 `completed`、`aborted` 或 `failed` 终态。
+_避免使用_：生成任务、Agent Session。
+
+## Classroom Draft
+
+尚未发布、可以继续生成或修改的课堂候选内容；只有校验通过并发布后才成为 Classroom Artifact。
+_避免使用_：临时 Stage、未完成课堂。

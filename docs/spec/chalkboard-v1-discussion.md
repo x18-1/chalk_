@@ -1,7 +1,7 @@
 # Chalkboard V1 课堂讨论
 
 > 文档状态：Accepted
-> 适用分支：`feat/chalkboard-v1`
+> 适用范围：Chalkboard V1 产品能力；实现跨 `feat/chalkboard-v1` 与 `feat/chalkboard-v2` 工程阶段
 > 阶段：最后迁移
 
 ## 目标

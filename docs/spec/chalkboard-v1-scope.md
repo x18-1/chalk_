@@ -1,7 +1,7 @@
 # Chalkboard V1 范围
 
 > 文档状态：Accepted
-> 适用分支：`feat/chalkboard-v1`
+> 适用范围：Chalkboard V1 产品能力；实现跨 `feat/chalkboard-v1` 与 `feat/chalkboard-v2` 工程阶段
 > 参考来源：OpenMAIC `1466a55eef9e31e229a0e2e60a0811020d7b06e2`
 
 ## 目标
@@ -18,7 +18,7 @@
 - 播放、暂停、恢复、前后移动、跳转、重新开始和完成；
 - TTS、ASR、图片、视频 Provider 及课堂媒体资产；
 - Stage/Scene/Action 生成和生成失败恢复；
-- 课程制品、播放状态、Quiz attempt、媒体任务的持久化；
+- Classroom Artifact、Learning Session、Quiz Attempt 和媒体任务的持久化；
 - 最后一阶段迁移课堂讨论和学生插话。
 
 ## 明确不包含
