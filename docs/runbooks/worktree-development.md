@@ -3,7 +3,7 @@
 > 文档状态：Accepted
 > 实施状态：Partial
 > 适用范围：主 workspace；不含 `agents/`
-> 最后核验：2026-08-24
+> 最后核验：2026-08-26
 
 ## 1. 先记住这几条
 
@@ -44,13 +44,26 @@ SESSIONS_ROOT=<unique-path>
 在当前 worktree 根目录执行：
 
 ```bash
+pnpm install
+pnpm --filter @chalk/agent-runtime build
 pnpm env:check
 pnpm infra:up
+set -a
+source .env
+set +a
 pnpm db:migrate
 pnpm dev
 ```
 
 `pnpm infra:up` 只启动 PostgreSQL 和 MinIO 等基础设施；API 和 Web 由 `pnpm dev` 作为本机进程运行。
+
+全新 worktree 尚未生成 `packages/agent-runtime/dist`，而 API 开发进程会从 workspace package
+的 `dist/index.js` 加载运行时，因此首次启动前必须执行一次 Agent Runtime build。修改
+`packages/agent-runtime` 后也要重新 build，直到仓库提供统一的 workspace watch 编排。
+
+Drizzle CLI 从 `apps/api` 启动，不会自动读取 worktree 根目录 `.env`。执行 `db:generate`、
+`db:migrate` 或 `db:studio` 前，必须在当前 shell 显式导出 `.env`；不能因为 URL 缺失而改用
+其他 worktree 的数据库连接。
 
 每个 Compose project 会有自己的容器、网络和 volume。测试数据库通常只是 PostgreSQL 容器里的另一个 database，不需要再创建一个 Docker 容器。
 

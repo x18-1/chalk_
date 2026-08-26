@@ -3,7 +3,7 @@
 > 文档状态：Accepted
 > 实施状态：Partial
 > 适用范围：`apps/api/src/db`、`apps/api/drizzle`
-> 最后核验：2026-08-24
+> 最后核验：2026-08-26
 
 ## 1. 文件分别做什么
 
@@ -17,12 +17,24 @@
 修改表、列、索引、约束或 enum 时：
 
 1. 修改 `apps/api/src/db/schema`。
-2. 执行 `pnpm db:generate`。
-3. 阅读生成的 SQL，确认没有误删表、列或数据。
-4. 在当前 worktree 的开发数据库执行 `pnpm db:migrate`。
-5. 运行受影响的类型检查和测试。
+2. 在 worktree 根目录把当前 `.env` 导出到本 shell：
+
+   ```bash
+   set -a
+   source .env
+   set +a
+   ```
+
+3. 执行 `pnpm db:generate`。
+4. 阅读生成的 SQL，确认没有误删表、列或数据。
+5. 在当前 worktree 的开发数据库执行 `pnpm db:migrate`。
+6. 运行受影响的类型检查和测试。
 
 `db:generate` 只负责生成候选 SQL，不能代替人工检查。
+
+Drizzle CLI 从 `apps/api` 启动，不会自动读取 worktree 根目录 `.env`。如果没有先执行上面的
+导出步骤，`drizzle-kit` 会把 `DATABASE_URL` 读取为 `undefined`；此时应停止并加载当前
+worktree 的配置，不得临时指向其他 worktree 的数据库。
 
 已经在共享分支或共享数据库应用过的 migration 不要修改、重命名或删除。修正问题时新增 migration，不要手工修改 `drizzle` migration ledger。
 
