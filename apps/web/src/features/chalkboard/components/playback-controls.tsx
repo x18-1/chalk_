@@ -12,7 +12,7 @@ import {
   VolumeX,
 } from "lucide-react";
 
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
 
 export type PlaybackSpeed = 0.75 | 1 | 1.25 | 1.5 | 2;
 

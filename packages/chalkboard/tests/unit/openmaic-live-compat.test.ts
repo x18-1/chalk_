@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { loadCursorSnapshot, saveCursorSnapshot, type CursorSnapshotStore } from '../../src/cursor.js';
+import { ChalkboardPlaybackController } from '../../src/playback.js';
 import { createChalkboardRuntime } from '../../src/runtime.js';
 import { parseStageDocument, StageSchema } from '../../src/schema.js';
 
@@ -77,6 +78,32 @@ describe('live OpenMAIC classroom compatibility', () => {
       actionIndex: 2,
       mode: 'completed',
     });
+  });
+
+  it('auto-plays consecutive slides and stops after the real interactive scene', async () => {
+    const document = parseStageDocument(liveClassroom);
+    const runtime = createChalkboardRuntime(document);
+    const controller = new ChalkboardPlaybackController({
+      runtime,
+      executor: {
+        speak: async () => undefined,
+        spotlight: () => undefined,
+        discussion: () => undefined,
+        widgetHighlight: () => undefined,
+      },
+      isAutoPlayEnabled: () => true,
+    });
+
+    await controller.start();
+    await vi.waitFor(() => expect(runtime.getState().mode).toBe('idle'));
+
+    expect(runtime.getState()).toMatchObject({
+      sceneId: 'scene_o1z3O35bg1',
+      sceneIndex: 3,
+      actionIndex: 8,
+      completed: false,
+    });
+    await controller.dispose();
   });
 
   it('persists and restores the same live scene/action cursor after refresh', async () => {

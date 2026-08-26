@@ -24,5 +24,15 @@ export function postInteractiveMessage(
   frame: HTMLIFrameElement | null,
   message: InteractiveWidgetMessage,
 ): void {
-  frame?.contentWindow?.postMessage(message, "*");
+  if (!frame?.contentWindow) return;
+  const targetOrigin = frame.hasAttribute("srcdoc")
+    ? "*"
+    : (() => {
+      try {
+        return new URL(frame.src, window.location.href).origin;
+      } catch {
+        return window.location.origin;
+      }
+    })();
+  frame.contentWindow.postMessage({ ...message, source: "chalkboard" }, targetOrigin);
 }

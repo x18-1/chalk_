@@ -41,7 +41,8 @@ test('opens the real classroom workspace and completes core panel interactions',
   await expect(page.getByRole('complementary', { name: '课程场景' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Notes' })).toBeVisible();
   await expect(page.getByRole('region', { name: '课堂讨论' })).toBeVisible();
-  await expect(page.locator('[class*="sceneInteractiveThumbnail"] iframe')).toHaveCount(1);
+  await expect(page.locator('[class*="sceneInteractiveThumbnail"] iframe')).toHaveCount(0);
+  await expect(page.locator('[class*="sceneInteractivePreview"]')).toContainText('INTERACTIVE');
   await expect(page.locator('[class*="sceneQuizThumbnail"]')).toContainText('小测验');
   await expect(page.locator('[class*="sceneQuizThumbnail"]')).toContainText('知识检查');
 
@@ -125,11 +126,15 @@ test('keeps playback controls, whiteboard strokes, and interactive widget protoc
   }
   await expect(canvas.locator('polyline')).toHaveCount(1);
   await whiteboard.getByRole('button', { name: '关闭白板' }).click();
+  await page.getByRole('button', { name: '打开白板' }).click();
+  await expect(page.getByRole('dialog', { name: '课堂白板' }).getByRole('img', { name: '可书写白板' }).locator('polyline')).toHaveCount(1);
+  await page.getByRole('dialog', { name: '课堂白板' }).getByRole('button', { name: '关闭白板' }).click();
 
   await page.getByRole('button', { name: '信号合成实验室' }).click();
   await expect(page.getByLabel('聚光').first()).toBeVisible();
   await expect(page.getByLabel('互动状态').first()).toBeVisible();
   const frame = page.locator('[class*="interactiveFrameWrap"] iframe');
+  await expect(frame).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
   const frameContent = await frame.contentFrame();
   expect(frameContent).not.toBeNull();
   if (frameContent) {
@@ -140,6 +145,21 @@ test('keeps playback controls, whiteboard strokes, and interactive widget protoc
     });
     await expect(frameContent.locator('#harmonicCount-slider')).toHaveValue('10');
   }
+});
+
+test('adapts the classroom to a phone viewport without horizontal overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+  await page.goto('/chalkboard?id=4DuyVUkWv3');
+  await expect(page.getByRole('heading', { name: '等式的性质与移项变号' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('complementary', { name: '课程场景' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '展开侧栏' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+  await page.getByRole('button', { name: '展开侧栏' }).click();
+  await expect(page.getByRole('tab', { name: 'Notes' })).toBeVisible();
+  await page.getByRole('button', { name: '收起侧栏' }).click();
+  await expect(page.getByRole('button', { name: '播放', exact: true })).toBeVisible();
 });
 
 test('plays an authored video in the active lesson viewport', async ({ page }) => {

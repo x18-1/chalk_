@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, FileQuestion } from "lucide-react";
 import type { QuizQuestion, SceneView } from "@chalk/chalkboard";
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
 
 export function QuizScene({ scene }: { scene: SceneView }) {
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
@@ -19,6 +19,12 @@ export function QuizScene({ scene }: { scene: SceneView }) {
       if (question.type === "single") return { ...current, [question.id]: [value] };
       return { ...current, [question.id]: previous.includes(value) ? previous.filter((item) => item !== value) : [...previous, value] };
     });
+  };
+
+  const changeShortAnswer = (questionId: string, value: string) => {
+    setSubmitted(false);
+    setValidationMessage("");
+    setAnswers((current) => ({ ...current, [questionId]: [value] }));
   };
 
   const submit = () => {
@@ -56,7 +62,7 @@ export function QuizScene({ scene }: { scene: SceneView }) {
               <div className={styles.questionHeader}><span>{String(index + 1).padStart(2, "0")}</span><strong>{question.points ?? 1} 分</strong></div>
               <h3>{question.question}</h3>
               {question.type === "short_answer" ? (
-                <textarea className={styles.answerText} value={answers[question.id]?.[0] ?? ""} onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: [event.target.value] }))} placeholder="写下你的推理步骤" aria-label={question.question} />
+                <textarea className={styles.answerText} value={answers[question.id]?.[0] ?? ""} onChange={(event) => changeShortAnswer(question.id, event.target.value)} placeholder="写下你的推理步骤" aria-label={question.question} />
               ) : (
                 <div className={styles.optionList}>
                   {(question.options ?? []).map((option) => {

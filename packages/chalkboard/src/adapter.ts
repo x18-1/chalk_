@@ -41,7 +41,8 @@ export type ActionEffect =
   | { kind: 'widget_highlight'; target: string; content?: string }
   | { kind: 'widget_set_state'; state: Record<string, unknown>; content?: string }
   | { kind: 'widget_annotation'; target: string; content?: string }
-  | { kind: 'widget_reveal'; target: string; content?: string };
+  | { kind: 'widget_reveal'; target: string; content?: string }
+  | { kind: 'whiteboard'; action: Action };
 
 export interface ActionExecutor {
   speak(text: string): void | Promise<void>;
@@ -53,6 +54,7 @@ export interface ActionExecutor {
   widgetSetState?(input: { state: Record<string, unknown>; content?: string }): void | Promise<void>;
   widgetAnnotation?(input: { target: string; content?: string }): void | Promise<void>;
   widgetReveal?(input: { target: string; content?: string }): void | Promise<void>;
+  whiteboard?(action: Action): void | Promise<void>;
 }
 
 export type ActionExecutionResult =
@@ -171,6 +173,7 @@ export function toSceneView(scene: Scene): SceneView {
 }
 
 export function toActionEffect(action: Action): ActionEffect | null {
+  if (action.type.startsWith('wb_')) return { kind: 'whiteboard', action };
   switch (action.type) {
     case 'speech':
       return { kind: 'speech', text: action.text as string };
@@ -257,6 +260,10 @@ export async function executeAction(
     case 'widget_reveal':
       if (!executor.widgetReveal) return { ok: false, error: { code: 'UNSUPPORTED_ACTION', actionType: action.type } };
       await executor.widgetReveal(effect);
+      break;
+    case 'whiteboard':
+      if (!executor.whiteboard) return { ok: false, error: { code: 'UNSUPPORTED_ACTION', actionType: action.type } };
+      await executor.whiteboard(effect.action);
       break;
   }
   return { ok: true, effect };

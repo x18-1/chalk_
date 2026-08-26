@@ -127,4 +127,25 @@ describe('OpenMAIC -> Chalkboard adapter', () => {
       'reveal:#answer',
     ]);
   });
+
+  it('executes accepted whiteboard actions through one presentation capability', async () => {
+    const calls: string[] = [];
+    const executor: ActionExecutor = {
+      speak: () => undefined,
+      spotlight: () => undefined,
+      discussion: () => undefined,
+      widgetHighlight: () => undefined,
+      whiteboard: (action) => calls.push(`${action.type}:${String(action.elementId ?? action.id)}`),
+    };
+
+    await expect(executeAction({ id: 'open', type: 'wb_open' }, executor)).resolves.toMatchObject({
+      ok: true,
+      effect: { kind: 'whiteboard', action: { type: 'wb_open' } },
+    });
+    await executeAction({
+      id: 'draw', type: 'wb_draw_text', elementId: 'note-1', content: '等式两边同时减 3', x: 40, y: 80,
+    }, executor);
+
+    expect(calls).toEqual(['wb_open:open', 'wb_draw_text:note-1']);
+  });
 });

@@ -24,6 +24,7 @@ export interface PlaybackControllerOptions {
   executor: PlaybackExecutor;
   persist?: () => void | Promise<void>;
   onUnsupportedAction?: (actionType: string) => void;
+  isAutoPlayEnabled?: () => boolean;
 }
 
 type PlaybackListener = (state: PlaybackState) => void;
@@ -37,6 +38,7 @@ export class ChalkboardPlaybackController {
   private readonly runtime: ChalkboardRuntime;
   private readonly persist?: () => void | Promise<void>;
   private readonly onUnsupportedAction?: (actionType: string) => void;
+  private readonly isAutoPlayEnabled?: () => boolean;
   private readonly listeners = new Set<PlaybackListener>();
   private generation = 0;
   private loopPromise: Promise<void> | null = null;
@@ -51,6 +53,17 @@ export class ChalkboardPlaybackController {
     this.executor = options.executor;
     this.persist = options.persist;
     this.onUnsupportedAction = options.onUnsupportedAction;
+    this.isAutoPlayEnabled = options.isAutoPlayEnabled;
+  }
+
+  /** Attach the controller to an already restored runtime. This explicit
+   * lifecycle keeps restoration ordered after the presentation adapter has
+   * mounted and reset its scene-scoped visual state. */
+  async activate(): Promise<void> {
+    if (this.disposed || this.runtime.getState().mode !== 'playing') return;
+    this.actionStatus = 'running';
+    this.emit();
+    this.ensureLoop();
   }
 
   setExecutor(executor: PlaybackExecutor): void {
@@ -226,11 +239,17 @@ export class ChalkboardPlaybackController {
     while (!this.disposed && generation === this.generation && this.runtime.getState().mode === 'playing') {
       const action = this.runtime.getState().currentAction;
       if (!action) {
-        this.runtime.complete();
+        const advanced = this.runtime.next({ advanceScene: this.shouldAdvanceScene() });
+        if (!advanced.ok) {
+          this.actionStatus = 'error';
+          this.emit();
+          return;
+        }
         this.actionStatus = 'idle';
         await this.persist?.();
         this.emit();
-        return;
+        if (this.runtime.getState().mode !== 'playing') return;
+        continue;
       }
       this.activeAction = action;
       this.actionStatus = 'running';
@@ -244,12 +263,13 @@ export class ChalkboardPlaybackController {
       } else {
         this.error = null;
       }
-      const advanced = this.runtime.next();
+      const advanced = this.runtime.next({ advanceScene: this.shouldAdvanceScene() });
       if (!advanced.ok) {
         this.actionStatus = 'error';
         this.emit();
         return;
       }
+      if (this.runtime.getState().mode !== 'playing') this.actionStatus = 'idle';
       await this.persist?.();
       this.emit();
     }
@@ -260,6 +280,11 @@ export class ChalkboardPlaybackController {
     this.activeAction = null;
     this.suspended = false;
     await this.executor.cancel?.(reason);
+  }
+
+  private shouldAdvanceScene(): boolean {
+    const state = this.runtime.getState();
+    return state.sceneType === 'slide' && this.isAutoPlayEnabled?.() === true;
   }
 
   private emit(): void {

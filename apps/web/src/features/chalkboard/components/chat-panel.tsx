@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MessagesSquare, Send } from "lucide-react";
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
 
 type ChatMessage = { id: string; role: "student" | "system"; text: string };
 

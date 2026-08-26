@@ -44,6 +44,16 @@ export {
   toActionEffect,
   toSceneView,
 } from './adapter';
+export {
+  applyWhiteboardAction,
+  emptyScenePresentation,
+  projectScenePresentation,
+} from './presentation-state';
+export type {
+  ScenePresentationState,
+  WhiteboardPresentationState,
+  WidgetPresentationState,
+} from './presentation-state';
 export type {
   ActionEffect,
   ActionExecutionResult,

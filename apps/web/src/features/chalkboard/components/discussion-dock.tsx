@@ -2,7 +2,7 @@
 
 import { MessageCircle, MessagesSquare, Mic, Send, Users } from "lucide-react";
 
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
 
 export interface DiscussionParticipant {
   id: string;

@@ -14,6 +14,32 @@ function makeExecutor(overrides: Partial<PlaybackExecutor> = {}): PlaybackExecut
 }
 
 describe('Chalkboard playback controller', () => {
+  it('continues a restored playing snapshot when a controller is attached', async () => {
+    const runtime = createChalkboardRuntime(openMaicStageFixture);
+    expect(runtime.restore({
+      version: 1,
+      stageId: 'stage-equation-properties-v1',
+      sceneId: 'scene-balance',
+      sceneIndex: 0,
+      actionIndex: 0,
+      mode: 'playing',
+      completed: false,
+    })).toEqual({ ok: true });
+
+    const controller = new ChalkboardPlaybackController({ runtime, executor: makeExecutor() });
+    try {
+      await controller.activate();
+      await vi.waitFor(() => expect(runtime.getState().mode).toBe('idle'));
+      expect(runtime.getState()).toMatchObject({
+        sceneId: 'scene-balance',
+        actionIndex: 2,
+        completed: false,
+      });
+    } finally {
+      await controller.dispose();
+    }
+  });
+
   it('exposes scene navigation separately from action navigation', async () => {
     const runtime = createChalkboardRuntime(openMaicStageFixture);
     const controller = new ChalkboardPlaybackController({ runtime, executor: makeExecutor() });
@@ -35,14 +61,40 @@ describe('Chalkboard playback controller', () => {
     expect(executor.spotlight).not.toHaveBeenCalled();
     await controller.dispose();
   });
-  it('advances every authored action until the runtime completes', async () => {
+
+  it('finishes the current scene without crossing into the next scene when auto-play is off', async () => {
     const runtime = createChalkboardRuntime(openMaicStageFixture);
     const controller = new ChalkboardPlaybackController({ runtime, executor: makeExecutor() });
 
     await controller.start();
-    await vi.waitFor(() => expect(runtime.getState().completed).toBe(true));
+    await vi.waitFor(() => expect(runtime.getState().mode).toBe('idle'));
 
-    expect(runtime.getState().mode).toBe('completed');
+    expect(runtime.getState()).toMatchObject({
+      sceneId: 'scene-balance',
+      sceneIndex: 0,
+      actionIndex: 2,
+      completed: false,
+    });
+    await controller.dispose();
+  });
+
+  it('auto-play advances a completed slide and stops after the interactive scene', async () => {
+    const runtime = createChalkboardRuntime(openMaicStageFixture);
+    const controller = new ChalkboardPlaybackController({
+      runtime,
+      executor: makeExecutor(),
+      isAutoPlayEnabled: () => true,
+    });
+
+    await controller.start();
+    await vi.waitFor(() => expect(runtime.getState().mode).toBe('idle'));
+
+    expect(runtime.getState()).toMatchObject({
+      sceneId: 'scene-operation',
+      sceneIndex: 1,
+      actionIndex: 1,
+      completed: false,
+    });
     expect(controller.getState().actionStatus).toBe('idle');
     await controller.dispose();
   });

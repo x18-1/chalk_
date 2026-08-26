@@ -6,8 +6,10 @@ export interface RuntimeState {
   mode: RuntimeMode;
   stageId: string;
   sceneId: string | null;
+  sceneType: SceneType | null;
   sceneIndex: number;
   actionIndex: number;
+  actionCount: number;
   currentAction: Action | null;
   completed: boolean;
 }
@@ -54,8 +56,10 @@ export class ChalkboardRuntime {
       mode: this.mode,
       stageId: this.document.stage.id,
       sceneId: scene?.id ?? null,
+      sceneType: scene?.type ?? null,
       sceneIndex: this.sceneIndex,
       actionIndex: this.actionIndex,
+      actionCount: scene?.actions?.length ?? 0,
       currentAction: scene?.actions?.[this.actionIndex] ?? null,
       completed: this.completed,
     };
@@ -76,6 +80,8 @@ export class ChalkboardRuntime {
 
   start(): RuntimeCommandResult {
     if (this.mode !== 'idle' && this.mode !== 'paused') return this.invalid('start');
+    const actionCount = this.currentScene()?.actions?.length ?? 0;
+    if (actionCount > 0 && this.actionIndex >= actionCount) this.actionIndex = 0;
     this.completed = false;
     this.mode = 'playing';
     return { ok: true };
@@ -93,7 +99,7 @@ export class ChalkboardRuntime {
     return { ok: true };
   }
 
-  next(): RuntimeCommandResult {
+  next(options: { advanceScene?: boolean } = {}): RuntimeCommandResult {
     if (this.mode === 'completed') return this.invalid('next');
     const scene = this.currentScene();
     if (!scene) return this.invalid('next');
@@ -103,6 +109,11 @@ export class ChalkboardRuntime {
       return { ok: true };
     }
     if (this.sceneIndex < this.scenes.length - 1) {
+      if (options.advanceScene === false) {
+        this.actionIndex = actionCount;
+        this.mode = 'idle';
+        return { ok: true };
+      }
       const nextScene = this.scenes[this.sceneIndex + 1]!;
       const unsupported = this.unsupported(nextScene);
       if (unsupported) return { ok: false, error: unsupported };

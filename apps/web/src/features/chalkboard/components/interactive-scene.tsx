@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Eye } from "lucide-react";
 import type { SceneView } from "@chalk/chalkboard";
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
 import { patchInteractiveHtml, postInteractiveMessage } from "../lib/interactive-html";
 
 export function InteractiveScene({
@@ -23,7 +23,15 @@ export function InteractiveScene({
 }) {
   const [frameError, setFrameError] = useState(false);
   const html = typeof scene.content.html === "string" ? scene.content.html : "";
-  const url = typeof scene.content.url === "string" && scene.content.url ? scene.content.url : undefined;
+  const rawUrl = typeof scene.content.url === "string" && scene.content.url ? scene.content.url : undefined;
+  const url = rawUrl && (() => {
+    try {
+      const parsed = new URL(rawUrl, window.location.href);
+      return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
   const patchedHtml = html ? patchInteractiveHtml(html) : undefined;
   if (!html && !url) {
     return <div className={styles.sceneEmpty}><Eye size={22} /><strong>互动内容为空</strong><span>这一步没有可加载的互动课件。</span></div>;
@@ -39,7 +47,8 @@ export function InteractiveScene({
         src={url}
         srcDoc={patchedHtml}
         title={scene.title}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        sandbox="allow-scripts allow-forms"
+        referrerPolicy="no-referrer"
         onLoad={() => {
           setFrameError(false);
           if (highlightTarget) postInteractiveMessage(iframeRef.current, { type: "HIGHLIGHT_ELEMENT", target: highlightTarget });

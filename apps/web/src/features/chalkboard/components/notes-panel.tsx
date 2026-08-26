@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import type { Action, SceneView } from "@chalk/chalkboard";
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
 
 type ActionConfig = { label: string; Icon: typeof Flashlight; className: string };
 

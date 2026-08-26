@@ -9,8 +9,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .page { display: grid; width: 100%; min-height: 100vh; grid-template-columns: 248px minmax(0, 1fr); color: var(--chalk-ink); background: var(--chalk-canvas); }
 .classroom { display: flex; min-width: 0; min-height: 100vh; flex-direction: column; }
 .topBar { display: flex; min-height: 72px; padding: 0 24px; align-items: center; gap: 14px; background: var(--chalk-paper); border-bottom: 1px solid var(--chalk-border); }
-.backLink { display: grid; width: 32px; height: 32px; flex: none; color: var(--chalk-stone); place-items: center; border: 1px solid transparent; border-radius: 6px; }
-.backLink:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); border-color: var(--chalk-border-light); }
 .courseHeading { min-width: 0; flex: 1; }
 .courseHeading > span { color: var(--chalk-clay-hover); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 .courseHeading h1 { max-width: 52ch; margin: 1px 0 0; overflow: hidden; color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
@@ -31,7 +29,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneNumber { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 600; }
 .sceneItemTitle { display: block; overflow: hidden; color: var(--chalk-ink-soft); font-size: 12px; font-weight: 600; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .sceneItemActive .sceneItemTitle { color: var(--chalk-ink); }
-.sceneItemMeta { color: var(--chalk-stone); font-size: 10px; }
 
 .lessonSpace { display: flex; min-width: 0; min-height: 0; padding: 22px 24px 20px; flex-direction: column; background: var(--chalk-canvas); }
 .lessonMeta { display: flex; min-height: 30px; align-items: baseline; gap: 12px; }
@@ -94,40 +91,12 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .quizEmpty strong { color: var(--chalk-ink); font-size: 14px; }
 .quizEmpty span { font-size: 12px; }
 
-.playbackBar { display: flex; min-height: 42px; padding: 5px 8px; align-items: center; gap: 8px; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 8px; box-shadow: var(--chalk-shadow-working); }
-.controlButton, .primaryControl { display: grid; width: 31px; height: 31px; padding: 0; flex: none; color: var(--chalk-ink-soft); cursor: pointer; place-items: center; background: transparent; border: 1px solid transparent; border-radius: 6px; }
+.controlButton { display: grid; width: 31px; height: 31px; padding: 0; flex: none; color: var(--chalk-ink-soft); cursor: pointer; place-items: center; background: transparent; border: 1px solid transparent; border-radius: 6px; }
 .controlButton:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); border-color: var(--chalk-border-light); }
-.primaryControl { color: var(--chalk-paper); background: var(--chalk-ink); border-color: var(--chalk-ink); }
-.primaryControl:hover { background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }
-.progressTrack { height: 3px; min-width: 60px; flex: 1; overflow: hidden; background: var(--chalk-border-light); border-radius: 999px; }
-.progressTrack span { display: block; height: 100%; background: var(--chalk-clay); transition: width 200ms ease; }
-
-.teacherRail { min-width: 0; padding: 21px 17px; overflow-y: auto; background: var(--chalk-paper); border-left: 1px solid var(--chalk-border); }
-.teacherHeader { display: grid; min-height: 40px; grid-template-columns: 30px minmax(0, 1fr) 16px; align-items: center; gap: 9px; color: var(--chalk-stone); }
-.teacherAvatar { display: grid; width: 30px; height: 30px; color: var(--chalk-paper); font-family: var(--chalk-display); font-size: 16px; place-items: center; background: var(--chalk-ink); border-radius: 7px; }
-.teacherHeader > div:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
-.teacherHeader span { color: var(--chalk-stone); font-size: 10px; }
-.teacherHeader strong { overflow: hidden; color: var(--chalk-ink); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.speechSection { padding: 20px 0; margin-top: 18px; border-top: 1px solid var(--chalk-border); border-bottom: 1px solid var(--chalk-border); }
-.speechSection h2 { margin: 7px 0 9px; color: var(--chalk-ink); font-size: 16px; font-weight: 600; }
-.speechSection p { margin: 0; color: var(--chalk-ink-soft); font-size: 13px; line-height: 1.75; }
-.promptSection { display: flex; padding: 13px 0; align-items: flex-start; gap: 8px; color: var(--chalk-clay-hover); border-bottom: 1px solid var(--chalk-border-light); }
-.promptSection > div { min-width: 0; }
-.promptSection strong { color: var(--chalk-ink); font-size: 12px; font-weight: 600; }
-.promptSection p { margin: 4px 0 0; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.65; }
 .warningSection { display: flex; padding: 10px 0; align-items: flex-start; gap: 7px; color: var(--chalk-warning); font-size: 11px; border-bottom: 1px solid var(--chalk-border-light); }
 .warningSection span { min-width: 0; flex: 1; line-height: 1.5; }
 .warningSection button { display: grid; width: 22px; height: 22px; padding: 0; flex: none; color: currentColor; cursor: pointer; place-items: center; background: transparent; border: 0; border-radius: 4px; }
 .warningSection button:hover { background: #fbf0dc; }
-.actionLedger { padding: 17px 0 15px; }
-.ledgerHeader { display: flex; margin-bottom: 11px; align-items: center; justify-content: space-between; color: var(--chalk-stone); font-size: 11px; }
-.ledgerHeader strong { color: var(--chalk-ink-soft); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 500; }
-.ledgerDots { display: flex; min-height: 10px; align-items: center; flex-wrap: wrap; gap: 4px; }
-.ledgerDot { width: 7px; height: 7px; background: var(--chalk-border); border-radius: 50%; }
-.ledgerDotDone { background: var(--chalk-clay); }
-.ledgerEmpty { color: var(--chalk-stone); font-size: 11px; }
-.recoveryNote { display: flex; padding: 12px 0 0; align-items: flex-start; gap: 7px; color: var(--chalk-success); border-top: 1px solid var(--chalk-border-light); }
-.recoveryNote p { margin: 0; color: var(--chalk-stone); font-size: 10px; line-height: 1.6; }
 
 .loadingState, .errorState { display: grid; min-height: 100vh; padding: 24px; place-content: center; justify-items: center; gap: 9px; color: var(--chalk-stone); background: var(--chalk-canvas); text-align: center; }
 .loadingState svg { color: var(--chalk-clay); }
@@ -143,13 +112,11 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 @media (max-width: 1320px) {
   .classroomBody { grid-template-columns: 172px minmax(500px, 1fr) 240px; }
   .lessonSpace { padding-inline: 18px; }
-  .teacherRail { padding-inline: 14px; }
 }
 
 @media (max-width: 1120px) {
   .page { grid-template-columns: 208px minmax(0, 1fr); }
   .classroomBody { grid-template-columns: 155px minmax(500px, 1fr); }
-  .teacherRail { display: none; }
 }
 
 /* OpenMAIC workspace composition: one scene rail, one working stage, one optional context rail. */
@@ -159,8 +126,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneRail { grid-area: left; min-height: 0; padding: 0 10px 16px; overflow-y: auto; background: var(--chalk-paper-soft); border-right: 1px solid var(--chalk-border); }
 .sceneRailBrand { display: flex; height: 62px; padding: 0 6px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--chalk-border-light); }
 .sceneRailContext { color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 15px; font-weight: 600; }
-.brandLink { display: inline-flex; align-items: center; gap: 9px; color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 17px; font-weight: 600; text-decoration: none; }
-.brandMark { display: grid; width: 25px; height: 25px; color: var(--chalk-paper); font-family: var(--chalk-font); font-size: 14px; font-weight: 700; place-items: center; background: var(--chalk-ink); border-radius: 6px; }
 .iconButton { display: grid; width: 31px; height: 31px; padding: 0; color: var(--chalk-stone); place-items: center; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 6px; }
 .iconButton:hover { color: var(--chalk-ink); background: var(--chalk-paper); border-color: var(--chalk-border-light); }
 .sceneRailHeader { min-height: 42px; padding: 15px 7px 5px; }
@@ -170,21 +135,13 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneThumbnail { position: relative; display: grid; width: 100%; min-height: 102px; overflow: hidden; color: var(--chalk-stone); place-items: center; background: var(--chalk-paper); border: 1px solid var(--chalk-border-light); border-radius: 5px; }
 .sceneThumbnailNumber { position: absolute; right: 5px; bottom: 4px; display: grid; width: 17px; height: 17px; color: var(--chalk-stone); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; place-items: center; background: rgba(255, 253, 249, .92); border: 1px solid var(--chalk-border-light); border-radius: 4px; }
 .sceneInteractiveThumbnail { position: relative; width: 100%; height: 100%; min-height: 102px; overflow: hidden; background: #effbf4; }
-.sceneInteractiveFrame { position: absolute; top: 0; left: 0; overflow: hidden; transform-origin: top left; pointer-events: none; }
+.sceneInteractivePreview { display: flex; height: 100%; min-height: 102px; align-items: center; justify-content: center; gap: 6px; color: #365246; flex-direction: column; background: #edf7f0; }
+.sceneInteractivePreview span { font-size: 8px; font-weight: 700; letter-spacing: .08em; }
 .sceneInteractiveThumbnail iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
 .sceneInteractiveShade { position: absolute; right: 0; bottom: 0; left: 0; display: flex; min-height: 24px; padding: 0 7px; align-items: center; justify-content: space-between; color: #365246; font-size: 9px; font-weight: 600; background: rgba(240, 253, 244, .9); border-top: 1px solid rgba(54, 82, 70, .14); }
 .sceneInteractiveFallback { display: flex; min-height: 100%; align-items: center; justify-content: center; gap: 6px; color: var(--chalk-stone); flex-direction: column; font-size: 10px; font-weight: 600; }
 .sceneInteractiveFallback svg { color: var(--chalk-clay); }
 .sceneQuizThumbnail { position: relative; width: 100%; min-height: 102px; padding: 8px 9px; overflow: hidden; color: var(--chalk-ink-soft); background: #fffaf0; }
-.sceneQuizTopline { display: flex; align-items: center; justify-content: space-between; color: var(--chalk-clay-hover); font-size: 7px; font-weight: 700; letter-spacing: .05em; }
-.sceneQuizTopline strong { color: var(--chalk-stone); font-size: 8px; font-weight: 500; letter-spacing: 0; }
-.sceneQuizTitle { display: block; margin-top: 4px; overflow: hidden; color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.sceneQuizQuestion { display: -webkit-box; min-height: 25px; padding: 4px 0; margin: 0; overflow: hidden; color: var(--chalk-ink-soft); font-size: 8px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.sceneQuizOptions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
-.sceneQuizOptions span { display: flex; min-width: 0; padding: 3px 4px; align-items: center; gap: 3px; overflow: hidden; color: var(--chalk-stone); font-size: 7px; white-space: nowrap; background: rgba(255, 253, 249, .8); border: 1px solid #eadfca; border-radius: 3px; }
-.sceneQuizOptions b { display: grid; width: 11px; height: 11px; flex: none; color: var(--chalk-clay-hover); font-size: 7px; place-items: center; background: #fdf3ed; border-radius: 2px; }
-.sceneQuizOptions span { text-overflow: ellipsis; }
-.sceneQuizEmpty { display: flex; min-height: 62px; align-items: center; justify-content: center; gap: 6px; color: var(--chalk-stone); font-size: 10px; }
 .quizCoverGlow { position: absolute; top: -20px; right: -16px; width: 84px; height: 84px; background: rgba(193, 95, 60, .1); border-radius: 50%; }
 .quizCoverIcon { position: relative; display: grid; width: 30px; height: 30px; margin: 5px 0 6px; color: var(--chalk-clay); place-items: center; background: #fdf3ed; border: 1px solid #ecd3c7; border-radius: 8px; }
 .quizCoverKicker { position: relative; color: var(--chalk-clay-hover); font-size: 8px; font-weight: 700; letter-spacing: .08em; }
@@ -211,7 +168,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .lessonViewport { position: relative; padding: 10px 0 14px; }
 .slideCanvas { width: min(100%, 1120px); }
 .interactiveFrameWrap { width: min(100%, 1120px); height: min(100%, 660px); }
-.playbackBar { min-height: 44px; max-width: 1120px; margin: 0 auto; }
 .discussionDock { min-height: 138px; height: 170px; max-height: 170px; box-sizing: border-box; padding: 13px 22px 16px; overflow-y: auto; background: var(--chalk-paper); border-top: 1px solid var(--chalk-border); }
 .discussionHeader { display: flex; min-height: 24px; align-items: center; justify-content: space-between; }
 .discussionHeading { display: flex; align-items: center; gap: 7px; color: var(--chalk-clay-hover); }
@@ -219,20 +175,10 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .discussionHeading span, .discussionPosition { color: var(--chalk-stone); font-size: 10px; }
 .discussionPosition { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .discussionMain { display: grid; min-width: 0; margin-top: 9px; grid-template-columns: 166px minmax(0, 1fr) auto; align-items: center; gap: 14px; }
-.discussionTeacher { display: flex; align-items: center; gap: 9px; }
-.discussionTeacher > div:last-child { display: flex; flex-direction: column; gap: 1px; }
-.discussionTeacher strong { color: var(--chalk-ink); font-size: 12px; }
-.discussionTeacher span { color: var(--chalk-stone); font-size: 10px; }
 .discussionMessageCard { min-width: 0; padding: 10px 13px; background: var(--chalk-paper); border: 1px solid var(--chalk-border-light); border-radius: 9px; box-shadow: var(--chalk-shadow-working); }
 .discussionMessageCard > p { max-width: 78ch; margin: 0; overflow: hidden; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.65; text-overflow: ellipsis; white-space: nowrap; }
 .discussionPrompt { display: inline-flex; max-width: 100%; margin-top: 7px; padding: 5px 9px; align-items: center; gap: 6px; color: var(--chalk-clay-hover); font-size: 11px; background: #fdf3ed; border: 1px solid #ecd3c7; border-radius: 6px; }
 .discussionPrompt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.discussionActions { display: flex; align-items: center; gap: 5px; }
-.discussionTool, .discussionPlay { display: grid; width: 31px; height: 31px; padding: 0; color: var(--chalk-stone); place-items: center; cursor: pointer; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 999px; }
-.discussionTool:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
-.discussionPlay { width: 35px; height: 35px; margin-left: 3px; color: var(--chalk-clay); }
-.discussionPlay:hover { color: var(--chalk-paper); background: var(--chalk-clay); border-color: var(--chalk-clay); }
-.discussionToolActive { color: var(--chalk-paper); background: var(--chalk-clay); border-color: var(--chalk-clay); }
 .discussionReply { display: flex; height: 30px; margin-top: 8px; align-items: center; gap: 5px; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border-light); border-radius: 6px; }
 .discussionReply input { min-width: 0; padding: 0 8px; flex: 1; color: var(--chalk-ink); font-size: 11px; background: transparent; border: 0; outline: 0; }
 .discussionReply button { display: grid; width: 28px; height: 28px; padding: 0; color: var(--chalk-stone-light); place-items: center; cursor: pointer; background: transparent; border: 0; }
@@ -263,7 +209,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .notesList { padding: 8px 10px; }
 .notesList p { display: flex; margin: 0; padding: 10px 0; align-items: flex-start; gap: 7px; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.75; border-bottom: 1px solid var(--chalk-border-light); }
 .notesList .noteRead { color: var(--chalk-ink); }
-.noteBulb { width: 7px; height: 7px; flex: none; margin-top: 7px; background: var(--chalk-clay); border-radius: 50%; }
 .notesEmpty { color: var(--chalk-stone) !important; }
 .chatContent { display: flex; padding: 16px 14px 14px; flex-direction: column; }
 .chatIntro { padding: 5px 10px 15px; color: var(--chalk-ink-soft); border-bottom: 1px solid var(--chalk-border-light); }
@@ -274,7 +219,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .chatMessageList { display: flex; padding: 12px 10px; flex: 1; flex-direction: column; gap: 10px; }
 .chatMessage { display: flex; align-items: flex-start; gap: 8px; }
 .chatMessage p { margin: 0; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.7; }
-.teacherAvatarSmall, .chatPromptIcon { display: grid; width: 22px; height: 22px; flex: none; color: var(--chalk-paper); font-size: 11px; font-weight: 700; place-items: center; background: var(--chalk-ink); border-radius: 6px; }
+.chatPromptIcon { display: grid; width: 22px; height: 22px; flex: none; color: var(--chalk-paper); font-size: 11px; font-weight: 700; place-items: center; background: var(--chalk-ink); border-radius: 6px; }
 .chatPromptIcon { color: var(--chalk-clay-hover); background: #fdf3ed; border: 1px solid #ecd3c7; }
 .chatMessagePrompt p { color: var(--chalk-clay-hover); }
 .chatMessageStudent { justify-content: flex-end; }
@@ -312,11 +257,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 
 /* The lower discussion surface belongs to participants, not playback. The
    teacher speaks on the left; user/agent avatars and input live on the right. */
-.teacherMessage { display: flex; min-width: 0; align-items: flex-start; gap: 13px; }
-.teacherIdentity { display: flex; width: 145px; flex: none; align-items: center; gap: 8px; }
-.teacherIdentity > div:last-child { display: flex; flex-direction: column; gap: 1px; }
-.teacherIdentity strong { color: var(--chalk-ink); font-size: 12px; }
-.teacherIdentity span { color: var(--chalk-stone); font-size: 10px; white-space: nowrap; }
 .participantRail { display: flex; min-width: 240px; flex: 0 1 360px; flex-direction: column; gap: 8px; }
 .agentAvatarRow { display: flex; min-height: 30px; align-items: center; gap: 7px; }
 .agentHint { color: var(--chalk-stone); font-size: 10px; }
@@ -368,8 +308,6 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .notesMeta { display: block; margin-top: 5px; color: var(--chalk-stone); font-size: 10px; }
 .noteRow { padding: 10px 0; border-bottom: 1px solid var(--chalk-border-light); }
 .noteRowActive { padding-inline: 8px; background: #fdf3ed; border-radius: 6px; }
-.noteRowTopline { display: flex; align-items: center; gap: 7px; }
-.noteIndex { color: var(--chalk-stone); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }
 .noteActionTag { display: inline-flex; min-height: 21px; padding: 2px 7px; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; border: 1px solid transparent; border-radius: 999px; }
 .noteToolSpotlight { color: #8c681b; background: #fff8e6; border-color: #ebd89b; }
 .noteToolLaser { color: var(--chalk-danger); background: #fbefed; border-color: #e6c5c1; }
@@ -398,6 +336,10 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .whiteboardActions button:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
 .whiteboardCanvas { position: relative; display: flex; flex: 1; align-items: center; justify-content: center; color: var(--chalk-stone); flex-direction: column; background-image: radial-gradient(var(--chalk-border-light) 1px, transparent 1px); background-size: 22px 22px; }
 .whiteboardCanvas svg { width: 100%; height: 100%; color: var(--chalk-ink); cursor: crosshair; touch-action: none; }
+.whiteboardAuthoredLayer { position: absolute; z-index: 2; inset: 0; overflow: hidden; pointer-events: none; }
+.whiteboardAuthoredElement { position: absolute; min-width: 80px; padding: 8px 10px; overflow: auto; color: var(--chalk-ink); font-size: clamp(12px, 1.5vw, 22px); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(255, 253, 249, .86); border: 1px solid var(--chalk-border-light); border-radius: 6px; }
+.whiteboardAuthoredElement[data-whiteboard-type="wb_draw_code"] { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: clamp(10px, 1.2vw, 16px); }
+.whiteboardAuthoredElement[data-whiteboard-type="wb_draw_shape"] { display: grid; place-items: center; background: #f3eee8; border-color: var(--chalk-border); }
 .whiteboardEmpty { position: absolute; z-index: 1; top: 50%; left: 50%; pointer-events: none; text-align: center; transform: translate(-50%, -50%); }
 .whiteboardCanvas span { color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 18px; }
 .whiteboardCanvas p { margin: 7px 0 0; font-size: 12px; }
@@ -419,4 +361,67 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
   .page { grid-template-columns: 212px minmax(0, 1fr); }
   .chalkboardWorkspace { grid-template-columns: 172px minmax(0, 1fr) 260px; }
   .chalkboardWorkspace.pagePanelClosed { grid-template-columns: 172px minmax(0, 1fr) 44px; }
+}
+
+@media (max-width: 1180px) {
+  .page { min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-areas: "workspace"; }
+  .page > :first-child { display: none; }
+  .chalkboardWorkspace, .chalkboardWorkspace.pagePanelClosed { position: relative; grid-template-columns: 180px minmax(0, 1fr) 44px; }
+  .notesRail:not(.notesRailClosed) { position: absolute; z-index: 60; top: 0; right: 0; bottom: 0; width: min(380px, 82vw); box-shadow: -14px 0 36px rgba(43, 41, 38, .12); }
+  .discussionDock { height: auto; max-height: 230px; }
+  .lessonSpace { padding-inline: 16px; }
+}
+
+@media (max-width: 720px) {
+  .page, .chalkboardWorkspace { height: 100dvh; min-height: 0; }
+  .chalkboardWorkspace, .chalkboardWorkspace.pagePanelClosed { grid-template-columns: minmax(0, 1fr); grid-template-rows: 124px minmax(0, 1fr); grid-template-areas: "left" "center"; overflow: hidden; }
+  .sceneRail { display: flex; padding: 7px 10px 8px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--chalk-border); flex-direction: column; }
+  .sceneRailBrand, .sceneRailHeader { display: none; }
+  .sceneList { min-width: max-content; padding: 0; flex-direction: row; gap: 7px; }
+  .sceneItem { width: 138px; height: 108px; padding: 5px; }
+  .sceneThumbnail { min-height: 70px; }
+  .sceneInteractiveThumbnail, .sceneInteractivePreview, .sceneQuizThumbnail { min-height: 70px; }
+  .sceneItemTopline { display: none; }
+  .sceneItemTitle { font-size: 11px; }
+  .classroom { height: 100%; min-height: 0; }
+  .topBar { min-height: 58px; padding: 0 12px; }
+  .courseHeading > span, .languageSwitch, .stageId { display: none; }
+  .courseHeading h1 { max-width: 28ch; font-size: 16px; }
+  .topTools { gap: 3px; }
+  .topStatus { padding-left: 6px; margin-left: 2px; font-size: 10px; }
+  .classroomBody { min-height: 0; overflow-y: auto; }
+  .lessonSpace { min-height: 430px; padding: 12px 12px max(12px, env(safe-area-inset-bottom)); }
+  .lessonMeta { min-height: 42px; flex-wrap: wrap; gap: 2px 8px; }
+  .lessonMeta strong { order: 3; width: 100%; font-size: 14px; white-space: normal; }
+  .lessonMeta > span:last-child { margin-left: auto; }
+  .lessonViewport { min-height: 230px; padding: 8px 0 10px; }
+  .interactiveFrameWrap { height: 100%; min-height: 240px; }
+  .playbackControls { max-width: 100%; overflow-x: auto; justify-content: flex-start; }
+  .controlDivider { margin-inline: 1px; }
+  .discussionDock { min-height: 250px; height: auto; max-height: none; padding: 14px 12px 20px; overflow: visible; }
+  .discussionHeading > span, .discussionPosition { display: none; }
+  .discussionSpeaker { width: 66px; }
+  .discussionMessageCard { padding: 10px; }
+  .participantRailHeader { align-items: flex-start; flex-direction: column; }
+  .agentAvatarRow { max-width: 100%; }
+  .optionList { grid-template-columns: minmax(0, 1fr); }
+  .option { min-height: 48px; }
+  .quizPanel { padding-inline: 2px; }
+  .quizIntro h2 { font-size: 20px; }
+  .notesRail:not(.notesRailClosed) { position: absolute; z-index: 70; inset: 0; width: 100%; }
+  .notesRailClosed { position: absolute; z-index: 65; top: 62px; right: 0; width: 44px; height: 48px; padding-top: 8px; border-bottom: 1px solid var(--chalk-border); }
+  .whiteboardSurface { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
+  .whiteboardTitle > span:last-child { display: none; }
+  .whiteboardAuthoredElement { min-width: 56px; padding: 5px 6px; }
+}
+
+@media (pointer: coarse) {
+  .page button, .page a { min-height: 44px; }
+  .iconButton, .controlButton, .playControl, .panelToggle, .panelExpand, .inputModeButton, .discussionChatButton, .whiteboardActions button { min-width: 44px; min-height: 44px; }
+  .notesTabs > button:not(.panelToggle) { min-height: 62px; }
+  .chatComposer, .discussionReply { min-height: 44px; height: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvasElementHighlighted, .canvasElementLaser { transition: none; }
 }

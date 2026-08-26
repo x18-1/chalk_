@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CanvasElement, SceneView } from "@chalk/chalkboard";
-import styles from "../../../app/chalkboard/chalkboard.module.css";
+import styles from "../chalkboard.module.css";
+import { sanitizeClassroomMarkup } from "../lib/safe-html";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -87,6 +88,7 @@ function LatexCanvasElement({
   const width = element.width ?? 40;
   const height = element.height ?? 30;
   const markup = element.html ?? element.latex ?? "";
+  const safeMarkup = useMemo(() => sanitizeClassroomMarkup(markup), [markup]);
   const align = element.align === "left" ? "flex-start" : element.align === "right" ? "flex-end" : "center";
   const transformOrigin = element.align === "left" ? "left center" : element.align === "right" ? "right center" : "center center";
 
@@ -107,7 +109,7 @@ function LatexCanvasElement({
           ref={innerRef}
           className={styles.canvasLatexContent}
           style={{ color: element.color ?? "#333", transformOrigin, transform: `scale(${contentScale})` }}
-          dangerouslySetInnerHTML={{ __html: markup }}
+          dangerouslySetInnerHTML={{ __html: safeMarkup }}
         />
       </div>
     </div>
@@ -175,7 +177,7 @@ export function SlideCanvas({ scene, highlightedElementId, laserElementId = null
           if (element.type === "text") {
             const content = element.content ?? "";
             const fontSize = content.match(/font-size:\s*(\d+)px/)?.[1];
-            return <div className={`${commonClass} ${styles.canvasText}`} key={element.id ?? index} style={{ ...style, color: element.defaultColor ?? "#333", fontSize: fontSize ? `${Number(fontSize)}px` : undefined }} dangerouslySetInnerHTML={{ __html: content }} />;
+            return <div className={`${commonClass} ${styles.canvasText}`} key={element.id ?? index} style={{ ...style, color: element.defaultColor ?? "#333", fontSize: fontSize ? `${Number(fontSize)}px` : undefined }} dangerouslySetInnerHTML={{ __html: sanitizeClassroomMarkup(content) }} />;
           }
           if (element.type === "table") {
             const rows = Array.isArray(element.data) ? element.data : [];
