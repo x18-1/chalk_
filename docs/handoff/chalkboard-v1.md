@@ -190,8 +190,8 @@ metadata、数学画布色阶和 4–10px 内部半径；没有把这些机械�
 2. 创建 .worktree/chalkboard-v2，并按 worktree runbook 分配独立端口和数据库。
 3. 创建 docs/handoff/chalkboard-v2.md，记录准确基线、环境和实际服务状态。
 4. 阅读 docs/plan/plan-chalkboard-v2.md、Chalkboard V1 specs、repository boundaries 和 backend layers。
-5. 在第一条数据库 migration 前确认 Classroom owner 与学生访问授权模型。
-6. 从 Classroom 目录与 Artifact 读取切片开始，按已确认 TDD seam 推进。
+5. 从用户 Classroom 持久化与对象存储切片开始，按已确认 TDD seam 推进。
+6. 让两门现有课堂通过正式存储和导入链路进入测试账号。
 7. 先运行 V1 Chalkboard package/E2E 基线，再修改后端或前端行为。
 ```
 

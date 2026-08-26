@@ -20,13 +20,17 @@ Trace 中有边界、耗时和结果的一个操作，例如模型调用、工�
 
 表达教学过程状态的结构化事件，例如等待学生回答、进入讨论室或提示层级变化。它服务于学生体验和学习证据，不能与运行诊断的 Telemetry 混为同一类事实。
 
+## Account
+
+已经通过认证并使用 Chalk 的账号。`user` 和 `admin` 都使用 Chat、Chalkboard 等产品功能；`admin` 还可以使用明确的后台功能。
+
 ## Classroom
 
-学生可以进入并持续学习的一项教学内容，其身份在内容修订后保持稳定。
+由 Account 创建、导入或生成，并可进入持续学习的一项教学内容。它归属于该 Account，身份在内容修订后保持稳定。
 
 ## Classroom Artifact
 
-某个 Classroom 已发布且不可变的版本，包含完成课堂所需的教学内容和媒体引用。
+某个 Classroom 校验完成且不可变的版本，包含完成课堂所需的教学内容和媒体引用。
 _避免使用_：`Stage`、课堂包、课程制品。
 
 ## Learning Session
@@ -41,10 +45,10 @@ _避免使用_：进度条、页面索引。
 
 ## Generation Run
 
-从教学要求生成一个 Classroom Artifact 草稿的一次可追踪尝试，具有 `completed`、`aborted` 或 `failed` 终态。
+Account 从教学要求生成 Classroom Artifact 的一次可追踪尝试，具有 `completed`、`aborted` 或 `failed` 终态。
 _避免使用_：生成任务、Agent Session。
 
 ## Classroom Draft
 
-尚未发布、可以继续生成或修改的课堂候选内容；只有校验通过并发布后才成为 Classroom Artifact。
+生成过程中持续补全的课堂候选内容；校验完成后形成 Classroom Artifact。
 _避免使用_：临时 Stage、未完成课堂。

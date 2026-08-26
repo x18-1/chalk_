@@ -47,8 +47,8 @@
 
 - Classroom、不可变 Classroom Artifact、Learning Session 和 Playback Cursor 的正式
   API/DAL 持久化；
-- owner/访问关系、稳定冲突错误和跨进程恢复；
-- `.maic.zip` 通用导入、对象存储媒体和课堂目录；
+- owner 隔离、稳定冲突错误和跨进程恢复；
+- `.maic.zip` 通用导入、对象存储媒体和用户课堂列表；
 - Generation Run、Classroom Draft、outline/content/action/media 分段生成和失败恢复；
 - scripted discussion、SSE 恢复和真实 Agent Runtime 课堂讨论；
 - 前端真实目录、保存状态、生成进度、冲突、失败与恢复体验。

@@ -41,6 +41,7 @@
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
+| Prompt 管理 | [architecture/prompts.md](architecture/prompts.md) | Accepted + Documented；新 Prompt 立即遵守，既有内联 Prompt 随所属能力迁移 |
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
 | Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和上传文本 adapter 已实现，知识库/Web adapter 待后续阶段 |
 | Tools 基础能力 | [spec/tools-foundation-spec.md](spec/tools-foundation-spec.md) | Draft；核心 runtime、统一 Read facade 和 MinIO 集成验证已实现，更多资源 adapter 待后续阶段 |

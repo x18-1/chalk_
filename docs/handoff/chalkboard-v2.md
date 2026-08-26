@@ -16,28 +16,24 @@
 
 从 V1 已验证的浏览器课堂运行时出发，依次交付：
 
-1. Classroom 目录与不可变 Classroom Artifact 读取；
-2. Learning Session 与 Playback Cursor 服务端持久化；
-3. Quiz、讨论、课堂 Chat 和白板学习状态；
-4. 通用 `.maic.zip` 导入与对象存储媒体；
-5. 可恢复的 Generation Run；
+1. 用户课堂持久化、对象存储与不可变 Classroom Artifact；
+2. 通用 `.maic.zip` 导入；
+3. 可恢复的 Generation Run 和课堂 AI；
+4. Learning Session 与 Playback Cursor 服务端持久化；
+5. Quiz、讨论、课堂 Chat 和白板学习状态；
 6. scripted discussion 与真实课堂讨论 Agent。
 
 每个后端垂直切片同时交付对应前端的 loading、empty、forbidden、not found、conflict、
 offline、retry 和保存反馈，不建立第二套 Agent Runtime。
 
-## 2. 实现前决策门
+## 2. 已确认的产品与数据边界
 
-尚未开始任何 V2 领域 schema 或 migration。第一条 Chalkboard V2 migration 前必须确认：
+Chalkboard 与 Chat 一样，是所有已认证账号都能使用的产品功能。`admin` 和 `user` 使用相同
+的课堂创建、导入和学习能力；`admin` 的额外后台能力不改变 Chalkboard 的产品路径。
 
-1. 教师/创建者拥有 Classroom，学生通过显式访问授权学习；或
-2. 第一阶段只支持单用户 owner，后续再引入访问授权。
-
-无论选择哪一种，owner/访问校验都必须在 DAL 强制执行，认证异常 fail closed。两门种子
-课堂不能使用全局公开、默认身份或 Route 特判绕过权限模型。
-
-推荐长期模型是“创建者拥有 Classroom，学生通过访问授权学习”；该选择仍需用户确认后
-才能落入权威 spec 和数据库设计。
+用户创建、导入、生成的 Classroom 及其媒体、生成过程和学习状态按账号归属，在 DAL 强制
+owner 校验；认证异常 fail closed。两门现有课堂用于迁移和验证正式存储、导入、运行链路，
+并通过与其他课堂相同的产品接口读取和学习。
 
 ## 3. 已完成的阶段初始化
 
@@ -125,24 +121,16 @@ PR #5 合并前通过。真实第三方 Provider smoke 未运行，V2 `.env` 未
 
 ## 7. 下一步
 
-1. 与用户确认 Classroom owner 与学生访问授权模型；
-2. 将决定同步到 Chalkboard scope/runtime spec；只有满足 ADR 三项门槛时才新增 ADR；
-3. 固定第一个 TDD seam：认证 HTTP 接口与 owner/访问隔离；
-4. 先写“授权用户能列出两门种子课堂、未授权用户不可见”的失败 integration test；
-5. 只实现 Classroom、Classroom Artifact 和最小访问关系，不提前创建 Learning Session 表；
-6. 接入 Web 课堂目录，Playwright 验证新浏览器无需预置 `localStorage` 即可发现两门课；
-7. 完成该垂直切片后再进入 Playback Cursor。
+1. 固定第一个 TDD seam：认证用户的 Classroom 持久化与对象存储；
+2. 先写 `admin`、`user` 均可使用同一课堂接口且两个账号数据相互隔离的 integration test；
+3. 实现 Classroom、Classroom Artifact、媒体引用及 owner 约束；
+4. 让两门现有课堂通过正式持久化/导入链路进入测试账号，不再依赖 Web 固定 fixture；
+5. 接入 Web 用户课堂列表，验证新浏览器无需预置 `localStorage` 即可发现自己的课堂；
+6. 完成通用 `.maic.zip` 导入后，建立集中 Prompt loader、双语配对与 provenance 门禁；
+7. 迁移现有内联产品 Prompt，再接入可恢复的 Generation Run 和课堂 AI；
+8. 随后迁移 Learning Session、Playback Cursor 和课堂交互状态。
 
-## 8. 明确不在第一个切片
-
-- Generation Run 和真实 AI 课堂生成；
-- Quiz、讨论、Chat 和白板持久化；
-- 通用 ZIP 上传；
-- PBL、编辑器、Edit with AI 和导出；
-- 几何 DSL、约束层和 `manim-web`；
-- 为减少文件数量而进行的无关重构。
-
-## 9. 参考入口
+## 8. 参考入口
 
 - [V2 工程迁移计划](../plan/plan-chalkboard-v2.md)
 - [Chalkboard V1 范围](../spec/chalkboard-v1-scope.md)
@@ -150,6 +138,7 @@ PR #5 合并前通过。真实第三方 Provider smoke 未运行，V2 `.env` 未
 - [内容生成](../spec/chalkboard-v1-generation.md)
 - [课堂讨论](../spec/chalkboard-v1-discussion.md)
 - [API 后端分层](../architecture/backend-layers.md)
+- [Prompt 管理规范](../architecture/prompts.md)
 - [仓库边界](../architecture/repository-boundaries.md)
 - [worktree runbook](../runbooks/worktree-development.md)
 - [数据库 runbook](../runbooks/database-development.md)

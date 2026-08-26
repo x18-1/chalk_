@@ -3,7 +3,7 @@
 > 文档状态：Accepted
 > 实施状态：Partial
 > 适用范围：`apps/`、`packages/`、根级测试与运行配置；不含 `agents/`
-> 最后核验：2026-08-22
+> 最后核验：2026-08-26
 
 ## 1. 目标结构
 
@@ -57,6 +57,7 @@ apps/web ──X──> Drizzle / Postgres / Fastify / 服务端凭据
 - 用户凭据、owner 校验和产品权限策略；
 - `pi-ai` LLM Provider、模型目录、自定义 Provider 和模型选择的应用级装配；
 - Agent runtime 的应用级装配与生命周期；
+- Chalk 产品 Prompt 的集中资产、双语镜像、装配、revision 和 provenance；
 - S3/MinIO、外部 Provider 配置及其他基础设施 adapter。
 
 不负责提供可被其他 workspace 模块导入的通用业务实现。确有两个真实调用方时，再把稳定接口下沉到 package。
@@ -79,7 +80,7 @@ apps/web ──X──> Drizzle / Postgres / Fastify / 服务端凭据
 
 ### `packages/agent-runtime`
 
-负责通用 Agent 执行能力，包括 Pi Agent runtime、工具接口、MCP 协议适配、session 接口、compaction 和运行 telemetry。它使用调用方注入的 Pi LLM 能力，不负责 Chalk 的模型目录装配、用户模型选择或 Provider 配置。
+负责通用 Agent 执行能力，包括 Pi Agent runtime、工具接口、MCP 协议适配、session 接口、compaction 和运行 telemetry。它使用调用方注入的 Pi LLM 能力和已装配的 system Prompt，不负责 Chalk 产品 Prompt、模型目录装配、用户模型选择或 Provider 配置。
 
 它不知道 Chalk 的 Fastify route、Drizzle schema、用户表、产品权限或对象存储。应用能力通过接口注入，例如已装配的 Pi LLM 能力、approval port、session repository 和工具集合。
 
@@ -105,6 +106,8 @@ apps/web ──X──> Drizzle / Postgres / Fastify / 服务端凭据
 - Package 内部实现默认不导出；只有调用方确实需要的接口进入公开入口。
 - 数据库表类型不得成为 `packages/*` 的公开接口。
 - Fastify、Next.js、Drizzle 和供应商 SDK 类型不得泄露到与其无关的模块接口。
+- 产品 Prompt 的文件与 loader 留在 `apps/api/src/prompts/`；package 只接收稳定接口参数，不导入
+  Prompt 资产或 API 源码路径。具体双语和例外规则见 [Prompt 管理规范](./prompts.md)。
 
 ## 5. 当前状态
 
