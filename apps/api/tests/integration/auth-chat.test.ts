@@ -123,37 +123,6 @@ function createFixtureProviderServer() {
       return;
     }
 
-    if (userText.includes('搜索资源') && !hasToolResult) {
-      streamFixtureResponse(response, [
-        {
-          id,
-          model: 'fixture-model',
-          choices: [{
-            index: 0,
-            delta: {
-              role: 'assistant',
-              tool_calls: [{
-                index: 0,
-                id: 'http-search-call',
-                type: 'function',
-                function: {
-                  name: 'search_learning_resources',
-                  arguments: '{"query":"函数","limit":3}',
-                },
-              }],
-            },
-            finish_reason: null,
-          }],
-        },
-        {
-          id,
-          model: 'fixture-model',
-          choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
-        },
-      ]);
-      return;
-    }
-
     streamFixtureResponse(response, [
       {
         id,
@@ -595,7 +564,7 @@ describe('API auth and chat interface', () => {
     expect(unsupported.json()).toMatchObject({ code: 'UNSUPPORTED_THINKING_LEVEL' });
   });
 
-  it('advertises the new tools and runs search plus approved title changes', async () => {
+  it('advertises only real tools and runs approved title changes', async () => {
     const provider = await app.inject({
       method: 'POST',
       url: '/providers/custom',
@@ -621,9 +590,16 @@ describe('API auth and chat interface', () => {
     const tools = await app.inject({ method: 'GET', url: '/tools', headers: { cookie } });
     expect(tools.statusCode).toBe(200);
     expect(tools.json().tools).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'search_learning_resources', requiresApproval: false }),
       expect.objectContaining({ name: 'rename_current_conversation', requiresApproval: true }),
     ]));
+    const toolNames = tools.json().tools.map((tool: { name: string }) => tool.name);
+    expect(toolNames).not.toContain('search_learning_resources');
+    expect(toolNames).not.toContain('read_uploaded_file');
+    if (process.env.CREDENTIAL_ENCRYPTION_KEY) {
+      expect(tools.json().tools).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'read_resource', effects: ['read', 'network'], defaultEnabled: true }),
+      ]));
+    }
 
     const conversationResponse = await app.inject({
       method: 'POST',
@@ -644,12 +620,6 @@ describe('API auth and chat interface', () => {
       },
     });
     expect(approvalMode.statusCode).toBe(200);
-
-    const searchEvents = await streamConversation(conversationId, '搜索资源');
-    expect(searchEvents).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'tool_started', data: expect.objectContaining({ toolName: 'search_learning_resources' }) }),
-      expect.objectContaining({ type: 'tool_finished', data: expect.objectContaining({ toolName: 'search_learning_resources', isError: false }) }),
-    ]));
 
     let approvalResponse: Promise<Response> | undefined;
     const approvalEvents = await streamConversation(conversationId, '审批链路', (type, data) => {
@@ -812,5 +782,34 @@ describe('API auth and chat interface', () => {
     });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ code: 'INVALID_REQUEST' });
+  });
+
+  it('rejects private-network MCP URLs at the API seam', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: { cookie },
+      payload: {
+        name: 'local-network',
+        transport: 'http',
+        url: 'http://127.0.0.1:8080/mcp',
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'INVALID_REQUEST' });
+  });
+
+  it('rejects stdio MCP configuration for non-admin users', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      headers: { cookie },
+      payload: {
+        name: 'local-process',
+        transport: 'stdio',
+        command: process.execPath,
+      },
+    });
+    expect(response.statusCode).toBe(403);
   });
 });

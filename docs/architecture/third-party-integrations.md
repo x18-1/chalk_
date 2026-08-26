@@ -113,15 +113,25 @@ S3/MinIO、JSONL session repository、MCP client 等不是 Provider。它们仍�
 
 ## 7. MCP 特别规则
 
+Agent Tool 的公共契约、执行限制、审批层级和错误分类见 [Agent Tools 规范](tools.md)。本节只定义 MCP 作为一种 Tool source 时的集成归属和资源生命周期。
+
 ```text
 packages/agent-runtime:
-  transport + connect + listTools + proxy execute + close
+  transport + connect + listTools/readResource + proxy execute + bounded reconnect + close
 
 apps/api:
   user-owned configuration + encrypted env + enablement + approval + audit
 ```
 
 MCP 连接失败必须显式失败，不能静默返回空工具集合并继续假装连接成功。stdio 子进程和网络连接必须在 runtime 关闭时释放。
+
+stdio MCP 会启动 API 主机上的本地进程，因此只有管理员可以创建、查看、测试、修改和删除 stdio 配置；runtime 装配时也会再次校验 owner 角色，避免历史配置绕过路由限制。SSE/Streamable HTTP 配置仍按 owner 隔离。
+
+SSE/Streamable HTTP 的 MCP URL 在 API 入口拒绝 localhost、私网、loopback、link-local 和其他保留地址；runtime 的自定义 fetch 会对每次请求再次做 DNS 解析检查，并禁用自动重定向。该策略降低 SSRF 风险，但部署环境仍应配置网络出口 ACL；DNS 解析与实际连接之间的竞态不能仅靠应用层完全消除。
+
+MCP 的只读 tool 和 Resource 读取可以在连接失效后执行一次有限重连；写入 tool 不自动重试，避免重复副作用。MCP Resource 通过 API 的统一 `read_resource` facade 暴露，远端内容仍需 owner、媒体类型、大小和 snapshot 处理。
+
+连接初始化会按 Server capabilities 发现 `tools/list` 和 `resources/list`，并消费 MCP 返回的 `nextCursor` 直到列表结束。MCP proxy 的 `search` 结果同时包含工具和 Resource；Resource 结果使用 `<server-id>/<resource-uri>` 作为 `read_resource` 的引用，不能直接把远端 URI 当作新的 Agent 工具。
 
 ## 8. Chalkboard 边界
 

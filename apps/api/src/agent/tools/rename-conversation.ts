@@ -38,6 +38,9 @@ export function createRenameConversationTool(
       '修改当前学习会话的标题。该操作会持久化用户数据，因此必须先获得用户审批。',
     parameters: renameParameters,
     source: 'chalk',
+    effects: ['write'],
+    approvalPolicy: 'required',
+    defaultEnabled: true,
     requiresApproval: true,
     executionMode: 'sequential',
     async execute(args: RenameArguments, context) {

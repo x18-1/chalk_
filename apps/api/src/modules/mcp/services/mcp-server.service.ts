@@ -59,8 +59,13 @@ export class McpServerService {
     this.servers = createMcpServersDal(db);
   }
 
-  async list(userId: string) {
-    return { servers: (await this.servers.list(userId)).map(publicServer) };
+  async list(userId: string, includeStdio = true) {
+    const rows = await this.servers.list(userId);
+    return {
+      servers: rows
+        .filter((row) => includeStdio || row.transport !== 'stdio')
+        .map(publicServer),
+    };
   }
 
   async create(userId: string, input: McpServerInput) {

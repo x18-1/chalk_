@@ -22,9 +22,22 @@ export type CustomModel = {
   maxTokens: number;
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
 };
-export type Skill = { name: string; description: string; filePath: string; enabled: boolean; source: { id: string; label: string; trusted: boolean }; disableModelInvocation: boolean };
+export type Skill = { name: string; description: string; enabled: boolean; source: { id: string; label: string; trusted: boolean }; disableModelInvocation: boolean };
 export type McpServer = { id: string; name: string; transport: 'stdio' | 'sse' | 'http'; command: string | null; args: unknown; url: string | null; enabled: boolean; configuredEnv: boolean };
-export type Tool = { name: string; label: string; description: string; source: string; requiresApproval: boolean; enabled: boolean; approval: 'default' | 'always' | 'never' };
+export type Tool = {
+  name: string;
+  label: string;
+  description: string;
+  source: string;
+  effects: string[];
+  approvalPolicy: 'none' | 'required' | 'conditional';
+  limits: { timeoutMs: number; maxResultCharacters: number; maxUpdateCharacters: number };
+  executionMode: 'sequential' | 'parallel';
+  defaultEnabled: boolean;
+  requiresApproval: boolean;
+  enabled: boolean;
+  approval: 'default' | 'always' | 'never';
+};
 export type Model = {
   id: string;
   name: string;

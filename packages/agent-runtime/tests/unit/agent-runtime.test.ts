@@ -29,6 +29,116 @@ afterEach(async () => {
 });
 
 describe("AgentRuntime", () => {
+  it("runs parallel tools concurrently", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-parallel-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({
+      sessionsRoot: join(directory, "sessions"),
+      cwd: directory,
+    });
+    const session = await sessions.create({ ownerId: "student-1" });
+    const parameters = Type.Object({ value: Type.String() });
+    let active = 0;
+    let maximumActive = 0;
+    const createTool = (name: string): RuntimeTool<typeof parameters> => ({
+      name,
+      label: name,
+      description: name,
+      parameters,
+      source: "chalk",
+      effects: ["read"],
+      approvalPolicy: "none",
+      defaultEnabled: true,
+      executionMode: "parallel",
+      async execute() {
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        active -= 1;
+        return { content: [{ type: "text", text: name }], details: {} };
+      },
+    });
+    const tools = new ToolRegistry([
+      createTool("parallel_one"),
+      createTool("parallel_two"),
+    ]).createAgentTools({
+      context: { ownerId: "student-1", sessionId: session.descriptor.id },
+    });
+    const faux = fauxProvider({ tokenSize: { min: 1, max: 1 } });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("parallel_one", { value: "one" }, { id: "parallel-1" }),
+        fauxToolCall("parallel_two", { value: "two" }, { id: "parallel-2" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("并行工具已完成。"),
+    ]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const runtime = await createAgentRuntime({
+      session,
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
+      systemPrompt: "test",
+      tools,
+    });
+
+    const result = await runtime.run("并行处理");
+
+    expect(result.status).toBe("completed");
+    expect(maximumActive).toBe(2);
+  });
+
+  it("uses a sequential tool as a batch barrier", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-sequential-test-"));
+    temporaryDirectories.push(directory);
+    const sessions = createJsonlSessionRepository({ sessionsRoot: join(directory, "sessions"), cwd: directory });
+    const session = await sessions.create({ ownerId: "student-1" });
+    const parameters = Type.Object({ value: Type.String() });
+    let active = 0;
+    let maximumActive = 0;
+    const makeTool = (name: string, executionMode: "parallel" | "sequential"): RuntimeTool<typeof parameters> => ({
+      name,
+      label: name,
+      description: name,
+      parameters,
+      source: "chalk",
+      effects: ["read"],
+      approvalPolicy: "none",
+      defaultEnabled: true,
+      executionMode,
+      async execute() {
+        active += 1;
+        maximumActive = Math.max(maximumActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        active -= 1;
+        return { content: [{ type: "text", text: name }], details: {} };
+      },
+    });
+    const tools = new ToolRegistry([
+      makeTool("barrier_one", "sequential"),
+      makeTool("barrier_two", "parallel"),
+    ]).createAgentTools({ context: { ownerId: "student-1", sessionId: session.descriptor.id } });
+    const faux = fauxProvider({ tokenSize: { min: 1, max: 1 } });
+    faux.setResponses([
+      fauxAssistantMessage([
+        fauxToolCall("barrier_one", { value: "one" }, { id: "barrier-1" }),
+        fauxToolCall("barrier_two", { value: "two" }, { id: "barrier-2" }),
+      ], { stopReason: "toolUse" }),
+      fauxAssistantMessage("串行边界已生效。"),
+    ]);
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const runtime = await createAgentRuntime({
+      session,
+      llm: { models, model: faux.getModel(), thinkingLevel: "off" },
+      systemPrompt: "test",
+      tools,
+    });
+
+    await runtime.run("检查串行边界");
+
+    expect(maximumActive).toBe(1);
+  });
+
   it("streams a model response and durably appends the completed turn", async () => {
     const directory = await mkdtemp(join(tmpdir(), "chalk-runtime-test-"));
     temporaryDirectories.push(directory);
@@ -363,6 +473,9 @@ describe("AgentRuntime", () => {
       description: "整理题目结构",
       parameters: inspectParameters,
       source: "chalk",
+      effects: ["read"],
+      approvalPolicy: "none",
+      defaultEnabled: true,
       async execute() {
         return {
           content: [{ type: "text" as const, text: "已识别三条已知关系。" }],

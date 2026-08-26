@@ -17,7 +17,6 @@ export type SkillSource = {
 export type SkillSummary = {
   name: string;
   description: string;
-  filePath: string;
   source: Omit<SkillSource, "path">;
   disableModelInvocation: boolean;
 };
@@ -51,6 +50,17 @@ export class SkillRegistry {
       trustedSources.map((source) => ({ path: source.path, source })),
     );
 
+    const names = new Map<string, LoadedSkill>();
+    for (const loaded of result.skills) {
+      const previous = names.get(loaded.skill.name);
+      if (previous) {
+        throw new Error(
+          `Duplicate skill name ${loaded.skill.name} in sources ${previous.source.id} and ${loaded.source.id}`,
+        );
+      }
+      names.set(loaded.skill.name, loaded);
+    }
+
     this.loaded = result.skills;
     this.diagnostics = result.diagnostics.map((diagnostic) => ({
       type: diagnostic.type,
@@ -67,7 +77,6 @@ export class SkillRegistry {
       skills: this.loaded.map(({ skill, source }) => ({
         name: skill.name,
         description: skill.description,
-        filePath: skill.filePath,
         source: {
           id: source.id,
           label: source.label,
@@ -93,5 +102,15 @@ export class SkillRegistry {
     const loaded = this.loaded.find(({ skill }) => skill.name === name);
     if (!loaded) throw new Error(`Skill ${name} is not loaded`);
     return formatSkillInvocation(loaded.skill, additionalInstructions);
+  }
+
+  read(name: string, enabledSkillNames: ReadonlySet<string>) {
+    const loaded = this.loaded.find(({ skill }) => skill.name === name);
+    if (!loaded) throw new Error(`Skill ${name} is not loaded`);
+    if (!enabledSkillNames.has(name)) throw new Error(`Skill ${name} is disabled`);
+    if (loaded.skill.disableModelInvocation) {
+      throw new Error(`Skill ${name} does not allow model invocation`);
+    }
+    return formatSkillInvocation(loaded.skill);
   }
 }

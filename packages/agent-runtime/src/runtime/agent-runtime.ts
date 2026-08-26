@@ -30,6 +30,7 @@ import {
   type RuntimeTelemetryOptions,
 } from "../telemetry/telemetry";
 import type { TelemetrySpan } from "@earendil-works/pi-telemetry";
+import type { ToolErrorChannel } from "../tools/tool-registry";
 
 function errorCategory(error: unknown) {
   if (error instanceof Error && error.name === "AbortError") return "aborted";
@@ -117,6 +118,7 @@ export type AgentRuntimeEvent =
       toolName: string;
       result: unknown;
       isError: boolean;
+      errorCode?: string;
     }
   | { type: "run_finished"; status: RuntimeRunResult["status"] };
 
@@ -139,6 +141,7 @@ export type CreateAgentRuntimeOptions = {
   tools?: AgentTool[];
   telemetry?: RuntimeTelemetryOptions;
   compaction?: Partial<CompactionSettings>;
+  toolErrorChannel?: ToolErrorChannel;
 };
 
 type RuntimeEventListener = (event: AgentRuntimeEvent) => void | Promise<void>;
@@ -183,6 +186,7 @@ export class AgentRuntime {
     private readonly agent: Agent,
     private readonly session: RuntimeSession,
     telemetry: RuntimeTelemetryOptions = defaultRuntimeTelemetry,
+    private readonly toolErrorChannel?: ToolErrorChannel,
   ) {
     this.telemetryContext = telemetry.context ?? defaultRuntimeTelemetry.context;
     this.telemetryAttributes = telemetry.attributes ?? {};
@@ -406,6 +410,7 @@ export class AgentRuntime {
           toolName: event.toolName,
           result: event.result,
           isError: event.isError,
+          ...(event.isError ? { errorCode: this.toolErrorChannel?.consume(event.toolCallId)?.code } : {}),
         };
       default:
         return undefined;
@@ -510,7 +515,9 @@ export async function createAgentRuntime(
       ),
     convertToLlm,
     sessionId: options.session.descriptor.id,
-    toolExecution: "sequential",
+    // Pi runs independent tool calls concurrently and automatically falls back
+    // to a sequential batch when any declared tool is a sequential barrier.
+    toolExecution: "parallel",
     initialState: {
       systemPrompt: options.systemPrompt,
       model,
@@ -520,5 +527,5 @@ export async function createAgentRuntime(
     },
   });
 
-  return new AgentRuntime(agent, options.session, options.telemetry);
+  return new AgentRuntime(agent, options.session, options.telemetry, options.toolErrorChannel);
 }

@@ -219,6 +219,9 @@ describe('MCP through the API composition root', () => {
     expect(login.statusCode).toBe(200);
     cookie = responseCookie(login.headers['set-cookie']);
     userId = login.json().user.id;
+    // This suite exercises stdio, so its isolated fixture account is promoted
+    // after login and removed during teardown.
+    await getDb().update(authUsers).set({ role: 'admin' }).where(eq(authUsers.id, userId));
 
     const provider = await app.inject({
       method: 'POST',
