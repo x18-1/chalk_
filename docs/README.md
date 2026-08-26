@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-24
+> 最后核验：2026-08-26
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -32,6 +32,12 @@
 | 主题 | 权威来源 | 当前状态 |
 |---|---|---|
 | 产品功能 | [spec/functional-spec.md](spec/functional-spec.md) | Draft |
+| Chalkboard V1 范围 | [spec/chalkboard-v1-scope.md](spec/chalkboard-v1-scope.md) | Accepted |
+| Chalkboard V1 Provider | [spec/chalkboard-v1-providers.md](spec/chalkboard-v1-providers.md) | Accepted |
+| Chalkboard V1 Provider 适配结构 | [spec/chalkboard-v1-provider-architecture.md](spec/chalkboard-v1-provider-architecture.md) | Accepted |
+| Chalkboard V1 课堂运行时 | [spec/chalkboard-v1-runtime.md](spec/chalkboard-v1-runtime.md) | Accepted |
+| Chalkboard V1 内容生成 | [spec/chalkboard-v1-generation.md](spec/chalkboard-v1-generation.md) | Accepted |
+| Chalkboard V1 课堂讨论 | [spec/chalkboard-v1-discussion.md](spec/chalkboard-v1-discussion.md) | Accepted |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
@@ -43,6 +49,8 @@
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
+| Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
+| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Accepted |
 
 当规则冲突时，优先级为：
 
@@ -63,12 +71,13 @@ docs/
 ├── agent/                    # Agent / 学科实验资料
 ├── spec/                     # 产品功能定义
 ├── plan/                     # 阶段性实施计划
+├── handoff/                 # 功能分支的工作现场与交接记录
 ├── runbooks/                # 可执行的开发、迁移和恢复流程
 ├── researsh/                # 既有调研资料；保留历史拼写，暂不迁移路径
 └── ...                      # 其他按主题归档的资料
 ```
 
-`CHALKBOARD_OPENMAIC_HANDOFF.md` 是特定分支的交接快照，不是主分支架构规范。`CONTEXT.md` 是产品与运行术语表，不替代架构或运行手册。
+新的分支交接记录统一放在 [handoff/](handoff/README.md)，它们不是主分支架构规范。仓库根目录的 `CHALKBOARD_OPENMAIC_HANDOFF.md` 是旧迁移分支的历史快照；`CONTEXT.md` 是产品与运行术语表，二者都不替代架构或运行手册。
 
 ## 4. 更新规则
 

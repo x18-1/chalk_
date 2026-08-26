@@ -67,6 +67,8 @@ export const providerCredentials = pgTable(
       .references(() => authUsers.id, { onDelete: 'cascade' }),
     providerId: text('provider_id').notNull(),
     apiKeyEnc: text('api_key_enc'),
+    baseUrl: text('base_url'),
+    settings: jsonb('settings'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

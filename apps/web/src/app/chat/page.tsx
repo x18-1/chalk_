@@ -15,6 +15,7 @@ import remarkMath from "remark-math";
 import {
   Activity,
   AlertCircle,
+  AudioLines,
   ArrowUp,
   BookOpen,
   Check,
@@ -35,7 +36,7 @@ import {
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
 import { SettingsDialog } from "../../components/settings-dialog";
-import { ApiRequestError, chatApi, settingsApi, uploadsApi, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
+import { ApiRequestError, chatApi, mediaApi, settingsApi, uploadsApi, type MediaCapability, type MediaProviders, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chat.module.css";
 
@@ -268,6 +269,10 @@ function thinkingLevelLabel(level: ThinkingLevel) {
   return ({ off: "关闭", minimal: "极简", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最大" } as Record<ThinkingLevel, string>)[level];
 }
 
+function mediaCapabilityLabel(capability: MediaCapability) {
+  return ({ tts: "TTS", asr: "ASR", image: "生图", video: "视频" } as const)[capability];
+}
+
 const initialConversations: typeof defaultSidebarConversations = [];
 
 export default function ChatPage() {
@@ -281,6 +286,9 @@ export default function ChatPage() {
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [activeModelProviderId, setActiveModelProviderId] = useState("");
   const [modelSearch, setModelSearch] = useState("");
+  const [mediaProviders, setMediaProviders] = useState<MediaProviders | null>(null);
+  const [mediaCapability, setMediaCapability] = useState<MediaCapability>("tts");
+  const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
@@ -293,6 +301,7 @@ export default function ChatPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const rejectedToolCallsRef = useRef(new Set<string>());
   const modelPickerRef = useRef<HTMLDivElement>(null);
+  const mediaPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => {
     abortControllerRef.current?.abort();
@@ -302,10 +311,11 @@ export default function ChatPage() {
     let cancelled = false;
     async function loadWorkspace() {
       try {
-        const [conversationData, providerData, modelData] = await Promise.all([
+        const [conversationData, providerData, modelData, mediaData] = await Promise.all([
           chatApi.list(),
           settingsApi.providers(),
           settingsApi.models(),
+          mediaApi.providers(),
         ]);
         if (cancelled) return;
         const nextConversations = conversationData.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }));
@@ -314,6 +324,7 @@ export default function ChatPage() {
         setSelectedModel(nextSelection);
         setModelOptions(modelData.models);
         setModelProviders(providerData.providers);
+        setMediaProviders(mediaData);
         setActiveModelProviderId(nextSelection?.providerId ?? "");
         const query = new URLSearchParams(window.location.search);
         const isNewConversation = query.get("new") === "1";
@@ -341,12 +352,17 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!showModelMenu) return;
+    if (!showModelMenu && !showMediaMenu) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!modelPickerRef.current?.contains(event.target as Node)) setShowModelMenu(false);
+      const target = event.target as Node;
+      if (!modelPickerRef.current?.contains(target)) setShowModelMenu(false);
+      if (!mediaPickerRef.current?.contains(target)) setShowMediaMenu(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setShowModelMenu(false);
+      if (event.key === "Escape") {
+        setShowModelMenu(false);
+        setShowMediaMenu(false);
+      }
     };
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
@@ -354,7 +370,7 @@ export default function ChatPage() {
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [showModelMenu]);
+  }, [showMediaMenu, showModelMenu]);
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
@@ -386,6 +402,12 @@ export default function ChatPage() {
     const models = activeProviderGroup?.models ?? [];
     return query ? models.filter((model) => `${model.name} ${model.id}`.toLocaleLowerCase().includes(query)) : models;
   }, [activeProviderGroup, modelSearch]);
+  const configuredMediaProviders = useMemo(() => {
+    if (!mediaProviders) return [];
+    return (Object.entries(mediaProviders) as Array<[MediaCapability, MediaProviders[MediaCapability]]>)
+      .flatMap(([capability, providers]) => providers.filter((provider) => provider.configured && provider.models.length).map((provider) => ({ capability, provider })));
+  }, [mediaProviders]);
+  const visibleMediaProviders = configuredMediaProviders.filter((item) => item.capability === mediaCapability);
   function resetTransientConversationState() {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
@@ -694,6 +716,11 @@ export default function ChatPage() {
     });
   }
 
+  function toggleMediaMenu() {
+    setShowModelMenu(false);
+    setShowMediaMenu((open) => !open);
+  }
+
   function selectModel(option: Model) {
     const selection = {
       providerId: option.providerId,
@@ -719,12 +746,13 @@ export default function ChatPage() {
   async function reloadModelCatalog() {
     setSettingsOpen(false);
     try {
-      const [providerData, modelData] = await Promise.all([settingsApi.providers(), settingsApi.models()]);
+      const [providerData, modelData, mediaData] = await Promise.all([settingsApi.providers(), settingsApi.models(), mediaApi.providers()]);
       const nextSelection = resolveModelSelection(modelData.models, selectedModel ?? providerData.defaultModel);
       setModelProviders(providerData.providers);
       setModelOptions(modelData.models);
       setSelectedModel(nextSelection);
       setActiveModelProviderId(nextSelection?.providerId ?? "");
+      setMediaProviders(mediaData);
     } catch (loadError) {
       setNotice(loadError instanceof Error ? loadError.message : "刷新模型目录失败");
     }
@@ -749,7 +777,7 @@ export default function ChatPage() {
 
   return (
     <main className={`${styles.workspace} ${contextCollapsed ? styles.contextCollapsed : ""}`}>
-      <AppSidebar activeSection={isDraftConversation ? "new" : undefined} conversations={conversations} selectedConversationId={selectedId} onNewConversation={prepareNewConversation} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
+      <AppSidebar historyMode="chat" activeSection={isDraftConversation ? "new" : undefined} conversations={conversations} selectedConversationId={selectedId} onNewConversation={prepareNewConversation} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
 
       <section className={styles.chatSurface} aria-label="数学对话">
         <header className={styles.chatHeader}>
@@ -795,6 +823,14 @@ export default function ChatPage() {
                       <nav className={styles.modelProviderList} aria-label="已配置 Provider">{availableProviderGroups.map((group) => <button key={group.provider.id} type="button" className={group.provider.id === activeProviderGroup?.provider.id ? styles.modelProviderActive : ""} onClick={() => setActiveModelProviderId(group.provider.id)}><span>{group.provider.name}</span><small>{group.models.length}</small></button>)}</nav>
                       <div className={styles.modelOptionList}>{visibleModelOptions.length ? visibleModelOptions.map((option) => { const selected = selectedModel?.providerId === option.providerId && selectedModel.modelId === option.id; const level = selected ? selectedModel.thinkingLevel : defaultThinkingLevel(option); return <article key={`${option.providerId}/${option.id}`} className={`${styles.modelOptionRow} ${selected ? styles.modelOptionActive : ""}`}><button type="button" className={styles.modelChoice} aria-pressed={selected} onClick={() => selectModel(option)}><span><strong>{option.name}</strong><small>{option.id}</small></span>{selected && <Check size={15} />}</button><select className={styles.modelReasoningSelect} value={level} onChange={(event) => selectModelThinking(option, event.target.value as ThinkingLevel)} disabled={!option.reasoning} aria-label={`${option.name} 思考强度`}>{option.thinkingLevels.map((thinkingLevel) => <option key={thinkingLevel} value={thinkingLevel}>{thinkingLevelLabel(thinkingLevel)}</option>)}</select></article>; }) : <p>没有匹配的模型</p>}</div>
                     </div>
+                  </div>}
+                </div>
+                <div ref={mediaPickerRef} className={styles.mediaPicker}>
+                  <button className={styles.mediaButton} type="button" aria-expanded={showMediaMenu} onClick={toggleMediaMenu}><AudioLines size={14} /><span>媒体</span><ChevronDown size={14} /></button>
+                  {showMediaMenu && <div className={styles.mediaMenu} role="dialog" aria-label="选择媒体模型">
+                    <div className={styles.mediaMenuHeader}><strong>媒体模型</strong><span>已配置</span></div>
+                    <nav className={styles.mediaCapabilityList} aria-label="媒体能力">{(["tts", "asr", "image", "video"] as MediaCapability[]).map((capability) => <button key={capability} type="button" className={capability === mediaCapability ? styles.mediaCapabilityActive : ""} onClick={() => setMediaCapability(capability)}>{mediaCapabilityLabel(capability)}<small>{configuredMediaProviders.filter((item) => item.capability === capability).length}</small></button>)}</nav>
+                    <div className={styles.mediaProviderCards}>{visibleMediaProviders.length ? visibleMediaProviders.flatMap(({ provider }) => provider.models.map((model) => <article className={styles.mediaProviderCard} key={`${provider.id}/${model.id}`}><span><strong>{model.name}</strong><small>{provider.name} · {model.id}</small></span><span className={styles.mediaProviderStatus}>已配置</span></article>)) : <p>暂无已配置模型</p>}</div>
                   </div>}
                 </div>
               </div>

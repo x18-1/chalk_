@@ -28,6 +28,7 @@ import {
   type Tool,
 } from "../api";
 import styles from "./app-sidebar.module.css";
+import { MediaProviderSettings } from "./media-provider-settings";
 
 type SettingsTab = "api" | "skills" | "mcp" | "tools";
 type ApiSubtab = "models" | "voice" | "image" | "video" | "search";
@@ -421,6 +422,7 @@ function ApiSettings(props: {
   onDeleteCustom: (id: string) => Promise<void>;
 }) {
   const [subtab, setSubtab] = useState<ApiSubtab>("models");
+  const [voiceCapability, setVoiceCapability] = useState<"tts" | "asr">("tts");
   const selected = props.providers.find((provider) => provider.id === props.providerId);
   const modelOptions = props.models.filter((model) => model.providerId === props.providerId);
   const editSelectedCustomProvider = () => {
@@ -456,7 +458,13 @@ function ApiSettings(props: {
       <ApiSubtabButton active={subtab === "video"} icon={<Video size={15} />} label="视频" onClick={() => setSubtab("video")} />
       <ApiSubtabButton active={subtab === "search"} icon={<Globe2 size={15} />} label="Web Search" onClick={() => setSubtab("search")} />
     </nav>
-    {subtab !== "models" ? <ApiComingSoon type={subtab} /> : <div className={styles.providerWorkspace}>
+    {subtab === "voice" ? <div>
+      <div className={styles.voiceSubnav} role="tablist" aria-label="语音能力">
+        <ApiSubtabButton active={voiceCapability === "tts"} icon={<AudioLines size={14} />} label="TTS 文本转语音" onClick={() => setVoiceCapability("tts")} />
+        <ApiSubtabButton active={voiceCapability === "asr"} icon={<AudioLines size={14} />} label="ASR 语音识别" onClick={() => setVoiceCapability("asr")} />
+      </div>
+      <MediaProviderSettings capability={voiceCapability} />
+    </div> : subtab === "image" || subtab === "video" ? <MediaProviderSettings capability={subtab} /> : subtab === "search" ? <ApiComingSoon type={subtab} /> : <div className={styles.providerWorkspace}>
       <aside className={styles.providerRail} aria-label="模型 Provider">
         <div className={styles.providerRailHeader}><span>Provider</span><button type="button" aria-label="添加自定义 Provider" title="添加自定义 Provider" onClick={() => props.setCustomDraft({ ...emptyCustomProviderDraft, models: [newCustomModel()] })}><Plus size={15} /></button></div>
         <div className={styles.providerList}>{props.providers.map((provider) => <button key={provider.id} type="button" className={provider.id === props.providerId && !props.customDraft ? styles.providerListItemActive : ""} onClick={() => props.setProviderId(provider.id)} aria-pressed={provider.id === props.providerId && !props.customDraft}><span className={styles.providerListIcon}>{provider.custom ? <PlugZap size={14} /> : <BrainCircuit size={14} />}</span><span className={styles.providerListCopy}><strong>{provider.name}</strong><small>{provider.configured ? "已配置" : "未配置"} · {provider.modelCount} 个模型</small></span><span className={`${styles.providerStatusDot} ${provider.configured ? styles.providerStatusDotReady : ""}`} aria-hidden="true" /></button>)}</div>

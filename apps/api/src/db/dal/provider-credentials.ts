@@ -31,15 +31,15 @@ export function createProviderCredentialsDal(db: Database) {
       return result[0] ?? null;
     },
 
-    async upsert(userId: string, providerId: string, apiKeyEnc: string) {
+    async upsert(userId: string, providerId: string, apiKeyEnc: string | null, baseUrl: string | null = null, settings: unknown = null) {
       if (!userId) throw new AuthRequiredError();
 
       const result = await db
         .insert(providerCredentials)
-        .values({ userId, providerId, apiKeyEnc })
+        .values({ userId, providerId, apiKeyEnc, baseUrl, settings })
         .onConflictDoUpdate({
           target: [providerCredentials.userId, providerCredentials.providerId],
-          set: { apiKeyEnc, updatedAt: new Date() },
+          set: { apiKeyEnc, baseUrl, settings, updatedAt: new Date() },
         })
         .returning();
 

@@ -22,6 +22,7 @@ import {
 import styles from "./app-sidebar.module.css";
 import { SettingsDialog } from "./settings-dialog";
 import { authApi } from "../api";
+import { canonicalChalkboardId, type ChalkboardHistoryItem } from "../features/chalkboard/lib/history";
 
 export type ConversationGroup = "今天" | "昨天" | "过去 7 天" | "过去 30 天";
 
@@ -43,12 +44,17 @@ const conversationGroupOrder: ConversationGroup[] = ["今天", "昨天", "过去
 
 type AppSidebarProps = {
   activeSection?: "new" | "chats" | "chalkboard";
+  /** Which records belong in the contextual history rail on this surface. */
+  historyMode?: "chat" | "chalkboard" | "all";
   conversations?: SidebarConversation[];
   selectedConversationId?: string;
   onNewConversation?: () => void;
   onSelectConversation?: (id: string) => void;
   onRenameConversation?: (id: string, title: string) => void;
   onDeleteConversation?: (id: string) => void;
+  chalkboards?: ChalkboardHistoryItem[];
+  selectedChalkboardId?: string;
+  onSelectChalkboard?: (id: string) => void;
 };
 
 type ConversationMenuPosition = {
@@ -58,12 +64,16 @@ type ConversationMenuPosition = {
 
 export function AppSidebar({
   activeSection,
+  historyMode = "chat",
   conversations: controlledConversations,
   selectedConversationId,
   onNewConversation,
   onSelectConversation,
   onRenameConversation,
   onDeleteConversation,
+  chalkboards = [],
+  selectedChalkboardId,
+  onSelectChalkboard,
 }: AppSidebarProps) {
   const [localConversations, setLocalConversations] = useState(defaultSidebarConversations);
   const [recentOpen, setRecentOpen] = useState(true);
@@ -77,6 +87,7 @@ export function AppSidebar({
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const conversations = controlledConversations ?? localConversations;
+  const canonicalSelectedChalkboardId = selectedChalkboardId ? canonicalChalkboardId(selectedChalkboardId) : undefined;
   const pendingDeleteConversation = conversations.find((conversation) => conversation.id === pendingDeleteId);
 
   useEffect(() => {
@@ -174,7 +185,7 @@ export function AppSidebar({
         <Link className={activeSection === "chalkboard" ? styles.activeNavItem : ""} href="/chalkboard"><PanelTop size={16} /><span>Chalkboard</span></Link>
       </nav>
 
-      <div className={styles.recentHeader}>
+      {historyMode !== "chalkboard" ? <div className={styles.recentHeader}>
         <button className={styles.recentToggle} type="button" aria-expanded={recentOpen} onClick={() => { setRecentOpen((open) => !open); setGroupMenuOpen(false); }}><ChevronRight size={15} className={recentOpen ? styles.recentExpanded : ""} /><span>最近</span></button>
         <div className={styles.recentActions}>
           <button data-sidebar-menu className={`${styles.groupByButton} ${groupByTime ? styles.groupByActive : ""}`} type="button" aria-label="按时间分组" title="按时间分组" aria-expanded={groupMenuOpen} onClick={() => { setGroupMenuOpen((open) => !open); setUserMenuOpen(false); }}><ListFilter size={15} /></button>
@@ -182,10 +193,10 @@ export function AppSidebar({
             <button type="button" role="menuitemcheckbox" aria-checked={groupByTime} onClick={() => { setGroupByTime((active) => !active); setGroupMenuOpen(false); }}><span>按时间</span>{groupByTime && <Check size={14} />}</button>
           </div>}
         </div>
-      </div>
+      </div> : null}
 
-      {recentOpen && <nav className={styles.conversationList} aria-label="最近对话" onScroll={closeTransientMenus}>
-        {conversationGroups.length ? conversationGroups.map(({ group, items }) => <section className={styles.conversationGroup} key={group ?? "all"}>
+      {historyMode !== "chalkboard" && recentOpen && <nav className={styles.conversationList} aria-label="最近对话" onScroll={closeTransientMenus}>
+        {conversationGroups.some((section) => section.items.length) ? conversationGroups.map(({ group, items }) => <section className={styles.conversationGroup} key={group ?? "all"}>
           {groupByTime && <h2>{group}</h2>}
           {items.map((conversation) => <div key={conversation.id} className={`${styles.conversationItem} ${selectedConversationId === conversation.id ? styles.selectedConversation : ""}`}>
             {renamingConversationId === conversation.id
@@ -198,6 +209,22 @@ export function AppSidebar({
           </div>)}
         </section>) : <p className={styles.emptyConversations}>暂无会话</p>}
       </nav>}
+
+      {historyMode !== "chat" && recentOpen && chalkboards.length > 0 && <section className={styles.chalkboardHistory} aria-label="最近课堂">
+        <div className={styles.chalkboardHistoryHeading}><span>最近课堂</span><small>{chalkboards.length}</small></div>
+        <nav className={styles.chalkboardHistoryList} aria-label="课堂记录">
+          {chalkboards.map((classroom) => <Link
+            key={classroom.id}
+            className={`${styles.chalkboardHistoryItem} ${canonicalSelectedChalkboardId === canonicalChalkboardId(classroom.id) ? styles.chalkboardHistoryItemActive : ""}`}
+            href={`/chalkboard?id=${encodeURIComponent(canonicalChalkboardId(classroom.id))}`}
+            aria-current={canonicalSelectedChalkboardId === canonicalChalkboardId(classroom.id) ? "page" : undefined}
+            onClick={() => onSelectChalkboard?.(classroom.id)}
+          >
+            <PanelTop size={14} />
+            <span><strong>{classroom.title}</strong><small>{classroom.sceneId ? "继续上次课堂" : "已打开课堂"}</small></span>
+          </Link>)}
+        </nav>
+      </section>}
 
       <div className={styles.userArea}>
         {userMenuOpen && <div data-sidebar-menu className={styles.userMenu} role="menu">

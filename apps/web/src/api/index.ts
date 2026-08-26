@@ -21,6 +21,7 @@ export {
   type Tool,
 } from './settings';
 export { uploadsApi } from './uploads';
+export { mediaApi, type MediaCapability, type MediaProvider, type MediaProviders } from './media';
 export {
   telemetryApi,
   type AgentRun,

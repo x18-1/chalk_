@@ -1,8 +1,0 @@
-.page { display: grid; width: 100%; height: 100vh; grid-template-columns: 248px minmax(0, 1fr); color: var(--chalk-ink); background: var(--chalk-canvas); }
-.content { display: grid; place-items: center; background: var(--chalk-paper); }
-.contentInner { width: min(560px, calc(100% - 80px)); padding: 42px 0; border-top: 1px solid var(--chalk-border); border-bottom: 1px solid var(--chalk-border); }
-.kicker { color: var(--chalk-clay-hover); font-size: 12px; font-weight: 600; }
-.content h1 { margin: 10px 0 0; font-family: var(--chalk-display); font-size: 30px; font-weight: 600; }
-.content p { margin: 12px 0 22px; color: var(--chalk-stone); font-size: 14px; }
-.backLink { display: inline-flex; min-height: 34px; padding: 0 11px; align-items: center; gap: 6px; color: var(--chalk-paper); font-size: 12px; font-weight: 600; text-decoration: none; background: var(--chalk-ink); border: 1px solid var(--chalk-ink); border-radius: 6px; }
-.backLink:hover { background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }

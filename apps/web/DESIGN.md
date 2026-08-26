@@ -112,9 +112,11 @@ Conversation and controls use Noto Sans SC with system Chinese fallbacks. Serif 
 
 ## Layout
 
-The current product is desktop-only. The Chat route uses three stable regions: a 248px conversation rail, a flexible conversation workspace with a 720-780px reading column, and a 296px learning-context rail. The viewport is fixed to the browser height; each region owns its own scrolling behavior.
+Desktop routes use stable working regions: a 248px global rail, a flexible reading or lesson workspace, and an optional context rail. Each region owns its own scrolling behavior. Chalkboard adds a scene rail inside that workspace because page navigation is part of lesson playback rather than global navigation.
 
-Spacing follows a 4/8/16/24/32px rhythm. The conversation receives more space than navigation and context because reading and answering are the primary tasks. Mobile and narrow-window restructuring are deliberately deferred rather than approximated with a compressed desktop layout.
+At tablet widths, Chalkboard prioritizes the lesson and scene rail; the global rail is removed from the focused classroom and Notes/Chat becomes a dismissible side layer. At phone widths, scenes become a horizontal page strip, the lesson and discussion stack vertically, and Notes/Chat becomes a full-width layer. The same information architecture and controls remain available at every width. Touch targets are at least 44px on coarse pointers, and safe-area insets are respected.
+
+Spacing follows a 4/8/16/24/32px rhythm. Reading and lesson content receive more space than navigation and context because understanding and answering are the primary tasks. Other routes may remain desktop-oriented until they receive their own explicit adaptation; do not compress a desktop grid and call it mobile support.
 
 ## Elevation & Depth
 

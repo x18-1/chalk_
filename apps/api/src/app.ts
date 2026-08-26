@@ -27,6 +27,8 @@ import { UserAdministrationService } from './modules/admin/services/user-adminis
 import { s3UploadObjectStorage } from './storage/s3';
 import { startToolApprovalRecovery } from './agent/approval-recovery';
 import { configureAgentRuntime } from './agent/runtime-manager';
+import { registerMediaRoutes } from './modules/media/routes';
+import { MediaProviderService } from './modules/media/services/media-provider.service';
 
 export type BuildApiOptions = {
   config?: ApiConfig;
@@ -39,7 +41,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     logger: {
       redact: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'],
     },
-    bodyLimit: 1_024 * 1_024,
+    bodyLimit: 32 * 1_024 * 1_024,
   });
 
   await app.register(cookie);
@@ -95,6 +97,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     auth,
     new UploadService(db, options.objectStorage ?? s3UploadObjectStorage),
   );
+  registerMediaRoutes(app, auth, new MediaProviderService(db));
   registerAdminRoutes(app, auth, new UserAdministrationService(db));
 
   app.get('/health', async () => ({ status: 'ok' }));

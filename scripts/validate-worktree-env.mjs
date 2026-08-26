@@ -32,6 +32,20 @@ function url(name) {
   }
 }
 
+function urls(name) {
+  const value = required(name);
+  if (!value) return undefined;
+  const parsed = value.split(',').map((item) => item.trim()).filter(Boolean).map((item) => {
+    try {
+      return new URL(item);
+    } catch {
+      errors.push(`${name} must contain valid URLs`);
+      return undefined;
+    }
+  });
+  return parsed.length && parsed.every(Boolean) ? parsed : undefined;
+}
+
 function effectivePort(value, fallback) {
   if (!value) return undefined;
   return Number(value.port || fallback);
@@ -53,7 +67,7 @@ if (ports.every(Number.isInteger) && new Set(ports).size !== ports.length) {
 }
 
 const databaseUrl = url('DATABASE_URL');
-const webOrigin = url('WEB_ORIGIN');
+const webOrigins = urls('WEB_ORIGIN');
 const publicApiUrl = url('NEXT_PUBLIC_API_URL');
 required('SESSIONS_ROOT');
 
@@ -63,7 +77,7 @@ if (databaseUrl && !['postgres:', 'postgresql:'].includes(databaseUrl.protocol))
 if (databaseUrl && effectivePort(databaseUrl, 5432) !== postgresPort) {
   errors.push('DATABASE_URL port must match POSTGRES_HOST_PORT');
 }
-if (webOrigin && effectivePort(webOrigin, webOrigin.protocol === 'https:' ? 443 : 80) !== webPort) {
+if (webOrigins && webOrigins.some((origin) => effectivePort(origin, origin.protocol === 'https:' ? 443 : 80) !== webPort)) {
   errors.push('WEB_ORIGIN port must match WEB_PORT');
 }
 if (publicApiUrl && effectivePort(publicApiUrl, publicApiUrl.protocol === 'https:' ? 443 : 80) !== apiPort) {

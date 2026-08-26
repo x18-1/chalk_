@@ -24,7 +24,7 @@
 
 * { box-sizing: border-box; }
 
-html, body { min-width: 1100px; min-height: 100%; }
+html, body { min-width: 0; min-height: 100%; }
 
 body {
   margin: 0;
