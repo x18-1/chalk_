@@ -7,6 +7,9 @@
 # Third-party reference repositories
 .reference/
 
+# Local Git linked worktrees
+/.worktree/
+
 # Dependencies
 node_modules/
 
