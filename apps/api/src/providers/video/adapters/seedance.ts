@@ -1,4 +1,4 @@
-import { joinUrl, mapHttpError, ProviderError, readJsonObject } from '../../provider-error';
+import { mapHttpError, ProviderError, readJsonObject } from '../../provider-error';
 import type { VideoAdapter, VideoInput, VideoPollOutput, VideoSubmitOutput } from '../types';
 
 export class SeedanceVideoAdapter implements VideoAdapter {

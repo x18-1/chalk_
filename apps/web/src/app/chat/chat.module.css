@@ -170,9 +170,6 @@
 .modelOptionList svg { color: var(--chalk-clay); }
 .modelOptionList p { padding: 22px 10px; margin: 0; color: var(--chalk-stone); font-size: 11px; text-align: center; }
 .mediaMenu { position: absolute; z-index: 50; bottom: 35px; left: 0; width: min(460px, calc(100vw - 48px)); overflow: hidden; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 10px; box-shadow: var(--chalk-shadow-popover); }
-.mediaMenuHeader { display: flex; min-height: 42px; padding: 0 13px; align-items: center; justify-content: space-between; color: var(--chalk-ink); border-bottom: 1px solid var(--chalk-border-light); }
-.mediaMenuHeader strong { font-size: 13px; font-weight: 600; }
-.mediaMenuHeader span { color: var(--chalk-stone); font-size: 11px; }
 .mediaCapabilityList { display: flex; padding: 6px; gap: 4px; border-bottom: 1px solid var(--chalk-border-light); }
 .mediaCapabilityList button { display: inline-flex; min-height: 30px; padding: 0 9px; align-items: center; justify-content: space-between; gap: 7px; color: var(--chalk-stone); font-size: 11px; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 5px; }
 .mediaCapabilityList button:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
@@ -180,10 +177,17 @@
 .mediaCapabilityList small { color: var(--chalk-stone); font-size: 10px; }
 .mediaProviderCards { max-height: 260px; padding: 6px; overflow-y: auto; }
 .mediaProviderCard { display: flex; min-height: 58px; padding: 8px 9px; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--chalk-border-light); }
-.mediaProviderCard > span:first-child { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.mediaProviderIdentity { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.mediaProviderSelection { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; cursor: pointer; }
+.mediaProviderSelection input { width: 14px; height: 14px; flex: none; margin: 0; accent-color: var(--chalk-clay); cursor: pointer; }
+.mediaProviderSelection:focus-within strong { text-decoration: underline; text-decoration-color: var(--chalk-clay); text-underline-offset: 3px; }
+.mediaProviderCardActive { background: color-mix(in srgb, var(--chalk-clay) 7%, transparent); }
 .mediaProviderCard strong { overflow: hidden; color: var(--chalk-ink); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .mediaProviderCard small { overflow: hidden; color: var(--chalk-stone); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.mediaProviderStatus { flex: none; color: var(--chalk-success); font-size: 10px; }
+.mediaProviderControls { display: flex; min-width: 0; align-items: flex-end; flex-direction: column; gap: 4px; }
+.mediaProviderSelect { width: 205px; height: 30px; min-width: 0; padding: 0 24px 0 7px; color: var(--chalk-ink); font-size: 11px; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 5px; outline: 0; }
+.mediaProviderSelect:focus { border-color: var(--chalk-clay); box-shadow: 0 0 0 2px rgba(193, 95, 60, 0.12); }
+.mediaProviderStatus { display: inline-flex; flex: none; align-items: center; gap: 3px; color: var(--chalk-success); font-size: 10px; }
 .mediaProviderCards > p { padding: 22px 10px; margin: 0; color: var(--chalk-stone); font-size: 11px; text-align: center; }
 .sendButton, .stopButton { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; gap: 5px; color: var(--chalk-paper); cursor: pointer; background: var(--chalk-ink); border: 1px solid var(--chalk-ink); border-radius: 6px; transition: background 160ms ease, border-color 160ms ease; }
 .sendButton:hover:not(:disabled), .stopButton:hover { background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }

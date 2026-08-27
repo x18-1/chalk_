@@ -108,6 +108,11 @@
 .settingsField input, .settingsField select, .settingsField textarea { width: 100%; min-height: 40px; padding: 0 11px; color: var(--chalk-ink); font: inherit; font-size: 13px; font-weight: 400; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 6px; outline: 0; }
 .settingsField textarea { padding-block: 8px; line-height: 1.5; resize: vertical; }
 .settingsField input:focus, .settingsField select:focus, .settingsField textarea:focus { border-color: var(--chalk-clay); box-shadow: 0 0 0 2px rgba(193, 95, 60, 0.12); }
+.secretInput { position: relative; display: block; min-width: 0; }
+.settingsField .secretInput input { padding-inline-end: 40px; }
+.secretInput > button { position: absolute; top: 50%; right: 5px; display: grid; width: 30px; height: 30px; padding: 0; color: var(--chalk-stone); cursor: pointer; transform: translateY(-50%); place-items: center; background: transparent; border: 0; border-radius: 5px; }
+.secretInput > button:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
+.secretInput > button:focus-visible { outline: 2px solid var(--chalk-clay); outline-offset: 1px; }
 .modelSectionHeader { display: flex; min-height: 32px; margin: 4px 0 10px; align-items: center; justify-content: space-between; gap: 12px; }
 .modelSectionHeader > div { display: flex; align-items: baseline; gap: 8px; }
 .modelSectionHeader > div > span { color: var(--chalk-ink-soft); font-size: 14px; font-weight: 600; }

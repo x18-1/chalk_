@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -26,19 +26,23 @@ import type { Action } from "@chalk/chalkboard";
 import { DiscussionDock as MigratedDiscussionDock } from "../../features/chalkboard/components/discussion-dock";
 import { NotesPanel as MigratedNotesPanel } from "../../features/chalkboard/components/notes-panel";
 import { PlaybackControls, type PlaybackSpeed } from "../../features/chalkboard/components/playback-controls";
-import { WhiteboardSurface, type WhiteboardStroke } from "../../features/chalkboard/components/whiteboard-surface";
+import { WhiteboardSurface } from "../../features/chalkboard/components/whiteboard-surface";
 import { QuizScene } from "../../features/chalkboard/components/quiz-scene";
 import { ChatPanel } from "../../features/chalkboard/components/chat-panel";
 import { InteractiveScene } from "../../features/chalkboard/components/interactive-scene";
-import { canonicalChalkboardId, loadChalkboardHistory, upsertChalkboardHistory, type ChalkboardHistoryItem } from "../../features/chalkboard/lib/history";
-import { AppSidebar } from "../../components/app-sidebar";
+import { ClassroomImportControl } from "../../features/chalkboard/components/classroom-import-control";
+import { ClassroomGenerationControl } from "../../features/chalkboard/components/classroom-generation-control";
+import { AppSidebar, type SidebarClassroom } from "../../components/app-sidebar";
+import { ApiRequestError, classroomErrorMessage, settingsApi, type BrowserSpeechSettings } from "../../api";
 import { SlideCanvas as MigratedSlideCanvas } from "../../features/chalkboard/components/slide-renderer";
 import { SceneRail } from "../../features/chalkboard/components/scene-rail";
 import { useClassroomPresentation } from "../../features/chalkboard/hooks/use-classroom-presentation";
-import { loadClassroomSession, saveClassroomCursor } from "../../features/chalkboard/lib/classroom-client";
+import {
+  loadClassroomSession,
+  saveClassroomCursor,
+  type ServerClassroomSession,
+} from "../../features/chalkboard/lib/classroom-client";
 import styles from "../../features/chalkboard/chalkboard.module.css";
-
-const DEFAULT_CLASSROOM_ID = "4DuyVUkWv3";
 
 type SpeechInput = {
   lang: string;
@@ -67,20 +71,24 @@ function actionLabel(action: Action | null, completed: boolean, sceneExhausted: 
 
 export default function ChalkboardPage() {
   const searchParams = useSearchParams();
-  const classroomId = canonicalChalkboardId(searchParams.get("id") ?? DEFAULT_CLASSROOM_ID);
+  const router = useRouter();
+  const requestedClassroomId = searchParams.get("id");
   const [classroom, setClassroom] = useState<AdaptedClassroom | null>(null);
+  const [learningSession, setLearningSession] = useState<ServerClassroomSession | null>(null);
+  const [cursorSaveStatus, setCursorSaveStatus] = useState<"saved" | "saving" | "conflict" | "offline" | "unsaved">("saved");
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string | null>(null);
   const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ title: string; message: string } | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [speechEnabled, setSpeechEnabled] = useState(true);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [ttsMuted, setTtsMuted] = useState(false);
+  const [speechSettings, setSpeechSettings] = useState<BrowserSpeechSettings>({ adapter: "browser", language: "zh-CN", voiceUri: null, rate: 0.95, volume: 1 });
   const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(1);
   const [autoPlayLecture, setAutoPlayLecture] = useState(false);
-  const [whiteboardStrokes, setWhiteboardStrokes] = useState<Record<string, WhiteboardStroke[]>>({});
   const [discussion, setDiscussion] = useState("");
   const [discussionDraft, setDiscussionDraft] = useState("");
   const [discussionReply, setDiscussionReply] = useState("");
@@ -92,7 +100,7 @@ export default function ChalkboardPage() {
   const [rightPanelTab, setRightPanelTab] = useState<"notes" | "chat">("notes");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [chalkboardHistory, setChalkboardHistory] = useState<ChalkboardHistoryItem[]>([]);
+  const [classrooms, setClassrooms] = useState<SidebarClassroom[]>([]);
   const speechInputRef = useRef<SpeechInput | null>(null);
   const playbackRef = useRef<ChalkboardPlaybackController | null>(null);
   const {
@@ -110,18 +118,17 @@ export default function ChalkboardPage() {
     setWhiteboard,
     restorePresentation,
   } = useClassroomPresentation(
-    { autoPlayLecture, playbackSpeed, speechEnabled, ttsMuted, ttsVolume },
+    { autoPlayLecture, playbackSpeed, speechEnabled, ttsMuted, ttsVolume, speechLanguage: speechSettings.language, speechVoiceUri: speechSettings.voiceUri, speechRate: speechSettings.rate },
     setDiscussion,
   );
 
   useEffect(() => {
-    setChalkboardHistory(loadChalkboardHistory());
     if (window.matchMedia("(max-width: 1180px)").matches) setRightPanelOpen(false);
+    void settingsApi.capabilities().then((settings) => {
+      setSpeechSettings(settings.speech);
+      setTtsVolume(settings.speech.volume);
+    }).catch(() => undefined);
   }, []);
-
-  useEffect(() => {
-    setWhiteboardStrokes({});
-  }, [classroomId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,23 +137,38 @@ export default function ChalkboardPage() {
     const timeout = window.setTimeout(() => controller.abort(), 15_000);
     setError(null);
     setClassroom(null);
-    loadClassroomSession(classroomId, controller.signal)
-      .then(async (adapted) => {
+    setLearningSession(null);
+    loadClassroomSession(requestedClassroomId, controller.signal)
+      .then(async ({ classroom: adapted, learningSession: restoredSession, selected, classrooms: availableClassrooms }) => {
         if (cancelled) return;
+        if (!requestedClassroomId) {
+          router.replace(`/chalkboard?id=${encodeURIComponent(selected.id)}`);
+          return;
+        }
         setClassroom(adapted);
-        setChalkboardHistory(upsertChalkboardHistory({
-          id: adapted.document.stage.id,
-          title: adapted.document.stage.name,
-          sceneId: adapted.runtime.getState().sceneId ?? undefined,
-          lastOpenedAt: Date.now(),
-        }));
+        setLearningSession(restoredSession);
+        setCursorSaveStatus("saved");
+        setSelectedClassroomId(selected.id);
+        setClassrooms(availableClassrooms.map(({ id, title }) => ({ id, title })));
         setActiveSceneId(adapted.runtime.getState().sceneId);
         setTick((value) => value + 1);
         setLoading(false);
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
-        setError(reason instanceof DOMException && reason.name === "AbortError" ? "课堂服务响应超时，请重试。" : reason instanceof Error ? reason.message : "课堂加载失败");
+        const title = reason instanceof ApiRequestError && reason.code === "CLASSROOMS_EMPTY"
+          ? "还没有课堂"
+          : reason instanceof ApiRequestError && reason.status === 404
+            ? "课堂没有找到"
+            : reason instanceof ApiRequestError && reason.status === 403
+              ? "无法打开课堂"
+              : "课堂暂时无法打开";
+        setError({
+          title,
+          message: reason instanceof DOMException && reason.name === "AbortError"
+            ? "课堂服务响应超时，请重试。"
+            : classroomErrorMessage(reason),
+        });
         setLoading(false);
       })
       .finally(() => {
@@ -158,7 +180,7 @@ export default function ChalkboardPage() {
       window.clearTimeout(timeout);
       speechInputRef.current?.stop();
     };
-  }, [classroomId, loadAttempt]);
+  }, [loadAttempt, requestedClassroomId, router]);
 
   const activeScene = useMemo(() => classroom?.scenes.find((scene) => scene.id === activeSceneId) ?? null, [activeSceneId, classroom]);
   const activeDocumentScene = classroom?.document.scenes.find((scene) => scene.id === activeSceneId);
@@ -166,9 +188,37 @@ export default function ChalkboardPage() {
   const currentAction = runtimeState?.currentAction ?? null;
 
   const persist = useCallback(async () => {
-    if (!classroom) return;
-    await saveClassroomCursor(classroom);
-  }, [classroom]);
+    if (!classroom || !learningSession) return;
+    setCursorSaveStatus("saving");
+    try {
+      const result = await saveClassroomCursor(classroom, learningSession);
+      if (result.status === "saved") {
+        setCursorSaveStatus("saved");
+        return;
+      }
+      const restored = classroom.runtime.restore(result.learningSession.cursor);
+      if (!restored.ok) {
+        setCursorSaveStatus("unsaved");
+        setRuntimeNotice("发现更新的学习进度，但暂时无法恢复。当前页面不会覆盖它，请重新打开课堂。");
+        return;
+      }
+      const state = classroom.runtime.getState();
+      const scene = classroom.document.scenes.find((candidate) => candidate.id === state.sceneId);
+      const presentation = projectScenePresentation(scene?.actions ?? [], state.actionIndex);
+      setDiscussion(presentation.discussion);
+      restorePresentation(presentation);
+      setActiveSceneId(state.sceneId);
+      setTick((value) => value + 1);
+      setCursorSaveStatus("conflict");
+      setRuntimeNotice("检测到另一处设备保存了更新进度，已恢复最新进度。");
+    } catch {
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      setCursorSaveStatus(offline ? "offline" : "unsaved");
+      setRuntimeNotice(offline
+        ? "当前离线，课堂可以继续浏览，但这次进度尚未保存。"
+        : "进度暂时没有保存成功。课堂可以继续，下一次操作会自动重试。");
+    }
+  }, [classroom, learningSession, restorePresentation]);
 
   useEffect(() => {
     playbackRef.current?.setExecutor(playbackExecutor);
@@ -231,14 +281,6 @@ export default function ChalkboardPage() {
     setDiscussionDraft("");
     setDiscussionReply("");
     setVoiceStatus("");
-    if (classroom && activeSceneId) {
-      setChalkboardHistory(upsertChalkboardHistory({
-        id: classroom.document.stage.id,
-        title: classroom.document.stage.name,
-        sceneId: activeSceneId,
-        lastOpenedAt: Date.now(),
-      }));
-    }
   }, [activeSceneId, classroom, restorePresentation]);
 
   useEffect(() => {
@@ -309,23 +351,36 @@ export default function ChalkboardPage() {
 
   const toggleFullscreenLabel = isFullscreen ? "退出演示模式" : "演示模式";
 
+  const openImportedClassroom = useCallback((classroomId: string) => {
+    setError(null);
+    setLoadAttempt((value) => value + 1);
+    router.push(`/chalkboard?id=${encodeURIComponent(classroomId)}`);
+  }, [router]);
+
   if (loading) return <main className={styles.loadingState}><CirclePlay size={22} /><span>正在准备课堂内容…</span></main>;
-  if (error || !classroom || !activeScene || !runtimeState) return <main className={styles.errorState}><AlertTriangle size={22} /><h1>课堂暂时无法打开</h1><p>{error ?? "没有找到可播放的课堂数据。"}</p><div className={styles.errorActions}><button type="button" onClick={() => { setError(null); setLoading(true); setLoadAttempt((value) => value + 1); }}><RotateCcw size={15} />重试</button><Link href="/chat"><ArrowLeft size={15} />回到 Chat</Link></div></main>;
+  if (error || !classroom || !activeScene || !runtimeState) return <main className={styles.errorState}><AlertTriangle size={22} /><h1>{error?.title ?? "课堂暂时无法打开"}</h1><p>{error?.message ?? "没有找到可播放的课堂数据。"}</p><div className={styles.errorActions}><ClassroomGenerationControl onPublished={openImportedClassroom} /><ClassroomImportControl onImported={openImportedClassroom} /><button type="button" onClick={() => { setError(null); setLoading(true); setLoadAttempt((value) => value + 1); }}><RotateCcw size={15} />重试</button><Link href="/chat"><ArrowLeft size={15} />回到 Chat</Link></div></main>;
 
   const sceneIndex = classroom.scenes.findIndex((scene) => scene.id === activeScene.id);
   const isPlaying = runtimeState.mode === "playing";
   const isCompleted = runtimeState.completed;
   const playbackStatus = isCompleted ? "课程已完成" : isPlaying ? "正在播放" : runtimeState.mode === "paused" ? "已暂停" : "准备就绪";
+  const cursorStatus = cursorSaveStatus === "saving" ? "正在保存进度…"
+    : cursorSaveStatus === "conflict" ? "已恢复较新进度"
+      : cursorSaveStatus === "offline" ? "离线 · 进度未保存"
+        : cursorSaveStatus === "unsaved" ? "进度未保存"
+          : "进度已保存";
 
   return (
     <main className={styles.page}>
-      <AppSidebar activeSection="chalkboard" historyMode="chalkboard" chalkboards={chalkboardHistory} selectedChalkboardId={classroom.document.stage.id} />
+      <AppSidebar activeSection="chalkboard" historyMode="chalkboard" chalkboards={classrooms} selectedChalkboardId={selectedClassroomId ?? undefined} />
       <div className={`${styles.chalkboardWorkspace} ${rightPanelOpen ? "" : styles.pagePanelClosed}`}>
         <SceneRail scenes={classroom.scenes} activeId={activeScene.id} onSelect={(scene) => void command((controller) => controller.selectScene(scene.id))} />
         <section className={styles.classroom}>
         <header className={styles.topBar}>
           <div className={styles.courseHeading}><span>CHALKBOARD / PLAYBACK</span><h1>{classroom.document.stage.name}</h1></div>
           <div className={styles.topTools}>
+            <ClassroomGenerationControl compact onPublished={openImportedClassroom} />
+            <ClassroomImportControl compact onImported={openImportedClassroom} />
             <span className={styles.languageSwitch}>中</span>
             <button className={styles.iconButton} type="button" aria-label={toggleFullscreenLabel} title={toggleFullscreenLabel} onClick={() => void toggleFullscreen()}><Monitor size={15} /></button>
             <div className={styles.settingsWrap}>
@@ -335,6 +390,11 @@ export default function ChalkboardPage() {
                 <span>关闭后仍会显示教师讲解文字。</span>
               </div> : null}
             </div>
+            <span
+              className={`${styles.saveStatus} ${cursorSaveStatus === "offline" || cursorSaveStatus === "unsaved" ? styles.saveStatusWarning : ""}`}
+              role="status"
+              aria-live="polite"
+            >{cursorStatus}</span>
             <div className={styles.topStatus} aria-live="polite"><span className={styles.statusDot} />{playbackStatus}<span className={styles.stageId}>{classroom.document.stage.id}</span></div>
           </div>
         </header>
@@ -344,9 +404,14 @@ export default function ChalkboardPage() {
             <div ref={lessonViewportRef} className={styles.lessonViewport}>
               {activeScene.type === "slide" ? <MigratedSlideCanvas scene={activeScene} highlightedElementId={highlightedElementId} laserElementId={laserElementId} /> : null}
               {activeScene.type === "interactive" ? <InteractiveScene scene={activeScene} iframeRef={iframeRef} highlightTarget={highlightTarget} widgetState={widgetState} widgetAnnotation={widgetAnnotation} widgetRevealTarget={widgetRevealTarget} /> : null}
-              {activeScene.type === "quiz" ? <QuizScene key={activeScene.id} scene={activeScene} /> : null}
+              {activeScene.type === "quiz" && learningSession ? <QuizScene
+                key={activeScene.id}
+                scene={activeScene}
+                attempt={learningSession.quizAttempt(activeScene.id)}
+                onSubmit={(answers) => learningSession.saveQuizAttempt(activeScene.id, answers)}
+              /> : null}
               {activeScene.type === "pbl" ? <div className={styles.sceneEmpty}><AlertTriangle size={22} /><strong>项目式课堂暂未接入</strong><span>当前版本不会静默跳过这类场景，请返回上一页继续学习。</span></div> : null}
-              {whiteboard.open ? <WhiteboardSurface elements={whiteboard.elements} strokes={whiteboardStrokes[activeScene.id] ?? []} onStrokesChange={(strokes) => setWhiteboardStrokes((current) => ({ ...current, [activeScene.id]: strokes }))} onClose={() => setWhiteboard((current) => ({ ...current, open: false }))} /> : null}
+              {whiteboard.open ? <WhiteboardSurface elements={whiteboard.elements} onClose={() => setWhiteboard((current) => ({ ...current, open: false }))} /> : null}
             </div>
             <PlaybackControls
               isPlaying={isPlaying}
@@ -357,7 +422,6 @@ export default function ChalkboardPage() {
               muted={ttsMuted}
               speed={playbackSpeed}
               autoPlay={autoPlayLecture}
-              whiteboardOpen={whiteboard.open}
               onToggleMute={() => setTtsMuted((value) => !value)}
               onVolumeChange={(value) => { setTtsVolume(value); if (value > 0) setTtsMuted(false); }}
               onCycleSpeed={() => setPlaybackSpeed((value) => value === 0.75 ? 1 : value === 1 ? 1.25 : value === 1.25 ? 1.5 : value === 1.5 ? 2 : 0.75)}
@@ -373,7 +437,6 @@ export default function ChalkboardPage() {
                 playbackSettingsRef.current.autoPlayLecture = next;
                 return next;
               })}
-              onToggleWhiteboard={() => setWhiteboard((current) => ({ ...current, open: !current.open }))}
             />
           </section>
           <MigratedDiscussionDock
@@ -404,7 +467,7 @@ export default function ChalkboardPage() {
             <button className={rightPanelTab === "chat" ? styles.notesTabActive : ""} type="button" role="tab" aria-selected={rightPanelTab === "chat"} onClick={() => setRightPanelTab("chat")}><MessagesSquare size={15} />Chat</button>
             <button className={styles.panelToggle} type="button" aria-label="收起侧栏" title="收起侧栏" onClick={() => setRightPanelOpen(false)}><PanelRightClose size={15} /></button>
           </div>
-          {rightPanelTab === "notes" ? <MigratedNotesPanel scene={activeScene} actions={activeDocumentScene?.actions ?? []} activeActionIndex={runtimeState.actionIndex} /> : <ChatPanel key={classroom.document.stage.id} discussion={discussion} />}
+          {rightPanelTab === "notes" ? <MigratedNotesPanel scene={activeScene} actions={activeDocumentScene?.actions ?? []} activeActionIndex={runtimeState.actionIndex} onPlayFrom={(actionIndex) => void command((controller) => controller.playFrom(activeScene.id, actionIndex))} /> : <ChatPanel key={classroom.document.stage.id} discussion={discussion} />}
         </> : <button className={styles.panelExpand} type="button" aria-label="展开侧栏" title="展开侧栏" onClick={() => setRightPanelOpen(true)}><PanelRightOpen size={17} /></button>}
         </aside>
       </div>

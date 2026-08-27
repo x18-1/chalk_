@@ -22,7 +22,12 @@ import {
 import styles from "./app-sidebar.module.css";
 import { SettingsDialog } from "./settings-dialog";
 import { authApi } from "../api";
-import { canonicalChalkboardId, type ChalkboardHistoryItem } from "../features/chalkboard/lib/history";
+
+export type SidebarClassroom = {
+  id: string;
+  title: string;
+  sceneId?: string;
+};
 
 export type ConversationGroup = "今天" | "昨天" | "过去 7 天" | "过去 30 天";
 
@@ -52,7 +57,7 @@ type AppSidebarProps = {
   onSelectConversation?: (id: string) => void;
   onRenameConversation?: (id: string, title: string) => void;
   onDeleteConversation?: (id: string) => void;
-  chalkboards?: ChalkboardHistoryItem[];
+  chalkboards?: SidebarClassroom[];
   selectedChalkboardId?: string;
   onSelectChalkboard?: (id: string) => void;
 };
@@ -87,7 +92,6 @@ export function AppSidebar({
   const [renamingConversationId, setRenamingConversationId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const conversations = controlledConversations ?? localConversations;
-  const canonicalSelectedChalkboardId = selectedChalkboardId ? canonicalChalkboardId(selectedChalkboardId) : undefined;
   const pendingDeleteConversation = conversations.find((conversation) => conversation.id === pendingDeleteId);
 
   useEffect(() => {
@@ -215,9 +219,9 @@ export function AppSidebar({
         <nav className={styles.chalkboardHistoryList} aria-label="课堂记录">
           {chalkboards.map((classroom) => <Link
             key={classroom.id}
-            className={`${styles.chalkboardHistoryItem} ${canonicalSelectedChalkboardId === canonicalChalkboardId(classroom.id) ? styles.chalkboardHistoryItemActive : ""}`}
-            href={`/chalkboard?id=${encodeURIComponent(canonicalChalkboardId(classroom.id))}`}
-            aria-current={canonicalSelectedChalkboardId === canonicalChalkboardId(classroom.id) ? "page" : undefined}
+            className={`${styles.chalkboardHistoryItem} ${selectedChalkboardId === classroom.id ? styles.chalkboardHistoryItemActive : ""}`}
+            href={`/chalkboard?id=${encodeURIComponent(classroom.id)}`}
+            aria-current={selectedChalkboardId === classroom.id ? "page" : undefined}
             onClick={() => onSelectChalkboard?.(classroom.id)}
           >
             <PanelTop size={14} />

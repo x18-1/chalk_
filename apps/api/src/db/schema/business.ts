@@ -1,6 +1,9 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   doublePrecision,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -92,15 +95,38 @@ export const toolApprovals = pgTable(
   (table) => [unique().on(table.conversationId, table.toolCallId)],
 );
 
-export const agentSettings = pgTable('agent_settings', {
-  userId: uuid('user_id')
-    .primaryKey()
-    .references(() => authUsers.id, { onDelete: 'cascade' }),
-  defaultProviderId: text('default_provider_id'),
-  defaultModelId: text('default_model_id'),
-  defaultThinkingLevel: text('default_thinking_level').default('off').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const agentSettings = pgTable(
+  'agent_settings',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    defaultProviderId: text('default_provider_id'),
+    defaultModelId: text('default_model_id'),
+    defaultThinkingLevel: text('default_thinking_level').default('off').notNull(),
+    defaultImageProviderId: text('default_image_provider_id'),
+    defaultImageModelId: text('default_image_model_id'),
+    defaultVideoProviderId: text('default_video_provider_id'),
+    defaultVideoModelId: text('default_video_model_id'),
+    defaultVideoDurationSeconds: integer('default_video_duration_seconds').default(5).notNull(),
+    defaultVideoResolution: text('default_video_resolution').default('720p').notNull(),
+    speechAdapter: text('speech_adapter').default('browser').notNull(),
+    speechLanguage: text('speech_language').default('zh-CN').notNull(),
+    speechVoiceUri: text('speech_voice_uri'),
+    speechRate: doublePrecision('speech_rate').default(0.95).notNull(),
+    speechVolume: doublePrecision('speech_volume').default(1).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    check('agent_settings_image_selection_check', sql`${table.defaultImageProviderId} IS NOT NULL OR ${table.defaultImageModelId} IS NULL`),
+    check('agent_settings_video_selection_check', sql`${table.defaultVideoProviderId} IS NOT NULL OR ${table.defaultVideoModelId} IS NULL`),
+    check('agent_settings_video_duration_check', sql`${table.defaultVideoDurationSeconds} BETWEEN 5 AND 20`),
+    check('agent_settings_video_resolution_check', sql`${table.defaultVideoResolution} IN ('720p', '1080p')`),
+    check('agent_settings_speech_adapter_check', sql`${table.speechAdapter} = 'browser'`),
+    check('agent_settings_speech_rate_check', sql`${table.speechRate} BETWEEN 0.5 AND 2`),
+    check('agent_settings_speech_volume_check', sql`${table.speechVolume} BETWEEN 0 AND 1`),
+  ],
+);
 
 export const skillSettings = pgTable(
   'skill_settings',
@@ -200,3 +226,340 @@ export const attachments = pgTable('attachments', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
 });
+
+export const classrooms = pgTable(
+  'classrooms',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    description: text('description'),
+    sourceKey: text('source_key'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('classrooms_id_user_unique').on(table.id, table.userId),
+    unique('classrooms_user_source_unique').on(table.userId, table.sourceKey),
+    index('classrooms_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
+);
+
+export const classroomArtifacts = pgTable(
+  'classroom_artifacts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    classroomId: uuid('classroom_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    version: integer('version').notNull(),
+    document: jsonb('document'),
+    contentObjectKey: text('content_object_key').unique(),
+    contentHash: text('content_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.classroomId, table.userId],
+      foreignColumns: [classrooms.id, classrooms.userId],
+      name: 'classroom_artifacts_owned_classroom_fk',
+    }).onDelete('cascade'),
+    unique('classroom_artifacts_classroom_version_unique').on(table.classroomId, table.version),
+    unique('classroom_artifacts_classroom_hash_unique').on(table.classroomId, table.contentHash),
+    unique('classroom_artifacts_owned_id_unique').on(table.id, table.classroomId, table.userId),
+    check(
+      'classroom_artifacts_document_or_legacy_object_check',
+      sql`${table.document} is not null or ${table.contentObjectKey} is not null`,
+    ),
+    index('classroom_artifacts_user_classroom_idx').on(table.userId, table.classroomId),
+  ],
+);
+
+export const classroomArtifactMedia = pgTable(
+  'classroom_artifact_media',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    artifactId: uuid('artifact_id').notNull(),
+    classroomId: uuid('classroom_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    path: text('path').notNull(),
+    objectKey: text('object_key').notNull().unique(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    contentHash: text('content_hash').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.artifactId, table.classroomId, table.userId],
+      foreignColumns: [classroomArtifacts.id, classroomArtifacts.classroomId, classroomArtifacts.userId],
+      name: 'classroom_artifact_media_owned_artifact_fk',
+    }).onDelete('cascade'),
+    unique('classroom_artifact_media_artifact_path_unique').on(table.artifactId, table.path),
+    index('classroom_artifact_media_user_artifact_idx').on(table.userId, table.artifactId),
+  ],
+);
+
+export const classroomLearningSessions = pgTable(
+  'classroom_learning_sessions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    classroomId: uuid('classroom_id').notNull(),
+    artifactId: uuid('artifact_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    cursorVersion: integer('cursor_version').default(1).notNull(),
+    stageId: text('stage_id').notNull(),
+    sceneId: text('scene_id'),
+    sceneIndex: integer('scene_index').default(0).notNull(),
+    actionIndex: integer('action_index').default(0).notNull(),
+    mode: text('mode').default('idle').notNull(),
+    completed: boolean('completed').default(false).notNull(),
+    revision: integer('revision').default(1).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.artifactId, table.classroomId, table.userId],
+      foreignColumns: [classroomArtifacts.id, classroomArtifacts.classroomId, classroomArtifacts.userId],
+      name: 'classroom_learning_sessions_owned_artifact_fk',
+    }).onDelete('cascade'),
+    unique('classroom_learning_sessions_id_user_unique').on(table.id, table.userId),
+    unique('classroom_learning_sessions_owned_artifact_unique').on(
+      table.id,
+      table.artifactId,
+      table.classroomId,
+      table.userId,
+    ),
+    unique('classroom_learning_sessions_user_artifact_unique').on(table.userId, table.artifactId),
+    check('classroom_learning_sessions_cursor_version_check', sql`${table.cursorVersion} = 1`),
+    check('classroom_learning_sessions_scene_index_check', sql`${table.sceneIndex} >= 0`),
+    check('classroom_learning_sessions_action_index_check', sql`${table.actionIndex} >= 0`),
+    check(
+      'classroom_learning_sessions_mode_check',
+      sql`${table.mode} in ('idle', 'playing', 'paused', 'completed')`,
+    ),
+    check('classroom_learning_sessions_revision_check', sql`${table.revision} > 0`),
+    index('classroom_learning_sessions_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
+);
+
+export const classroomQuizAttempts = pgTable(
+  'classroom_quiz_attempts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    learningSessionId: uuid('learning_session_id').notNull(),
+    classroomId: uuid('classroom_id').notNull(),
+    artifactId: uuid('artifact_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    sceneId: text('scene_id').notNull(),
+    answers: jsonb('answers').notNull(),
+    results: jsonb('results').notNull(),
+    score: integer('score').notNull(),
+    maxScore: integer('max_score').notNull(),
+    revision: integer('revision').default(1).notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [
+        table.learningSessionId,
+        table.artifactId,
+        table.classroomId,
+        table.userId,
+      ],
+      foreignColumns: [
+        classroomLearningSessions.id,
+        classroomLearningSessions.artifactId,
+        classroomLearningSessions.classroomId,
+        classroomLearningSessions.userId,
+      ],
+      name: 'classroom_quiz_attempts_owned_session_artifact_fk',
+    }).onDelete('cascade'),
+    unique('classroom_quiz_attempts_id_user_unique').on(table.id, table.userId),
+    unique('classroom_quiz_attempts_session_scene_unique').on(table.learningSessionId, table.sceneId),
+    check('classroom_quiz_attempts_score_check', sql`${table.score} >= 0`),
+    check('classroom_quiz_attempts_max_score_check', sql`${table.maxScore} >= 0`),
+    check('classroom_quiz_attempts_revision_check', sql`${table.revision} > 0`),
+    index('classroom_quiz_attempts_user_session_idx').on(table.userId, table.learningSessionId),
+  ],
+);
+
+export const classroomDrafts = pgTable(
+  'classroom_drafts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => authUsers.id, { onDelete: 'cascade' }),
+    requirements: text('requirements').notNull(),
+    context: jsonb('context').notNull(),
+    outline: jsonb('outline'),
+    status: text('status').default('generating').notNull(),
+    publicationToken: uuid('publication_token'),
+    publicationStartedAt: timestamp('publication_started_at', { withTimezone: true }),
+    classroomId: uuid('classroom_id'),
+    artifactId: uuid('artifact_id'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.classroomId, table.userId],
+      foreignColumns: [classrooms.id, classrooms.userId],
+      name: 'classroom_drafts_owned_classroom_fk',
+    }),
+    foreignKey({
+      columns: [table.artifactId, table.classroomId, table.userId],
+      foreignColumns: [classroomArtifacts.id, classroomArtifacts.classroomId, classroomArtifacts.userId],
+      name: 'classroom_drafts_owned_artifact_fk',
+    }),
+    check(
+      'classroom_drafts_publication_check',
+      sql`(${table.classroomId} is null and ${table.artifactId} is null and ${table.publishedAt} is null) or (${table.classroomId} is not null and ${table.artifactId} is not null and ${table.publishedAt} is not null)`,
+    ),
+    check(
+      'classroom_drafts_publication_reservation_check',
+      sql`(${table.publicationToken} is null and ${table.publicationStartedAt} is null) or (${table.publicationToken} is not null and ${table.publicationStartedAt} is not null)`,
+    ),
+    unique('classroom_drafts_id_user_unique').on(table.id, table.userId),
+    unique('classroom_drafts_artifact_unique').on(table.artifactId),
+    index('classroom_drafts_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
+);
+
+export const classroomDraftScenes = pgTable(
+  'classroom_draft_scenes',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    draftId: uuid('draft_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    outlineId: text('outline_id').notNull(),
+    type: text('type').notNull(),
+    order: integer('order').notNull(),
+    outline: jsonb('outline').notNull(),
+    content: jsonb('content'),
+    actions: jsonb('actions'),
+    status: text('status').default('pending').notNull(),
+    attempt: integer('attempt').default(0).notNull(),
+    promptId: text('prompt_id'),
+    promptRevision: text('prompt_revision'),
+    modelProviderId: text('model_provider_id'),
+    modelId: text('model_id'),
+    errorCode: text('error_code'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    actionStatus: text('action_status').default('pending').notNull(),
+    actionAttempt: integer('action_attempt').default(0).notNull(),
+    actionPromptId: text('action_prompt_id'),
+    actionPromptRevision: text('action_prompt_revision'),
+    actionModelProviderId: text('action_model_provider_id'),
+    actionModelId: text('action_model_id'),
+    actionErrorCode: text('action_error_code'),
+    actionStartedAt: timestamp('action_started_at', { withTimezone: true }),
+    actionFinishedAt: timestamp('action_finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.draftId, table.userId],
+      foreignColumns: [classroomDrafts.id, classroomDrafts.userId],
+      name: 'classroom_draft_scenes_owned_draft_fk',
+    }).onDelete('cascade'),
+    unique('classroom_draft_scenes_id_user_unique').on(table.id, table.userId),
+    unique('classroom_draft_scenes_draft_outline_unique').on(table.draftId, table.outlineId),
+    unique('classroom_draft_scenes_draft_order_unique').on(table.draftId, table.order),
+    index('classroom_draft_scenes_user_draft_idx').on(table.userId, table.draftId, table.order),
+  ],
+);
+
+export const classroomGenerationRuns = pgTable(
+  'classroom_generation_runs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    draftId: uuid('draft_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    stage: text('stage').default('outline').notNull(),
+    status: text('status').default('queued').notNull(),
+    attempt: integer('attempt').default(1).notNull(),
+    promptId: text('prompt_id'),
+    promptRevision: text('prompt_revision'),
+    modelProviderId: text('model_provider_id'),
+    modelId: text('model_id'),
+    errorCode: text('error_code'),
+    leaseOwner: text('lease_owner'),
+    leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    heartbeatAt: timestamp('heartbeat_at', { withTimezone: true }),
+    cancelRequestedAt: timestamp('cancel_requested_at', { withTimezone: true }),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.draftId, table.userId],
+      foreignColumns: [classroomDrafts.id, classroomDrafts.userId],
+      name: 'classroom_generation_runs_owned_draft_fk',
+    }).onDelete('cascade'),
+    unique('classroom_generation_runs_id_user_unique').on(table.id, table.userId),
+    unique('classroom_generation_runs_draft_stage_unique').on(table.draftId, table.stage),
+    index('classroom_generation_runs_user_updated_idx').on(table.userId, table.updatedAt),
+    index('classroom_generation_runs_claim_idx').on(table.status, table.leaseExpiresAt, table.createdAt),
+  ],
+);
+
+export const classroomDraftMediaTasks = pgTable(
+  'classroom_draft_media_tasks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    runId: uuid('run_id').notNull(),
+    draftId: uuid('draft_id').notNull(),
+    sceneId: uuid('scene_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    actionId: text('action_id'),
+    elementId: text('element_id'),
+    taskKey: text('task_key').notNull(),
+    taskOrder: integer('task_order').notNull(),
+    kind: text('kind').notNull(),
+    input: jsonb('input').notNull(),
+    status: text('status').default('pending').notNull(),
+    attempt: integer('attempt').default(0).notNull(),
+    providerId: text('provider_id'),
+    modelId: text('model_id'),
+    providerTaskId: text('provider_task_id'),
+    mediaRef: text('media_ref'),
+    objectKey: text('object_key').unique(),
+    contentType: text('content_type'),
+    size: integer('size'),
+    contentHash: text('content_hash'),
+    errorCode: text('error_code'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.runId, table.userId],
+      foreignColumns: [classroomGenerationRuns.id, classroomGenerationRuns.userId],
+      name: 'classroom_draft_media_tasks_owned_run_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.sceneId, table.userId],
+      foreignColumns: [classroomDraftScenes.id, classroomDraftScenes.userId],
+      name: 'classroom_draft_media_tasks_owned_scene_fk',
+    }).onDelete('cascade'),
+    check(
+      'classroom_draft_media_tasks_source_check',
+      sql`(${table.kind} = 'audio' AND ${table.actionId} IS NOT NULL AND ${table.elementId} IS NULL) OR (${table.kind} IN ('image', 'video') AND ${table.actionId} IS NULL AND ${table.elementId} IS NOT NULL)`,
+    ),
+    unique('classroom_draft_media_tasks_draft_key_unique').on(table.draftId, table.taskKey),
+    index('classroom_draft_media_tasks_user_run_idx').on(table.userId, table.runId, table.taskOrder),
+  ],
+);

@@ -20,11 +20,12 @@ export function apiUrl(input: RequestInfo | URL) {
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const response = await fetch(apiUrl(path), {
     ...init,
     credentials: 'include',
     headers: {
-      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(init?.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
   });

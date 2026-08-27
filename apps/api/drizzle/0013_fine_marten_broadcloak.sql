@@ -1,0 +1,3 @@
+ALTER TABLE "classroom_artifacts" ALTER COLUMN "content_object_key" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "classroom_artifacts" ADD COLUMN "document" jsonb;--> statement-breakpoint
+ALTER TABLE "classroom_artifacts" ADD CONSTRAINT "classroom_artifacts_document_or_legacy_object_check" CHECK ("classroom_artifacts"."document" is not null or "classroom_artifacts"."content_object_key" is not null);

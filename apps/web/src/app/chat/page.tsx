@@ -36,7 +36,7 @@ import {
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
 import { SettingsDialog } from "../../components/settings-dialog";
-import { ApiRequestError, chatApi, mediaApi, settingsApi, uploadsApi, type MediaCapability, type MediaProviders, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
+import { ApiRequestError, chatApi, mediaApi, settingsApi, uploadsApi, type CapabilitySettings, type MediaCapability, type MediaProvider, type MediaProviders, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import styles from "./chat.module.css";
 
@@ -273,6 +273,62 @@ function mediaCapabilityLabel(capability: MediaCapability) {
   return ({ tts: "TTS", asr: "ASR", image: "生图", video: "视频" } as const)[capability];
 }
 
+type MediaSelection = { providerId: string; modelId: string | null } | null | undefined;
+
+function preferredMediaModel(provider: MediaProvider, selection: MediaSelection) {
+  const candidates = [
+    selection?.providerId === provider.id ? selection.modelId : null,
+    provider.settings?.modelId,
+    provider.defaultModel,
+    provider.models[0]?.id,
+  ];
+  return candidates.find((candidate) => provider.models.some((model) => model.id === candidate)) ?? "";
+}
+
+function MediaProviderChoice({
+  provider,
+  selection,
+  onSelect,
+}: {
+  provider: MediaProvider;
+  selection?: MediaSelection;
+  onSelect?: (provider: MediaProvider, modelId: string) => void;
+}) {
+  const preferredModel = preferredMediaModel(provider, selection);
+  const [modelId, setModelId] = useState(preferredModel);
+
+  useEffect(() => setModelId(preferredModel), [preferredModel]);
+
+  const active = selection?.providerId === provider.id;
+  return <article className={`${styles.mediaProviderCard} ${active ? styles.mediaProviderCardActive : ""}`}>
+    {onSelect
+      ? <label className={styles.mediaProviderSelection}>
+          <input
+            type="radio"
+            name={`${provider.capability}-provider`}
+            checked={active}
+            onChange={() => onSelect(provider, modelId)}
+          />
+          <strong>{provider.name}</strong>
+        </label>
+      : <span className={styles.mediaProviderIdentity}><strong>{provider.name}</strong></span>}
+    <span className={styles.mediaProviderControls}>
+      <select
+        className={styles.mediaProviderSelect}
+        aria-label={`${provider.name} 模型`}
+        value={modelId}
+        onChange={(event) => {
+          setModelId(event.target.value);
+          onSelect?.(provider, event.target.value);
+        }}
+      >
+        {provider.models.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
+      </select>
+      {(active || !onSelect) && <span className={styles.mediaProviderStatus}>{active ? <><Check size={13} />当前使用</> : "已配置"}</span>}
+    </span>
+  </article>;
+}
+
 const initialConversations: typeof defaultSidebarConversations = [];
 
 export default function ChatPage() {
@@ -287,6 +343,7 @@ export default function ChatPage() {
   const [activeModelProviderId, setActiveModelProviderId] = useState("");
   const [modelSearch, setModelSearch] = useState("");
   const [mediaProviders, setMediaProviders] = useState<MediaProviders | null>(null);
+  const [capabilitySettings, setCapabilitySettings] = useState<CapabilitySettings | null>(null);
   const [mediaCapability, setMediaCapability] = useState<MediaCapability>("tts");
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -311,11 +368,12 @@ export default function ChatPage() {
     let cancelled = false;
     async function loadWorkspace() {
       try {
-        const [conversationData, providerData, modelData, mediaData] = await Promise.all([
+        const [conversationData, providerData, modelData, mediaData, capabilities] = await Promise.all([
           chatApi.list(),
           settingsApi.providers(),
           settingsApi.models(),
           mediaApi.providers(),
+          settingsApi.capabilities(),
         ]);
         if (cancelled) return;
         const nextConversations = conversationData.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }));
@@ -325,6 +383,7 @@ export default function ChatPage() {
         setModelOptions(modelData.models);
         setModelProviders(providerData.providers);
         setMediaProviders(mediaData);
+        setCapabilitySettings(capabilities);
         setActiveModelProviderId(nextSelection?.providerId ?? "");
         const query = new URLSearchParams(window.location.search);
         const isNewConversation = query.get("new") === "1";
@@ -743,16 +802,52 @@ export default function ChatPage() {
     });
   }
 
+  async function selectMediaCapability(provider: MediaProvider, modelId: string) {
+    const previousSettings = capabilitySettings;
+    const videoSelection = provider.capability === "video" ? {
+      providerId: provider.id,
+      modelId,
+      durationSeconds: capabilitySettings?.video?.providerId === provider.id
+        ? capabilitySettings.video.durationSeconds
+        : provider.durations?.[0] ?? 5,
+      resolution: capabilitySettings?.video?.providerId === provider.id
+        ? capabilitySettings.video.resolution
+        : provider.resolutions?.includes("720p") ? "720p" as const : "1080p" as const,
+    } : null;
+
+    if (capabilitySettings && provider.capability === "image") {
+      setCapabilitySettings({ ...capabilitySettings, image: { providerId: provider.id, modelId } });
+    } else if (capabilitySettings && videoSelection) {
+      setCapabilitySettings({ ...capabilitySettings, video: videoSelection });
+    }
+
+    try {
+      const next = provider.capability === "image"
+        ? await settingsApi.saveCapabilities({ image: { providerId: provider.id, modelId } })
+        : videoSelection
+          ? await settingsApi.saveCapabilities({ video: videoSelection })
+          : null;
+      if (next) {
+        setCapabilitySettings(next);
+        setNotice(`${provider.name} 已设为默认${provider.capability === "image" ? "生图" : "视频"}能力`);
+      }
+    } catch (saveError) {
+      setCapabilitySettings(previousSettings);
+      setNotice(saveError instanceof Error ? saveError.message : "保存媒体模型选择失败");
+    }
+  }
+
   async function reloadModelCatalog() {
     setSettingsOpen(false);
     try {
-      const [providerData, modelData, mediaData] = await Promise.all([settingsApi.providers(), settingsApi.models(), mediaApi.providers()]);
+      const [providerData, modelData, mediaData, capabilities] = await Promise.all([settingsApi.providers(), settingsApi.models(), mediaApi.providers(), settingsApi.capabilities()]);
       const nextSelection = resolveModelSelection(modelData.models, selectedModel ?? providerData.defaultModel);
       setModelProviders(providerData.providers);
       setModelOptions(modelData.models);
       setSelectedModel(nextSelection);
       setActiveModelProviderId(nextSelection?.providerId ?? "");
       setMediaProviders(mediaData);
+      setCapabilitySettings(capabilities);
     } catch (loadError) {
       setNotice(loadError instanceof Error ? loadError.message : "刷新模型目录失败");
     }
@@ -828,9 +923,18 @@ export default function ChatPage() {
                 <div ref={mediaPickerRef} className={styles.mediaPicker}>
                   <button className={styles.mediaButton} type="button" aria-expanded={showMediaMenu} onClick={toggleMediaMenu}><AudioLines size={14} /><span>媒体</span><ChevronDown size={14} /></button>
                   {showMediaMenu && <div className={styles.mediaMenu} role="dialog" aria-label="选择媒体模型">
-                    <div className={styles.mediaMenuHeader}><strong>媒体模型</strong><span>已配置</span></div>
-                    <nav className={styles.mediaCapabilityList} aria-label="媒体能力">{(["tts", "asr", "image", "video"] as MediaCapability[]).map((capability) => <button key={capability} type="button" className={capability === mediaCapability ? styles.mediaCapabilityActive : ""} onClick={() => setMediaCapability(capability)}>{mediaCapabilityLabel(capability)}<small>{configuredMediaProviders.filter((item) => item.capability === capability).length}</small></button>)}</nav>
-                    <div className={styles.mediaProviderCards}>{visibleMediaProviders.length ? visibleMediaProviders.flatMap(({ provider }) => provider.models.map((model) => <article className={styles.mediaProviderCard} key={`${provider.id}/${model.id}`}><span><strong>{model.name}</strong><small>{provider.name} · {model.id}</small></span><span className={styles.mediaProviderStatus}>已配置</span></article>)) : <p>暂无已配置模型</p>}</div>
+                    <nav className={styles.mediaCapabilityList} aria-label="媒体能力">{(["tts", "asr", "image", "video"] as MediaCapability[]).map((capability) => <button key={capability} type="button" className={capability === mediaCapability ? styles.mediaCapabilityActive : ""} onClick={() => setMediaCapability(capability)}>{mediaCapabilityLabel(capability)}<small>{(capability === "tts" || capability === "asr" ? 1 : 0) + configuredMediaProviders.filter((item) => item.capability === capability).length}</small></button>)}</nav>
+                    <div className={styles.mediaProviderCards}>
+                      {mediaCapability === "tts" && <article className={`${styles.mediaProviderCard} ${styles.mediaProviderCardActive}`}><span className={styles.mediaProviderIdentity}><strong>本机语音</strong><small>{capabilitySettings?.speech.voiceUri ? "已选择本机声音" : "跟随浏览器默认声音"} · {capabilitySettings?.speech.language ?? "zh-CN"}</small></span><span className={styles.mediaProviderStatus}><Check size={13} />当前使用</span></article>}
+                      {mediaCapability === "asr" && <article className={`${styles.mediaProviderCard} ${styles.mediaProviderCardActive}`}><span className={styles.mediaProviderIdentity}><strong>本机语音识别</strong><small>浏览器原生 · {capabilitySettings?.speech.language ?? "zh-CN"} · 无需 API Key</small></span><span className={styles.mediaProviderStatus}>本机能力</span></article>}
+                      {visibleMediaProviders.map(({ provider }) => <MediaProviderChoice
+                        key={`${provider.capability}/${provider.id}`}
+                        provider={provider}
+                        selection={provider.capability === "image" ? capabilitySettings?.image : provider.capability === "video" ? capabilitySettings?.video : undefined}
+                        onSelect={provider.capability === "image" || provider.capability === "video" ? (selectedProvider, modelId) => { void selectMediaCapability(selectedProvider, modelId); } : undefined}
+                      />)}
+                      {!visibleMediaProviders.length && mediaCapability !== "tts" && mediaCapability !== "asr" && <p>暂无已配置模型，请先前往设置。</p>}
+                    </div>
                   </div>}
                 </div>
               </div>

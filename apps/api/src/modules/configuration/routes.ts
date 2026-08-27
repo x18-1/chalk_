@@ -5,6 +5,7 @@ import {
   customProviderParamsSchema,
   customProviderSchema,
   customProviderUpdateSchema,
+  capabilitySettingsSchema,
   modelSelectionSchema,
   modelsQuerySchema,
   providerCredentialSchema,
@@ -15,12 +16,14 @@ import {
 } from './schemas';
 import type { ProviderConfigurationService } from './services/provider-configuration.service';
 import type { RuntimeConfigurationService } from './services/runtime-configuration.service';
+import type { CapabilityConfigurationService } from './services/capability-configuration.service';
 
 export function registerConfigurationRoutes(
   app: FastifyInstance,
   auth: AuthModule,
   providers: ProviderConfigurationService,
   runtime: RuntimeConfigurationService,
+  capabilities: CapabilityConfigurationService,
 ) {
   app.get('/providers', async (request) => {
     const user = await auth.requireUser(request);
@@ -102,6 +105,16 @@ export function registerConfigurationRoutes(
       user.id,
       modelSelectionSchema.parse(request.body),
     );
+  });
+
+  app.get('/settings/capabilities', async (request) => {
+    const user = await auth.requireUser(request);
+    return capabilities.get(user.id);
+  });
+
+  app.put('/settings/capabilities', async (request) => {
+    const user = await auth.requireUser(request);
+    return capabilities.update(user.id, capabilitySettingsSchema.parse(request.body));
   });
 
   app.get('/skills', async (request) => {

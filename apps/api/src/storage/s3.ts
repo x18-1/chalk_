@@ -1,5 +1,7 @@
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const CLASSROOM_MEDIA_DOWNLOAD_URL_TTL_SECONDS = 4 * 60 * 60;
 
 function required(name: string) {
   const value = process.env[name];
@@ -73,6 +75,36 @@ export const s3UploadObjectStorage = {
       ...(object.ContentLength !== undefined ? { size: object.ContentLength } : {}),
       ...(object.ContentType ? { contentType: object.ContentType } : {}),
     };
+  },
+};
+
+export const s3ClassroomObjectStorage = {
+  async putObject(input: { fileKey: string; body: Buffer; contentType: string }) {
+    await client().send(new PutObjectCommand({
+      Bucket: bucket(),
+      Key: input.fileKey,
+      Body: input.body,
+      ContentType: input.contentType,
+      ContentLength: input.body.byteLength,
+    }));
+  },
+  createDownloadUrl(fileKey: string) {
+    return getSignedUrl(
+      client(),
+      new GetObjectCommand({ Bucket: bucket(), Key: fileKey }),
+      { expiresIn: CLASSROOM_MEDIA_DOWNLOAD_URL_TTL_SECONDS },
+    );
+  },
+  async copyObject(input: { sourceKey: string; targetKey: string }) {
+    const copySource = [bucket(), ...input.sourceKey.split('/')].map(encodeURIComponent).join('/');
+    await client().send(new CopyObjectCommand({
+      Bucket: bucket(),
+      Key: input.targetKey,
+      CopySource: copySource,
+    }));
+  },
+  async deleteObject(fileKey: string) {
+    await client().send(new DeleteObjectCommand({ Bucket: bucket(), Key: fileKey }));
   },
 };
 

@@ -1,7 +1,7 @@
 # Chalk 技术栈
 
 > 文档状态：Draft
-> 最后核验：2026-08-22
+> 最后核验：2026-08-26
 > 说明：技术方向仍可迭代；`AGENTS.md` 已确认约束和 [Accepted 架构文档](../README.md) 优先。
 > 配套：[功能定义](../spec/functional-spec.md)
 
@@ -202,6 +202,9 @@ packages/chalkboard/src/internal/geometry/
 - 确定性能判的，绝不交给 LLM 判
 - eval 结果与 telemetry trace 关联，可回溯到具体 prompt 版本
 - 记录 prompt 版本、模型版本、scorer 版本
+
+Prompt 的集中目录、英文运行版本、中文审阅版本、revision 和迁移 provenance 统一遵循
+[Prompt 管理规范](./prompts.md)，不在各 Agent 或生成模块中另定一套组织方式。
 
 ## 7. 仓库结构
 

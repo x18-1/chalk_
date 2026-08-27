@@ -46,6 +46,42 @@ export function createAgentSettingsDal(db: Database) {
         .returning();
       return rows[0]!;
     },
+
+    async setCapabilities(userId: string, input: {
+      image?: { providerId: string; modelId: string | null } | null;
+      video?: { providerId: string; modelId: string | null; durationSeconds: number; resolution: '720p' | '1080p' } | null;
+      speech?: { adapter: 'browser'; language: string; voiceUri: string | null; rate: number; volume: number };
+    }) {
+      requireUserId(userId);
+      const changes = {
+        ...(input.image !== undefined ? {
+          defaultImageProviderId: input.image?.providerId ?? null,
+          defaultImageModelId: input.image?.modelId ?? null,
+        } : {}),
+        ...(input.video !== undefined ? {
+          defaultVideoProviderId: input.video?.providerId ?? null,
+          defaultVideoModelId: input.video?.modelId ?? null,
+          ...(input.video ? {
+            defaultVideoDurationSeconds: input.video.durationSeconds,
+            defaultVideoResolution: input.video.resolution,
+          } : {}),
+        } : {}),
+        ...(input.speech ? {
+          speechAdapter: input.speech.adapter,
+          speechLanguage: input.speech.language,
+          speechVoiceUri: input.speech.voiceUri,
+          speechRate: input.speech.rate,
+          speechVolume: input.speech.volume,
+        } : {}),
+        updatedAt: new Date(),
+      };
+      const rows = await db
+        .insert(agentSettings)
+        .values({ userId, ...changes })
+        .onConflictDoUpdate({ target: agentSettings.userId, set: changes })
+        .returning();
+      return rows[0]!;
+    },
   };
 }
 

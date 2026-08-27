@@ -62,6 +62,71 @@ describe('Chalkboard playback controller', () => {
     await controller.dispose();
   });
 
+  it('stops playback when the learner changes scenes with auto-play disabled', async () => {
+    const runtime = createChalkboardRuntime(openMaicStageFixture);
+    const executor = makeExecutor({
+      speak: vi.fn(() => new Promise<void>(() => undefined)),
+      cancel: vi.fn(),
+    });
+    const controller = new ChalkboardPlaybackController({
+      runtime,
+      executor,
+      isAutoPlayEnabled: () => false,
+    });
+
+    await controller.start();
+    await vi.waitFor(() => expect(executor.speak).toHaveBeenCalledTimes(1));
+    await expect(controller.selectScene('scene-operation')).resolves.toEqual({ ok: true });
+
+    expect(runtime.getState()).toMatchObject({
+      sceneId: 'scene-operation',
+      actionIndex: 0,
+      mode: 'paused',
+    });
+    expect(executor.speak).toHaveBeenCalledTimes(1);
+    await controller.dispose();
+  });
+
+  it('starts continuous playback from an authored note action', async () => {
+    let resolveSpeech: (() => void) | undefined;
+    const runtime = createChalkboardRuntime(openMaicStageFixture);
+    const executor = makeExecutor({
+      speak: vi.fn(() => new Promise<void>((resolve) => { resolveSpeech = resolve; })),
+    });
+    const controller = new ChalkboardPlaybackController({ runtime, executor });
+
+    await expect(controller.playFrom('scene-operation', 0)).resolves.toEqual({ ok: true });
+
+    expect(runtime.getState()).toMatchObject({
+      sceneId: 'scene-operation',
+      actionIndex: 0,
+      mode: 'playing',
+    });
+    expect(executor.spotlight).not.toHaveBeenCalled();
+    expect(executor.speak).toHaveBeenCalledWith('两边同时减去 3。');
+    resolveSpeech?.();
+    await controller.dispose();
+  });
+
+  it('restarts the playback loop when a note is selected during narration', async () => {
+    let resolveSpeech: (() => void) | undefined;
+    const runtime = createChalkboardRuntime(openMaicStageFixture);
+    const executor = makeExecutor({
+      speak: vi.fn(() => new Promise<void>((resolve) => { resolveSpeech = resolve; })),
+      cancel: vi.fn(() => { resolveSpeech?.(); }),
+    });
+    const controller = new ChalkboardPlaybackController({ runtime, executor });
+
+    await controller.start();
+    await vi.waitFor(() => expect(executor.speak).toHaveBeenCalledTimes(1));
+    await expect(controller.playFrom('scene-operation', 0)).resolves.toEqual({ ok: true });
+
+    await vi.waitFor(() => expect(executor.speak).toHaveBeenCalledTimes(2));
+    expect(executor.speak).toHaveBeenLastCalledWith('两边同时减去 3。');
+    resolveSpeech?.();
+    await controller.dispose();
+  });
+
   it('finishes the current scene without crossing into the next scene when auto-play is off', async () => {
     const runtime = createChalkboardRuntime(openMaicStageFixture);
     const controller = new ChalkboardPlaybackController({ runtime, executor: makeExecutor() });
@@ -128,6 +193,32 @@ describe('Chalkboard playback controller', () => {
     await vi.waitFor(() => expect(
       runtime.getState().sceneIndex > 0 || runtime.getState().actionIndex > cursorBeforePause,
     ).toBe(true));
+    await controller.dispose();
+  });
+
+  it('persists every explicit playback mode transition', async () => {
+    let resolveSpeech: (() => void) | undefined;
+    const runtime = createChalkboardRuntime(openMaicStageFixture);
+    const persistedModes: string[] = [];
+    const controller = new ChalkboardPlaybackController({
+      runtime,
+      executor: makeExecutor({
+        speak: vi.fn(() => new Promise<void>((resolve) => { resolveSpeech = resolve; })),
+        pause: vi.fn(),
+        resume: vi.fn(),
+      }),
+      persist: async () => { persistedModes.push(runtime.getSnapshot().mode); },
+    });
+
+    await controller.start();
+    await vi.waitFor(() => expect(resolveSpeech).toBeDefined());
+    expect(persistedModes.at(-1)).toBe('playing');
+    await controller.pause();
+    expect(persistedModes.at(-1)).toBe('paused');
+    await controller.resume();
+    expect(persistedModes.at(-1)).toBe('playing');
+
+    resolveSpeech?.();
     await controller.dispose();
   });
 });

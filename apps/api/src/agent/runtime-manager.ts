@@ -46,6 +46,7 @@ import {
   type ModelSelection,
 } from '../providers/llm/model-catalog';
 import { DrizzleCredentialStore } from '../providers/llm/credential-store';
+import { PROMPT_IDS, buildPrompt } from '../prompts';
 
 let sessionRepository: ReturnType<typeof createJsonlSessionRepository> | undefined;
 
@@ -458,15 +459,15 @@ export async function getOrCreateRuntime(
         });
       },
     },
-    createRuntime: ({ session, context, focus }) =>
-      createAgentRuntime({
+    createRuntime: ({ session, context, focus }) => {
+      const prompt = buildPrompt(PROMPT_IDS.CHAT_SUBAGENT, {
+        focusLine: focus ? `Focus for this run: ${focus}` : '',
+        parentSessionId: context.parentSessionId,
+      });
+      return createAgentRuntime({
         session,
         llm,
-        systemPrompt: [
-          '你是 Chalk 的专项子 Agent。只处理父 Agent 分配的范围，不扩展任务，不直接与学生对话。',
-          focus ? `本次重点：${focus}` : '',
-          `父会话：${context.parentSessionId}`,
-        ].filter(Boolean).join('\n'),
+        systemPrompt: prompt.system,
         telemetry: {
           context: createRuntimeTelemetryContext(runtimeTelemetry),
           attributes: {
@@ -476,6 +477,8 @@ export async function getOrCreateRuntime(
             modelProviderId: model.providerId,
             modelId: model.modelId,
             thinkingLevel: model.thinkingLevel,
+            promptId: PROMPT_IDS.CHAT_SUBAGENT,
+            promptRevision: prompt.revision,
           },
           onRunFinished: context.conversationId
             ? async (observation) => {
@@ -489,7 +492,8 @@ export async function getOrCreateRuntime(
             }
             : undefined,
         },
-      }),
+      });
+    },
   });
   registry.register(createSubagentTool(childExecutor));
 
@@ -507,15 +511,13 @@ export async function getOrCreateRuntime(
     ),
     errorChannel: toolErrorChannel,
   });
-  const systemPrompt = [
-    '你是 Chalk，一位耐心、严谨的数学老师。目标是帮助学生掌握解题思路，而不是只报出答案。',
-    '先确认已知条件和学生卡住的位置，再给一条可执行的下一步；学生明确需要时再逐级增加提示。',
-    skills.systemPrompt(enabledSkillNames),
-  ].filter(Boolean).join('\n\n');
+  const mainPrompt = buildPrompt(PROMPT_IDS.CHAT_MAIN, {
+    skillsPrompt: skills.systemPrompt(enabledSkillNames),
+  });
   const runtime = await createAgentRuntime({
     session,
     llm,
-    systemPrompt,
+    systemPrompt: mainPrompt.system,
     tools,
     telemetry: {
       context: telemetry,
@@ -526,6 +528,8 @@ export async function getOrCreateRuntime(
         modelProviderId: model.providerId,
         modelId: model.modelId,
         thinkingLevel: model.thinkingLevel,
+        promptId: PROMPT_IDS.CHAT_MAIN,
+        promptRevision: mainPrompt.revision,
       },
       onRunFinished: async (observation) => {
         await observations.record(userId, {

@@ -1,0 +1,3 @@
+ALTER TABLE "classroom_drafts" ADD COLUMN "publication_token" uuid;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD COLUMN "publication_started_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD CONSTRAINT "classroom_drafts_publication_reservation_check" CHECK (("classroom_drafts"."publication_token" is null and "classroom_drafts"."publication_started_at" is null) or ("classroom_drafts"."publication_token" is not null and "classroom_drafts"."publication_started_at" is not null));

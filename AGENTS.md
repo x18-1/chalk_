@@ -12,6 +12,7 @@
 - 技术栈：`docs/architecture/tech-stack.md`
 - 仓库与 package 边界：`docs/architecture/repository-boundaries.md`
 - API 后端分层：`docs/architecture/backend-layers.md`
+- Prompt 管理：`docs/architecture/prompts.md`
 - Worktree 开发：`docs/runbooks/worktree-development.md`
 - 数据库开发：`docs/runbooks/database-development.md`
 - 参考项目调研：`docs/researsh/`
@@ -29,6 +30,9 @@
 ### 不可违反的设计约束
 
 - **数据访问层强制 owner 校验**，不在各端点里分散实现。认证异常时 fail closed，不静默回退到默认身份。
+- **产品 Prompt 集中管理并维护英文/中文配对版本**：运行时只读取英文版，中文版供人审阅；
+  Tool/参数描述、Skill、运行时用户数据和测试文本按 `docs/architecture/prompts.md` 的边界就近
+  维护。从固定参考实现迁移 Prompt 时非必要不改动英文内容，并保留 provenance。
 
 
 ## 开发流程

@@ -36,8 +36,9 @@
 - 分支合并或停止开发后，将文档状态改为 `Historical`，保留最终结果和后续入口；
 - 已稳定的结论必须回写权威文档，不能长期只留在 handoff。
 
-当前活跃记录：无。创建 `feat/chalkboard-v2` worktree 后再创建对应 handoff，不能预写未经
-验证的端口、数据库或服务状态。
+当前活跃记录：
+
+- [chalkboard-v2.md](chalkboard-v2.md) — 后端持久化、AI 生成和真实学习状态闭环
 
 历史记录：
 

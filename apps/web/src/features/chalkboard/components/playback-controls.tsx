@@ -5,7 +5,6 @@ import {
   ChevronRight,
   CirclePlay,
   Pause,
-  PencilLine,
   Repeat,
   Volume1,
   Volume2,
@@ -25,7 +24,6 @@ export interface PlaybackControlsProps {
   muted: boolean;
   speed: PlaybackSpeed;
   autoPlay: boolean;
-  whiteboardOpen: boolean;
   onToggleMute: () => void;
   onVolumeChange: (value: number) => void;
   onCycleSpeed: () => void;
@@ -33,7 +31,6 @@ export interface PlaybackControlsProps {
   onPlayPause: () => void;
   onNext: () => void;
   onToggleAutoPlay: () => void;
-  onToggleWhiteboard: () => void;
 }
 
 function VolumeIcon({ muted, volume }: { muted: boolean; volume: number }) {
@@ -50,7 +47,6 @@ export function PlaybackControls({
   muted,
   speed,
   autoPlay,
-  whiteboardOpen,
   onToggleMute,
   onVolumeChange,
   onCycleSpeed,
@@ -58,7 +54,6 @@ export function PlaybackControls({
   onPlayPause,
   onNext,
   onToggleAutoPlay,
-  onToggleWhiteboard,
 }: PlaybackControlsProps) {
   return (
     <div className={styles.playbackControls} aria-label="课堂播放控制">
@@ -109,9 +104,6 @@ export function PlaybackControls({
       <span className={styles.controlDivider} aria-hidden="true" />
       <button className={`${styles.controlButton} ${autoPlay ? styles.controlButtonActive : ""}`} type="button" onClick={onToggleAutoPlay} aria-pressed={autoPlay} aria-label={autoPlay ? "关闭自动播放" : "打开自动播放"} title={autoPlay ? "关闭自动播放" : "打开自动播放"}>
         <Repeat size={15} />
-      </button>
-      <button className={`${styles.controlButton} ${whiteboardOpen ? styles.controlButtonActive : ""}`} type="button" onClick={onToggleWhiteboard} aria-pressed={whiteboardOpen} aria-label={whiteboardOpen ? "关闭白板" : "打开白板"} title={whiteboardOpen ? "关闭白板" : "打开白板"}>
-        <PencilLine size={15} />
       </button>
     </div>
   );

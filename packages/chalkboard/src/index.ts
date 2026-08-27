@@ -10,7 +10,7 @@ export {
   validateStageDocument,
 } from './schema';
 export type { Action, CanvasElement, QuizQuestion, Scene, SceneType, SlideContent, Stage, StageDocument } from './schema';
-export { normalizeClassroomPackageManifest } from './import/classroom-package';
+export { classroomPackageMediaReferences, normalizeClassroomPackageManifest } from './import/classroom-package';
 export type { ClassroomPackageManifest, ClassroomPackageOptions } from './import/classroom-package';
 export { ChalkboardRuntime, createChalkboardRuntime } from './runtime';
 export type {

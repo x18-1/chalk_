@@ -18,7 +18,7 @@ export class OpenAiTtsAdapter implements TtsAdapter {
         body: JSON.stringify({ model: input.model ?? this.options.defaultModel ?? 'gpt-4o-mini-tts', input: input.text, voice: input.voice, speed: input.speed ?? 1, response_format: format }),
         signal: input.signal ?? AbortSignal.timeout(this.options.timeoutMs ?? 30_000),
       });
-    } catch (error) {
+    } catch (_error) {
       throw new ProviderError(input.signal?.aborted ? 'CANCELLED' : 'UPSTREAM_TIMEOUT', 'OpenAI TTS request failed', !input.signal?.aborted);
     }
     if (!response.ok) throw mapHttpError(response.status, 'OpenAI TTS');

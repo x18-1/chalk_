@@ -37,6 +37,7 @@ let providerBaseUrl: string;
 let providerServer: Server;
 let fixtureProviderId: string;
 const providerRequests: Array<Record<string, unknown>> = [];
+const mediaEnvironment: NodeJS.ProcessEnv = {};
 
 function responseCookie(value: string | string[] | undefined) {
   const first = Array.isArray(value) ? value[0] : value;
@@ -220,6 +221,7 @@ describe('API auth and chat interface', () => {
     process.env.SESSIONS_ROOT = join(sessionRoot, 'sessions');
     process.env.CREDENTIAL_ENCRYPTION_KEY = randomBytes(32).toString('hex');
     app = await buildApi({
+      mediaEnvironment,
       config: loadConfig({
         NODE_ENV: 'test',
         API_HOST: '127.0.0.1',
@@ -562,6 +564,169 @@ describe('API auth and chat interface', () => {
     });
     expect(unsupported.statusCode).toBe(400);
     expect(unsupported.json()).toMatchObject({ code: 'UNSUPPORTED_THINKING_LEVEL' });
+  });
+
+  it('persists owner-scoped generation and browser speech capability settings', async () => {
+    const anonymous = await app.inject({ method: 'GET', url: '/settings/capabilities' });
+    expect(anonymous.statusCode).toBe(401);
+
+    const initial = await app.inject({ method: 'GET', url: '/settings/capabilities', headers: { cookie } });
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json()).toEqual({
+      image: null,
+      video: null,
+      speech: {
+        adapter: 'browser',
+        language: 'zh-CN',
+        voiceUri: null,
+        rate: 0.95,
+        volume: 1,
+      },
+    });
+
+    const unconfigured = await app.inject({
+      method: 'PUT',
+      url: '/settings/capabilities',
+      headers: { cookie },
+      payload: {
+        image: { providerId: 'seedream', modelId: 'doubao-seedream-4-5-251128' },
+      },
+    });
+    expect(unconfigured.statusCode).toBe(409);
+    expect(unconfigured.json()).toMatchObject({ code: 'MEDIA_PROVIDER_NOT_CONFIGURED' });
+
+    for (const credential of [
+      { capability: 'image', providerId: 'seedream', modelId: 'doubao-seedream-4-5-251128' },
+      { capability: 'video', providerId: 'seedance', modelId: 'doubao-seedance-1-5-pro-251215' },
+    ]) {
+      const configured = await app.inject({
+        method: 'PUT',
+        url: `/media/providers/${credential.capability}/${credential.providerId}/credential`,
+        headers: { cookie },
+        payload: { apiKey: `test-${credential.capability}-key`, settings: { modelId: credential.modelId } },
+      });
+      expect(configured.statusCode).toBe(200);
+    }
+
+    const saved = await app.inject({
+      method: 'PUT',
+      url: '/settings/capabilities',
+      headers: { cookie },
+      payload: {
+        image: { providerId: 'seedream', modelId: 'doubao-seedream-4-5-251128' },
+        video: {
+          providerId: 'seedance',
+          modelId: 'doubao-seedance-1-5-pro-251215',
+          durationSeconds: 5,
+          resolution: '720p',
+        },
+        speech: {
+          adapter: 'browser',
+          language: 'zh-CN',
+          voiceUri: 'test-zh-voice',
+          rate: 1.1,
+          volume: 0.8,
+        },
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toEqual({
+      image: { providerId: 'seedream', modelId: 'doubao-seedream-4-5-251128' },
+      video: {
+        providerId: 'seedance',
+        modelId: 'doubao-seedance-1-5-pro-251215',
+        durationSeconds: 5,
+        resolution: '720p',
+      },
+      speech: {
+        adapter: 'browser',
+        language: 'zh-CN',
+        voiceUri: 'test-zh-voice',
+        rate: 1.1,
+        volume: 0.8,
+      },
+    });
+
+    const removedVideo = await app.inject({
+      method: 'DELETE',
+      url: '/media/providers/video/seedance/credential',
+      headers: { cookie },
+    });
+    expect(removedVideo.statusCode).toBe(200);
+    const afterRemoval = await app.inject({ method: 'GET', url: '/settings/capabilities', headers: { cookie } });
+    expect(afterRemoval.statusCode).toBe(200);
+    expect(afterRemoval.json()).toMatchObject({
+      image: { providerId: 'seedream', modelId: 'doubao-seedream-4-5-251128' },
+      video: null,
+    });
+
+    const adminLogin = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: { email: developmentAdmin.email, password: developmentAdmin.password },
+    });
+    const adminSettings = await app.inject({
+      method: 'GET',
+      url: '/settings/capabilities',
+      headers: { cookie: responseCookie(adminLogin.headers['set-cookie']) },
+    });
+    expect(adminSettings.statusCode).toBe(200);
+    expect(adminSettings.json()).toMatchObject({ image: null, video: null });
+  });
+
+  it('uses deployment Ark credentials without exposing them or requiring a user copy', async () => {
+    mediaEnvironment.ARK_API_KEY = 'environment-ark-key';
+    try {
+      const adminLogin = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: developmentAdmin.email, password: developmentAdmin.password },
+      });
+      const adminCookie = responseCookie(adminLogin.headers['set-cookie']);
+
+      const providers = await app.inject({ method: 'GET', url: '/media/providers', headers: { cookie: adminCookie } });
+      expect(providers.statusCode).toBe(200);
+      const body = providers.json();
+      expect(body.image).toContainEqual(expect.objectContaining({
+        id: 'seedream',
+        configured: true,
+        credentialSource: 'environment',
+        canRemoveCredential: false,
+      }));
+      expect(body.video).toContainEqual(expect.objectContaining({
+        id: 'seedance',
+        configured: true,
+        credentialSource: 'environment',
+        canRemoveCredential: false,
+      }));
+      expect(providers.body).not.toContain('environment-ark-key');
+
+      const saved = await app.inject({
+        method: 'PUT',
+        url: '/settings/capabilities',
+        headers: { cookie: adminCookie },
+        payload: {
+          image: { providerId: 'seedream', modelId: 'doubao-seedream-4-5-251128' },
+          video: {
+            providerId: 'seedance',
+            modelId: 'doubao-seedance-1-5-pro-251215',
+            durationSeconds: 5,
+            resolution: '720p',
+          },
+        },
+      });
+      expect(saved.statusCode).toBe(200);
+
+      const cleared = await app.inject({
+        method: 'PUT',
+        url: '/settings/capabilities',
+        headers: { cookie: adminCookie },
+        payload: { image: null, video: null },
+      });
+      expect(cleared.statusCode).toBe(200);
+    } finally {
+      delete mediaEnvironment.ARK_API_KEY;
+    }
   });
 
   it('advertises only real tools and runs approved title changes', async () => {
