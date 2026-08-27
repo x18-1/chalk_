@@ -17,6 +17,9 @@ export interface ClassroomPlaybackSettings {
   speechEnabled: boolean;
   ttsMuted: boolean;
   ttsVolume: number;
+  speechLanguage: string;
+  speechVoiceUri: string | null;
+  speechRate: number;
 }
 
 /** Browser presentation adapter for the Chalkboard runtime. It owns transient
@@ -77,8 +80,9 @@ export function useClassroomPresentation(
         };
         speechResolveRef.current = finish;
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "zh-CN";
-        utterance.rate = 0.95 * current.playbackSpeed;
+        utterance.lang = current.speechLanguage;
+        utterance.voice = window.speechSynthesis.getVoices().find((voice) => voice.voiceURI === current.speechVoiceUri) ?? null;
+        utterance.rate = current.speechRate * current.playbackSpeed;
         utterance.volume = current.ttsVolume;
         utterance.onend = finishAfterMinimum;
         utterance.onerror = finishAfterMinimum;

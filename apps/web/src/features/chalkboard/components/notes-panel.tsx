@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
+  CirclePlay,
   Eye,
   Flashlight,
   MessageCircle,
@@ -78,7 +80,27 @@ function buildNoteRows(actions: readonly Action[]): NoteRow[] {
   return rows;
 }
 
-export function NotesPanel({ scene, actions, activeActionIndex }: { scene: SceneView; actions: readonly Action[]; activeActionIndex: number }) {
+function noteRowLabel(row: NoteRow): string {
+  if (row.kind === "speech") return row.text || "讲解";
+  if (row.kind === "discussion") return actionText(row.action) ?? "课堂提问";
+  return row.actions.map((action) => ACTION_CONFIG[action.type]?.label ?? action.type).join("、") || "课堂动作";
+}
+
+type NotesPanelProps = {
+  scene: SceneView;
+  actions: readonly Action[];
+  activeActionIndex: number;
+  onPlayFrom(actionIndex: number): void;
+};
+
+export function NotesPanel({ scene, actions, activeActionIndex, onPlayFrom }: NotesPanelProps) {
+  const activeRowRef = useRef<HTMLButtonElement | null>(null);
+  const rows = buildNoteRows(actions);
+
+  useEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [activeActionIndex, scene.id]);
+
   return (
     <div className={styles.notesContent}>
       <div className={styles.notesHeading}>
@@ -87,21 +109,33 @@ export function NotesPanel({ scene, actions, activeActionIndex }: { scene: Scene
         <span className={styles.notesMeta}>{actions.length} 个课堂动作</span>
       </div>
       <div className={styles.notesList}>
-        {actions.length ? buildNoteRows(actions).map((row, index) => {
+        {rows.length ? rows.map((row, index) => {
           const active = row.indices.includes(activeActionIndex);
+          const startIndex = row.indices[0] ?? 0;
+          const commonProps = {
+            "aria-current": active ? "step" as const : undefined,
+            "aria-label": `从此处播放：${noteRowLabel(row)}`,
+            className: `${styles.noteRow} ${active ? styles.noteRowActive : ""}`,
+            onClick: () => onPlayFrom(startIndex),
+            ref: active ? activeRowRef : undefined,
+            type: "button" as const,
+          };
           if (row.kind === "speech") {
-            return <div className={`${styles.noteRow} ${active ? styles.noteRowActive : ""}`} key={`speech-${row.indices[0]}`}>
-              <p className={styles.noteSpeech}><span className={styles.noteInlineActions}>{row.actions.map((action) => <ActionTag key={action.id} action={action} compact />)}</span>{row.text}</p>
-            </div>;
+            return <button {...commonProps} key={`speech-${startIndex}`}>
+              <span key="content" className={styles.noteSpeech}><span className={styles.noteInlineActions}>{row.actions.map((action) => <ActionTag key={action.id} action={action} compact />)}</span>{row.text || "讲解"}</span>
+              <CirclePlay key="play" className={styles.noteRowPlay} size={16} aria-hidden="true" />
+            </button>;
           }
           if (row.kind === "discussion") {
-            return <div className={`${styles.noteRow} ${styles.noteDiscussionRow} ${active ? styles.noteRowActive : ""}`} key={`discussion-${row.indices[0]}`}>
-              <div className={styles.noteDiscussionContent}><ActionTag action={row.action} /><span>{actionText(row.action) ?? "课堂提问"}</span></div>
-            </div>;
+            return <button {...commonProps} className={`${commonProps.className} ${styles.noteDiscussionRow}`} key={`discussion-${startIndex}`}>
+              <span key="content" className={styles.noteDiscussionContent}><ActionTag action={row.action} /><span>{actionText(row.action) ?? "课堂提问"}</span></span>
+              <CirclePlay key="play" className={styles.noteRowPlay} size={16} aria-hidden="true" />
+            </button>;
           }
-          return <div className={`${styles.noteRow} ${active ? styles.noteRowActive : ""}`} key={`tools-${index}`}>
-            <div className={styles.noteTrailingActions}>{row.actions.map((action) => <ActionTag key={action.id} action={action} />)}</div>
-          </div>;
+          return <button {...commonProps} key={`tools-${index}`}>
+            <span key="content" className={styles.noteTrailingActions}>{row.actions.map((action) => <ActionTag key={action.id} action={action} />)}</span>
+            <CirclePlay key="play" className={styles.noteRowPlay} size={16} aria-hidden="true" />
+          </button>;
         }) : <p className={styles.notesEmpty}>这一页暂时没有课堂动作。</p>}
       </div>
     </div>

@@ -4,23 +4,22 @@ import Link from "next/link";
 import { ArrowRight, MessageCircle, PanelTop } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
-import { chatApi } from "../../api";
+import { AppSidebar, defaultSidebarConversations, type SidebarClassroom } from "../../components/app-sidebar";
+import { chatApi, classroomsApi } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
-import { loadChalkboardHistory, type ChalkboardHistoryItem } from "../../features/chalkboard/lib/history";
 import styles from "./chats.module.css";
 
 export default function ChatsPage() {
   const [conversations, setConversations] = useState<typeof defaultSidebarConversations>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chalkboards, setChalkboards] = useState<ChalkboardHistoryItem[]>([]);
+  const [chalkboards, setChalkboards] = useState<SidebarClassroom[]>([]);
 
   useEffect(() => {
-    setChalkboards(loadChalkboardHistory());
-    void chatApi.list().then((data) => {
-      setConversations(data.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) })));
-    }).catch((loadError) => setError(loadError instanceof Error ? loadError.message : "加载对话失败")).finally(() => setLoading(false));
+    void Promise.all([chatApi.list(), classroomsApi.list()]).then(([chatData, classroomData]) => {
+      setConversations(chatData.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) })));
+      setChalkboards(classroomData.classrooms.map(({ id, title }) => ({ id, title })));
+    }).catch((loadError) => setError(loadError instanceof Error ? loadError.message : "加载学习记录失败")).finally(() => setLoading(false));
   }, []);
 
   function renameConversation(id: string, title: string) {

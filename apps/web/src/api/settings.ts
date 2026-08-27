@@ -50,6 +50,36 @@ export type Model = {
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
 };
 
+export type MediaCapabilitySelection = {
+  providerId: string;
+  modelId: string | null;
+};
+
+export type VideoCapabilitySelection = MediaCapabilitySelection & {
+  durationSeconds: number;
+  resolution: '720p' | '1080p';
+};
+
+export type BrowserSpeechSettings = {
+  adapter: 'browser';
+  language: string;
+  voiceUri: string | null;
+  rate: number;
+  volume: number;
+};
+
+export type CapabilitySettings = {
+  image: MediaCapabilitySelection | null;
+  video: VideoCapabilitySelection | null;
+  speech: BrowserSpeechSettings;
+};
+
+export type CapabilitySettingsInput = Partial<{
+  image: MediaCapabilitySelection | null;
+  video: VideoCapabilitySelection | null;
+  speech: BrowserSpeechSettings;
+}>;
+
 export const settingsApi = {
   providers() {
     return apiJson<{ providers: Provider[]; defaultModel: ModelSelection | null }>('/providers');
@@ -63,6 +93,14 @@ export const settingsApi = {
       apiJson<{ tools: Tool[] }>('/tools'),
     ]);
     return { ...providers, ...skills, ...mcp, ...tools };
+  },
+
+  capabilities() {
+    return apiJson<CapabilitySettings>('/settings/capabilities');
+  },
+
+  saveCapabilities(input: CapabilitySettingsInput) {
+    return apiJson<CapabilitySettings>('/settings/capabilities', { method: 'PUT', body: JSON.stringify(input) });
   },
 
   models(provider?: string) {

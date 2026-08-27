@@ -96,6 +96,7 @@ export class ChalkboardPlaybackController {
     }
     this.actionStatus = 'running';
     this.emit();
+    await this.persist?.();
     this.ensureLoop();
     return result;
   }
@@ -111,6 +112,7 @@ export class ChalkboardPlaybackController {
     }
     this.actionStatus = 'paused';
     this.emit();
+    await this.persist?.();
     return result;
   }
 
@@ -123,6 +125,7 @@ export class ChalkboardPlaybackController {
     }
     this.actionStatus = 'running';
     this.emit();
+    await this.persist?.();
     this.ensureLoop();
     return result;
   }
@@ -132,7 +135,10 @@ export class ChalkboardPlaybackController {
   }
 
   async nextScene(): Promise<RuntimeCommandResult> {
-    return this.navigate(() => this.runtime.nextScene(), { executeCurrent: false });
+    return this.navigate(() => this.runtime.nextScene(), {
+      executeCurrent: false,
+      continuePlaying: this.isAutoPlayEnabled?.() === true,
+    });
   }
 
   async previous(): Promise<RuntimeCommandResult> {
@@ -140,17 +146,35 @@ export class ChalkboardPlaybackController {
   }
 
   async previousScene(): Promise<RuntimeCommandResult> {
-    return this.navigate(() => this.runtime.previousScene(), { executeCurrent: false });
+    return this.navigate(() => this.runtime.previousScene(), {
+      executeCurrent: false,
+      continuePlaying: this.isAutoPlayEnabled?.() === true,
+    });
   }
 
   async jump(sceneId: string, actionIndex = 0): Promise<RuntimeCommandResult> {
     return this.navigate(() => this.runtime.jump(sceneId, actionIndex));
   }
 
+  /** Start the authored lecture at an exact action. Notes use this instead of
+   * replaying one action in isolation so the remaining paragraph sequence
+   * continues under the normal playback lifecycle. */
+  async playFrom(sceneId: string, actionIndex: number): Promise<RuntimeCommandResult> {
+    const positioned = await this.navigate(() => this.runtime.jump(sceneId, actionIndex), {
+      executeCurrent: false,
+      continuePlaying: false,
+    });
+    if (!positioned.ok) return positioned;
+    return this.start();
+  }
+
   /** Select a page without replaying its first authored action. This is the
    * interaction used by the scene rail and previous/next page controls. */
   async selectScene(sceneId: string): Promise<RuntimeCommandResult> {
-    return this.navigate(() => this.runtime.jump(sceneId, 0), { executeCurrent: false });
+    return this.navigate(() => this.runtime.jump(sceneId, 0), {
+      executeCurrent: false,
+      continuePlaying: this.isAutoPlayEnabled?.() === true,
+    });
   }
 
   async restart(): Promise<RuntimeCommandResult> {
@@ -206,18 +230,19 @@ export class ChalkboardPlaybackController {
 
   private async navigate(
     operation: () => RuntimeCommandResult,
-    options: { executeCurrent?: boolean } = {},
+    options: { executeCurrent?: boolean; continuePlaying?: boolean } = {},
   ): Promise<RuntimeCommandResult> {
     const wasPlaying = this.runtime.getState().mode === 'playing';
+    const continuePlaying = wasPlaying && options.continuePlaying !== false;
     if (wasPlaying) this.runtime.pause();
     await this.cancelActive('playback navigation');
     const result = operation();
     if (!result.ok) return result;
     this.error = null;
-    this.actionStatus = wasPlaying ? 'running' : 'idle';
+    this.actionStatus = continuePlaying ? 'running' : wasPlaying ? 'paused' : 'idle';
     await this.persist?.();
     this.emit();
-    if (wasPlaying) {
+    if (continuePlaying) {
       this.runtime.start();
       this.ensureLoop();
     } else if (options.executeCurrent !== false) {

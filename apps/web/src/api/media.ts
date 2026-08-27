@@ -2,7 +2,7 @@ import { apiJson } from './client';
 
 export type MediaCapability = 'tts' | 'asr' | 'image' | 'video';
 export type ProviderModel = { id: string; name: string };
-export type MediaProvider = { capability: MediaCapability; id: string; name: string; defaultBaseUrl: string; models: ProviderModel[]; defaultModel: string; baseUrl: string; configured: boolean; requiresApiKey: boolean; voices?: string[]; formats?: string[]; aspectRatios?: string[]; durations?: number[]; resolutions?: string[]; settings?: { backend?: string; workflowId?: string; modelId?: string } };
+export type MediaProvider = { capability: MediaCapability; id: string; name: string; defaultBaseUrl: string; models: ProviderModel[]; defaultModel: string; baseUrl: string; configured: boolean; credentialSource: 'user' | 'environment' | 'none'; canRemoveCredential: boolean; requiresApiKey: boolean; voices?: string[]; formats?: string[]; aspectRatios?: string[]; durations?: number[]; resolutions?: string[]; settings?: { backend?: string; workflowId?: string; modelId?: string } };
 export type MediaProviders = Record<MediaCapability, MediaProvider[]>;
 
 export const mediaApi = {
@@ -10,10 +10,10 @@ export const mediaApi = {
     return apiJson<MediaProviders>('/media/providers');
   },
   saveCredential(capability: MediaCapability, providerId: string, input: { apiKey?: string; baseUrl?: string; settings?: { backend?: string; workflowId?: string; modelId?: string } }) {
-    return apiJson<{ capability: MediaCapability; providerId: string; configured: boolean; baseUrl: string }>(`/media/providers/${capability}/${encodeURIComponent(providerId)}/credential`, { method: 'PUT', body: JSON.stringify(input) });
+    return apiJson<{ capability: MediaCapability; providerId: string; configured: boolean; credentialSource: 'user' | 'environment' | 'none'; canRemoveCredential: boolean; baseUrl: string }>(`/media/providers/${capability}/${encodeURIComponent(providerId)}/credential`, { method: 'PUT', body: JSON.stringify(input) });
   },
   removeCredential(capability: MediaCapability, providerId: string) {
-    return apiJson<{ capability: MediaCapability; providerId: string; configured: boolean }>(`/media/providers/${capability}/${encodeURIComponent(providerId)}/credential`, { method: 'DELETE' });
+    return apiJson<{ capability: MediaCapability; providerId: string; configured: boolean; credentialSource: 'environment' | 'none'; canRemoveCredential: false }>(`/media/providers/${capability}/${encodeURIComponent(providerId)}/credential`, { method: 'DELETE' });
   },
   test(capability: MediaCapability, providerId: string, model?: string) {
     return apiJson<{ ok: true; capability: MediaCapability; providerId: string }>(`/media/providers/${capability}/${encodeURIComponent(providerId)}/test`, { method: 'POST', body: JSON.stringify(model ? { model } : {}) });
