@@ -39,6 +39,13 @@ Provider 返回 Chalk 内部结果，不把上游 SDK 类型暴露给 Web：
 
 浏览器原生 TTS/ASR 属于 Web 能力，不作为服务端 Provider 迁移。
 
+凭据解析与 LLM 保持同一优先级：当前 Account 在 PostgreSQL 中的 owner-scoped 凭据优先，
+服务端环境变量作为部署级 fallback。目录 API 只返回 `credentialSource` 和
+`canRemoveCredential` 等非敏感状态，不返回已保存或环境密钥。能力专用变量优先于通用供应商
+变量：例如 `IMAGE_SEEDREAM_API_KEY` / `VIDEO_SEEDANCE_API_KEY` 优先，
+`ARK_API_KEY` 作为两者共用 fallback。用户可以在 Settings 中保存自己的密钥覆盖部署默认；
+移除用户凭据后可继续回退到有效的环境配置。
+
 ## 当前实现矩阵
 
 已接入 Chalk registry、adapter、HTTP Service 和 Web 配置界面的能力：
@@ -50,7 +57,9 @@ Provider 返回 Chalk 内部结果，不把上游 SDK 类型暴露给 Web：
 | Image | OpenAI、Qwen、Seedream、MiniMax、Grok、Nano Banana、ComfyUI、Lemonade |
 | Video | HappyHorse、Grok、MiniMax、Seedance、Kling、Veo、Sora |
 
-OpenMAIC 没有 VoxCPM ASR adapter；因此 ASR 不虚构 VoxCPM provider，浏览器原生能力也不列入服务端矩阵。
+OpenMAIC 没有 VoxCPM ASR adapter；因此 ASR 不虚构 VoxCPM provider。浏览器原生 TTS/ASR
+在 Settings 中作为无需密钥的本机 Provider 呈现，但它们不列入服务端 adapter 矩阵，
+服务端媒体 endpoint 也不接受 `browser` 作为 Provider id。
 
 ComfyUI 的 workflow 文件由 API 从 `apps/api/workflows/comfyui/` 的安全文件名集合发现；
 VoxCPM 的 backend 和 ComfyUI 的 workflowId 作为非敏感 settings 持久化，API key 仍单独加密。

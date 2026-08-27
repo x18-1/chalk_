@@ -1,16 +1,18 @@
 # Chalkboard V2 工程迁移计划
 
-> 文档状态：Accepted
+> 文档状态：Historical
 > 目标分支：`feat/chalkboard-v2`
 > 目标 worktree：`.worktree/chalkboard-v2`
 > 创建基线：`feat/chalkboard-v1` 合并后的集成分支；准确提交在 V2 handoff 创建时记录
 > 产品规格：继续实现 Chalkboard V1，不定义新的产品版本
-> 最后核验：2026-08-26
+> 最后核验：2026-08-27
 
 ## 1. 定位
 
-“V2”只表示 OpenMAIC 迁移的第二个工程阶段。Chalkboard 的产品范围、Provider、运行时、
-生成和讨论行为继续以 `docs/spec/chalkboard-v1-*.md` 为权威来源，不复制一套 V2 产品规格。
+“V2”只表示 OpenMAIC 迁移的第二个工程阶段。Chalkboard 的产品范围、Provider、生成和
+课堂播放行为继续以 `docs/spec/chalkboard-v1-*.md` 为权威来源，不复制一套 V2 产品规格。
+课堂实时讨论、Discussion Transcript、课堂 Chat 后端与 AI 老师对话已延后到 V3
+候选范围，不属于本计划。
 
 本阶段从已经验证的浏览器课堂运行时出发，交付用户课堂持久化、对象存储、课堂导入、AI
 内容生成和真实学习状态闭环。前端不等后端全部完成后再统一接入；每个后端垂直切片同时
@@ -44,10 +46,11 @@
 ### 3.2 迁移 OpenMAIC 行为
 
 - requirements/context -> outline -> content -> actions -> media 的课堂生成语义；
-- Scene/Action 编排、参与 Agent 角色和 prompt provenance；
-- 图片、视频、TTS、ASR 等媒体任务的幂等、轮询、取消和恢复；
-- `.maic.zip` manifest 与媒体导入语义；
-- scripted discussion、Roundtable/Director 行为和 live whiteboard Action；
+- Scene/Action 编排、Artifact 中预编排的教师/参与角色和 prompt provenance；
+- 图片、视频媒体任务的幂等、轮询、取消和恢复；V2 课堂朗读使用浏览器原生 TTS；
+- Chalk 原生 `.chalk.zip` 与兼容 `.maic.zip` 的 manifest、媒体导入语义；
+- authored `discussion` Action 的生成与播放暂停语义；
+- 导入 Artifact 中 authored `wb_*` 教师白板的只读播放与游标重建；
 - 中间结果持久化、失败恢复、校验与 Artifact 生成。
 
 迁移的是经过固定 OpenMAIC 提交验证的行为和协议，不照搬其后端目录、运行语言、默认身份
@@ -75,7 +78,8 @@ Playwright 证明新浏览器无需预置 `localStorage` 即可发现并切换�
 
 ### 4.2 通用课堂导入
 
-目标：固定路径映射退场，`.maic.zip` 成为受控的用户课堂输入。
+目标：固定路径映射退场，`.chalk.zip` 成为 Chalk 原生课堂归档，`.maic.zip` 作为受控的
+OpenMAIC 兼容输入。
 
 - 上传、大小/类型限制和安全解包；
 - manifest normalize 与 Chalkboard DSL 校验；
@@ -99,6 +103,10 @@ Playwright 证明新浏览器无需预置 `localStorage` 即可发现并切换�
 完成门禁：现有 Chat 集成行为通过，代码扫描不再发现这三类产品 Prompt 内联；API build
 从非仓库工作目录启动后仍能加载英文模板，测试证明中文版不会进入模型请求。
 
+当前状态：已完成。OpenMAIC outline 英文 Prompt 固定到提交
+`1466a55eef9e31e229a0e2e60a0811020d7b06e2` 并通过字节级 hash 门禁，中文版只作为审阅镜像；
+主 Agent、子 Agent、会话标题与大纲生成统一通过 `buildPrompt(promptId, variables)` 装配。
+
 ### 4.4 Generation Run
 
 按以下阶段逐步接入 AI：
@@ -119,9 +127,25 @@ requirements/context
 - Prompt provenance 单独校验，不在响应或日志泄露密钥与用户隐私；
 - 前端展示教学语言下的阶段进度、可重试失败和完成结果，不直接暴露内部 worker 状态。
 
+完成状态：大纲、Scene content、Scene actions、media tasks 与 Artifact 发布纵向切片已完成。
+`requirements/context -> outline -> ordered slide/quiz/interactive content -> ordered scene actions -> ordered media tasks -> validate -> Artifact` 的每个阶段
+都通过认证异步 API 创建独立、持久化的 Generation Run；worker 以 lease/heartbeat 支持进程恢复、
+取消和明确终态。content 与 actions 均按 Scene 逐条写 PostgreSQL，失败重试只处理未完成项并保留
+Prompt/模型审计。image/video task 的状态、Provider/模型、内容 hash 和稳定媒体引用写 PostgreSQL，
+二进制写对象存储；失败重试只处理未完成 task。教师 `speech` Action 在 Web 使用浏览器
+`SpeechSynthesis`，不创建后端音频 task。后端可选 TTS task 接口仅保留兼容性，不属于 V2 Web 路径或
+完成门禁。显式 publish 对最终 Stage/Scene/Action 和媒体引用执行
+normalize/DSL 校验，将 Draft 媒体提升到稳定 Artifact namespace，并以 reservation/lease、稳定目标 ID、
+数据库事务和失败删除实现幂等与硬中断恢复。发布成功后 Web 通过正式 Classroom API 打开不可变 Artifact。
+interactive 已迁移 OpenMAIC 的 simulation、diagram、code、game 和 visualization3d content Prompt
+以及统一 interactive actions Prompt；生成 HTML 与 Action selector 都在入库前 fail closed 校验，
+旧版 `interactiveConfig` 会确定性归一化。PBL content/actions 仍未迁移，不会静默降级为 slide。
+
 ### 4.5 Learning Session 与 Playback Cursor
 
 目标：刷新浏览器、重启 API 或换设备后可以恢复同一个 Artifact 上的学习进度。
+
+状态：已完成（2026-08-26）。
 
 - 创建或恢复 Learning Session；
 - 保存 scene/action cursor、播放模式、完成状态和乐观并发版本；
@@ -133,28 +157,48 @@ requirements/context
 完成门禁：API integration 覆盖 owner 隔离、冲突和进程重启恢复；E2E 覆盖刷新和新浏览器
 上下文恢复。
 
-### 4.6 学习交互状态
+### 4.6 学习交互与完成状态
 
-按以下顺序逐个完成，不横向一次建完所有表：
+状态：已完成（2026-08-26）。
 
-1. Quiz Attempt；
-2. Discussion Transcript；
-3. 课堂 Chat；
-4. Whiteboard Artifact/History；
-5. 课堂完成状态和必要的 Teaching Semantic Event。
+当前 V2 范围只包含：
 
-每个对象都绑定 Learning Session 和 Artifact 版本，具备 owner 校验、幂等写入、恢复和
-前端保存反馈。
+1. Quiz Attempt（已完成）；
+2. Learning Session 中的课堂完成状态（已随 Playback Cursor 完成）。
 
-### 4.7 课堂讨论 Agent
+两者都绑定 Learning Session 和 Artifact 版本，具备 owner 校验、revision、恢复和前端保存反馈。
+V2 不建立学生手写白板、Whiteboard Snapshot/History、Discussion Transcript、课堂 Chat 后端或
+对话会话管理。
 
-先建立 deterministic scripted adapter，再接真实 Agent Runtime：
+### 4.7 延后到 V3 的课堂实时讨论
 
-- 认证 SSE/HTTP 的事件顺序、sequence、cursor、abort 和断线恢复；
-- discussion transcript 与进入讨论前的 Playback Cursor 持久化；
-- Pi Director/参与 Agent、ASR、讨论 TTS 和 live whiteboard Action；
-- 完成、取消、失败后恢复主课堂；
-- 等待学生、收到回答和提示层级使用 Teaching Semantic Event，不与 Trace/Span 混用。
+以下能力已移出 V2，不是本计划的完成门禁：
+
+- Discussion Transcript 与课堂 Chat 后端；
+- 学生主动插话与 AI 老师多轮对话；
+- Conversation/Thread/Run 会话管理；
+- SSE 事件顺序、sequence、abort 和断线恢复；
+- Director/参与 Agent、讨论 ASR/TTS 和 live whiteboard Action；
+- 讨论结束后恢复主课堂。
+
+学生自由手写白板也已从 V2 移除，不会自动并入 V3 课堂讨论；如果未来需要，必须另行产品评审。
+
+待前端交互和会话管理完成产品设计后，再通过
+[Chalkboard V3 课堂讨论候选规格](../spec/chalkboard-v3-discussion.md)单独评审和实施。
+
+### 4.8 延后到 V3 的渐进式课堂生成
+
+V2 已完成可恢复的 outline、content、actions、media 和 publish 纵向链路，并保留逐 Scene
+持久化与失败恢复。以下 OpenMAIC 式生成体验不再继续加入本分支，也不是 V2 完成门禁：
+
+- 大纲生成时通过 SSE 逐步显示已经解析的 Scene 标题；
+- 大纲完成后在 content 生成前编辑、添加、删除、配置或重排序 Scene；
+- 按单个 Scene 执行 `content -> actions`，第一幕完整后先进入生成中课堂，后续 Scene 逐幕出现；
+- 为上述体验建立断线续传事件和生成中课堂预览语义。
+
+这些能力通过 [Chalkboard V3 渐进式课堂生成规格](../spec/chalkboard-v3-generation.md)单独设计和实施。
+在 V3 明确 Draft Preview、Artifact revision 与 Learning Session 的关系前，不修改 V2 的不可变
+Artifact 发布契约。
 
 ## 5. 公开测试 seams
 
@@ -168,8 +212,7 @@ requirements/context
 6. Prompt module：双语配对、英文加载、插值、revision、provenance 和无残留占位符；
 7. Generation Run：阶段状态、Provider 调用、恢复、取消和 Artifact 生成；
 8. Web adapter：HTTP response 到 runtime 的转换、缓存与失败降级；
-9. Discussion stream：事件顺序、断线、abort、sequence 和恢复；
-10. 浏览器用户 seam：课堂发现、学习恢复、保存反馈、生成进度和课堂讨论。
+9. 浏览器用户 seam：课堂发现、学习恢复、保存反馈和生成进度。
 
 测试只通过这些公开接口观察行为，不查询私有实现来证明成功。每轮只推进一个 seam 的一个
 行为，禁止先批量创建所有 schema、mock 和测试再补实现。
@@ -197,3 +240,6 @@ requirements/context
 
 分支创建前不预写 V2 handoff 中的实际端口、数据库名、服务状态或已通过命令；这些只能在
 新 worktree 中验证后记录。
+
+本计划于 2026-08-27 完成实现与发布门禁后归档。分支仍等待产品方最后人工验收；验收与提交状态记录在
+[V2 handoff](../handoff/chalkboard-v2.md)，不重新打开本工程计划。

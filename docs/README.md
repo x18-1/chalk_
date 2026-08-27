@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-26
+> 最后核验：2026-08-27
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -37,7 +37,8 @@
 | Chalkboard V1 Provider 适配结构 | [spec/chalkboard-v1-provider-architecture.md](spec/chalkboard-v1-provider-architecture.md) | Accepted |
 | Chalkboard V1 课堂运行时 | [spec/chalkboard-v1-runtime.md](spec/chalkboard-v1-runtime.md) | Accepted |
 | Chalkboard V1 内容生成 | [spec/chalkboard-v1-generation.md](spec/chalkboard-v1-generation.md) | Accepted |
-| Chalkboard V1 课堂讨论 | [spec/chalkboard-v1-discussion.md](spec/chalkboard-v1-discussion.md) | Accepted |
+| Chalkboard V3 渐进式课堂生成 | [spec/chalkboard-v3-generation.md](spec/chalkboard-v3-generation.md) | Draft；不属于 V1/V2 范围 |
+| Chalkboard V3 课堂讨论候选 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Draft；不属于 V1/V2 范围 |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
@@ -51,7 +52,7 @@
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
-| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Accepted |
+| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；实现与自动门禁完成，等待人工验收后提交 |
 
 当规则冲突时，优先级为：
 

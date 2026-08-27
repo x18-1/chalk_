@@ -1,7 +1,7 @@
 # Prompt 管理规范
 
 > 文档状态：Accepted
-> 实施状态：Documented
+> 实施状态：Implemented
 > 适用范围：`main`、所有功能分支和 worktree 中由 Chalk 维护并发送给 AI 的产品 Prompt
 > 最后核验：2026-08-26
 
@@ -165,6 +165,8 @@ Prompt 模块实现后至少自动验证：
 - 关键 Prompt 通过结构化行为测试，重要语义变化通过对应 eval；
 - Trace/Generation Run 能关联 `promptId + revision`，日志不泄露完整用户 Prompt 或敏感数据。
 
-当前主分支仍有主 Agent、子 Agent 和会话标题等内联产品 Prompt，因此实施状态为
-`Documented`。后续新增 Prompt 必须立即遵守本规范；既有内联 Prompt 在其所属能力被直接
-修改或迁移时成对移入集中目录，不把纯目录迁移与无关行为改写混在一起。
+`feat/chalkboard-v2` 已实现 typed registry、英文运行时 loader、双语结构校验、snippet 展开、
+自动 revision、OpenMAIC provenance/hash 门禁与 build 资产复制；主 Agent、子 Agent、会话标题
+和 Classroom outline、slide/quiz/interactive content 及对应 actions 已迁入该模块。revision 只由实际执行的英文模板、
+启用的条件块和 snippet 决定，不包含用户输入或其他运行时变量。后续新增 Prompt 必须继续遵守本规范；重要语义变化
+仍需补对应 eval，不能把结构测试当作教学质量评估。
