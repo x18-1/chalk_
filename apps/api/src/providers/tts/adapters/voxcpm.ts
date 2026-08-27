@@ -44,5 +44,6 @@ export class VoxCpmTtsAdapter implements TtsAdapter {
   private signal() { return AbortSignal.timeout(this.options.timeoutMs ?? 60_000); }
 }
 function normalizeBackend(value?: VoxCpmBackend): VoxCpmBackend { return value === 'python-api' || value === 'nano-vllm' ? value : 'vllm-omni'; }
-function targetText(text: string, prompt?: string) { const clean = prompt?.replace(/[()\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim(); return clean ? `(${clean})${text}` : text; }
+function targetText(text: string, prompt?: string) { const clean = prompt ? withoutControlCharacters(prompt).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() : ''; return clean ? `(${clean})${text}` : text; }
+function withoutControlCharacters(value: string) { return [...value].map((character) => character.charCodeAt(0) <= 0x1f ? ' ' : character).join(''); }
 function audioFormat(contentType: string): 'mp3' | 'opus' | 'wav' | 'aac' | 'flac' | 'pcm' { if (contentType.includes('mpeg') || contentType.includes('mp3')) return 'mp3'; if (contentType.includes('flac')) return 'flac'; if (contentType.includes('ogg') || contentType.includes('opus')) return 'opus'; if (contentType.includes('aac')) return 'aac'; return 'wav'; }

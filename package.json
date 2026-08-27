@@ -18,7 +18,8 @@
     "infra:down": "pnpm env:check && docker compose down",
     "db:generate": "pnpm --filter @chalk/api db:generate",
     "db:migrate": "pnpm --filter @chalk/api db:migrate",
-    "db:studio": "pnpm --filter @chalk/api db:studio"
+    "db:studio": "pnpm --filter @chalk/api db:studio",
+    "chalkboard:seed": "pnpm --filter @chalk/api chalkboard:seed"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

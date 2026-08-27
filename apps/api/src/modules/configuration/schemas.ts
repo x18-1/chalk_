@@ -15,6 +15,26 @@ export const modelSelectionSchema = z.object({
   thinkingLevel: z.enum(MODEL_THINKING_LEVELS),
 });
 
+const mediaSelectionSchema = z.object({
+  providerId: z.string().trim().min(1).max(100),
+  modelId: z.string().trim().min(1).max(200).nullable(),
+}).strict();
+
+export const capabilitySettingsSchema = z.object({
+  image: mediaSelectionSchema.nullable().optional(),
+  video: mediaSelectionSchema.extend({
+    durationSeconds: z.number().int().min(5).max(20),
+    resolution: z.enum(['720p', '1080p']),
+  }).strict().nullable().optional(),
+  speech: z.object({
+    adapter: z.literal('browser'),
+    language: z.string().trim().regex(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/).max(35),
+    voiceUri: z.string().trim().min(1).max(500).nullable(),
+    rate: z.number().min(0.5).max(2),
+    volume: z.number().min(0).max(1),
+  }).strict().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one capability setting is required');
+
 export const providerCredentialSchema = z.object({
   apiKey: z.string().trim().min(1).max(10_000),
 });
@@ -66,5 +86,6 @@ export const toolSettingSchema = z.object({
 
 export type CustomProviderInput = z.infer<typeof customProviderSchema>;
 export type CustomProviderUpdateInput = z.infer<typeof customProviderUpdateSchema>;
+export type CapabilitySettingsInput = z.infer<typeof capabilitySettingsSchema>;
 export type SkillSettingInput = z.infer<typeof skillSettingSchema>;
 export type ToolSettingInput = z.infer<typeof toolSettingSchema>;

@@ -15,4 +15,10 @@ export class SeedreamImageAdapter implements ImageAdapter {
   }
   async testConnection(model?: string) { const response = await this.fetcher(joinUrl(this.options.baseUrl, '/api/v3/images/generations'), { method: 'POST', headers: { authorization: `Bearer ${this.options.apiKey}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: model ?? 'doubao-seedream-4-5-251128', prompt: 'test', size: '1024x1024' }) }); if (!response.ok) throw mapHttpError(response.status, 'Seedream'); }
 }
-function size(input: ImageInput) { if (input.aspectRatio === '16:9') return '1664x936'; if (input.aspectRatio === '9:16') return '936x1664'; return `${input.width ?? 1024}x${input.height ?? 1024}`; }
+function size(input: ImageInput) {
+  if (input.aspectRatio === '16:9') return '2560x1440';
+  if (input.aspectRatio === '4:3') return '2304x1728';
+  if (input.aspectRatio === '1:1') return '2048x2048';
+  if (input.aspectRatio === '9:16') return '1440x2560';
+  return `${input.width ?? 2048}x${input.height ?? 2048}`;
+}

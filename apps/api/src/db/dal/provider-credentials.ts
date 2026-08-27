@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import type { Database } from '../client';
-import { providerCredentials } from '../schema/index';
+import { agentSettings, providerCredentials } from '../schema/index';
 import { AuthRequiredError, OwnershipError } from '../errors';
 
 export function createProviderCredentialsDal(db: Database) {
@@ -64,6 +64,33 @@ export function createProviderCredentialsDal(db: Database) {
       }
 
       return result[0];
+    },
+
+    async deleteMediaAndClearDefault(userId: string, capability: 'image' | 'video', providerId: string) {
+      if (!userId) throw new AuthRequiredError();
+      return db.transaction(async (transaction) => {
+        const result = await transaction
+          .delete(providerCredentials)
+          .where(and(
+            eq(providerCredentials.userId, userId),
+            eq(providerCredentials.providerId, `media:${capability}:${providerId}`),
+          ))
+          .returning();
+        if (!result[0]) throw new OwnershipError('provider_credential', providerId);
+        const selection = capability === 'image'
+          ? { defaultImageProviderId: null, defaultImageModelId: null }
+          : { defaultVideoProviderId: null, defaultVideoModelId: null };
+        await transaction
+          .update(agentSettings)
+          .set({ ...selection, updatedAt: new Date() })
+          .where(and(
+            eq(agentSettings.userId, userId),
+            capability === 'image'
+              ? eq(agentSettings.defaultImageProviderId, providerId)
+              : eq(agentSettings.defaultVideoProviderId, providerId),
+          ));
+        return result[0];
+      });
     },
   };
 }

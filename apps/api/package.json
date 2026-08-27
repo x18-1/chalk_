@@ -5,39 +5,48 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "pnpm --filter @chalk/agent-runtime build && esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
+    "build": "pnpm --filter @chalk/agent-runtime build && esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --alias:@chalk/chalkboard=../../packages/chalkboard/src/index.ts --outfile=dist/server.js && node scripts/copy-prompt-assets.mjs",
     "start": "node dist/server.js",
     "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "vitest run tests/unit",
     "test:integration": "pnpm --filter @chalk/agent-runtime build && node scripts/run-integration-tests.mjs",
+    "smoke:classroom-outline": "tsx scripts/classroom-outline-smoke.ts",
+    "smoke:classroom-ark-media": "tsx scripts/classroom-ark-media-smoke.ts",
     "smoke:media": "tsx scripts/media-provider-smoke.ts",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "chalkboard:seed": "tsx scripts/seed-chalkboard-classrooms.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1107.0",
     "@aws-sdk/s3-request-presigner": "3.1107.0",
     "@chalk/agent-runtime": "workspace:*",
+    "@chalk/chalkboard": "workspace:*",
     "@earendil-works/pi-ai": "0.84.1",
     "@earendil-works/pi-telemetry": "0.84.1",
     "@fastify/cookie": "11.1.2",
     "@fastify/cors": "11.3.0",
+    "@fastify/multipart": "10.1.1",
     "bcryptjs": "3.0.3",
     "dotenv": "17.4.2",
     "drizzle-orm": "0.44.2",
     "fastify": "5.11.3",
     "postgres": "3.4.5",
     "typebox": "1.3.7",
+    "yauzl": "3.4.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
     "drizzle-kit": "0.31.1",
     "esbuild": "0.28.2",
     "tsx": "4.23.12",
     "typescript": "^5.7.3",
-    "vitest": "4.1.9"
+    "vitest": "4.1.9",
+    "yazl": "3.3.1"
   }
 }

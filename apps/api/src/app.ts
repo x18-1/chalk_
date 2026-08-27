@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 
 import { AuthModule } from './auth/auth-module';
 import { AuthService } from './auth/auth.service';
@@ -13,6 +14,7 @@ import { ChatService } from './modules/chat/services/chat.service';
 import { registerConfigurationRoutes } from './modules/configuration/routes';
 import { ProviderConfigurationService } from './modules/configuration/services/provider-configuration.service';
 import { RuntimeConfigurationService } from './modules/configuration/services/runtime-configuration.service';
+import { CapabilityConfigurationService } from './modules/configuration/services/capability-configuration.service';
 import { registerMcpRoutes } from './modules/mcp/routes';
 import { McpServerService } from './modules/mcp/services/mcp-server.service';
 import { registerTelemetryRoutes } from './modules/telemetry/routes';
@@ -29,13 +31,37 @@ import { startToolApprovalRecovery } from './agent/approval-recovery';
 import { configureAgentRuntime } from './agent/runtime-manager';
 import { registerMediaRoutes } from './modules/media/routes';
 import { MediaProviderService } from './modules/media/services/media-provider.service';
+import { registerClassroomRoutes } from './modules/classrooms/routes';
+import {
+  ClassroomService,
+  type ClassroomObjectStorage,
+} from './modules/classrooms/services/classroom.service';
+import { s3ClassroomObjectStorage } from './storage/s3';
+import { validatePromptRegistry } from './prompts';
+import { registerClassroomGenerationRoutes } from './modules/classroom-generation/routes';
+import {
+  ClassroomGenerationService,
+  type ClassroomGenerationModel,
+  type ClassroomGenerationWorkerOptions,
+} from './modules/classroom-generation/services/classroom-generation.service';
+import { piClassroomOutlineModel } from './providers/llm/classroom-outline-model';
+import { registerLearningSessionRoutes } from './modules/learning-sessions/routes';
+import { LearningSessionService } from './modules/learning-sessions/services/learning-session.service';
+import { registerQuizAttemptRoutes } from './modules/quiz-attempts/routes';
+import { QuizAttemptService } from './modules/quiz-attempts/services/quiz-attempt.service';
 
 export type BuildApiOptions = {
   config?: ApiConfig;
+  mediaEnvironment?: NodeJS.ProcessEnv;
   objectStorage?: UploadObjectStorage;
+  classroomObjectStorage?: ClassroomObjectStorage;
+  classroomOutlineModel?: ClassroomGenerationModel;
+  classroomMediaGenerator?: import('./modules/classroom-generation/services/classroom-generation.service').ClassroomMediaGenerator;
+  classroomGenerationWorker?: ClassroomGenerationWorkerOptions;
 };
 
 export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyInstance> {
+  validatePromptRegistry();
   const config = options.config ?? loadConfig();
   const app = Fastify({
     logger: {
@@ -45,6 +71,14 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   });
 
   await app.register(cookie);
+  await app.register(multipart, {
+    limits: {
+      files: 1,
+      fields: 0,
+      parts: 1,
+      fileSize: 32 * 1_024 * 1_024,
+    },
+  });
   await app.register(cors, {
     origin: [...config.webOrigins],
     credentials: true,
@@ -89,6 +123,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     auth,
     new ProviderConfigurationService(db),
     new RuntimeConfigurationService(db),
+    new CapabilityConfigurationService(db, options.mediaEnvironment),
   );
   registerMcpRoutes(app, auth, new McpServerService(db));
   registerTelemetryRoutes(app, auth, new TelemetryQueryService(db));
@@ -97,7 +132,50 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     auth,
     new UploadService(db, options.objectStorage ?? s3UploadObjectStorage),
   );
-  registerMediaRoutes(app, auth, new MediaProviderService(db));
+  const mediaProviders = new MediaProviderService(db, options.mediaEnvironment);
+  registerMediaRoutes(app, auth, mediaProviders);
+  registerClassroomRoutes(
+    app,
+    auth,
+    new ClassroomService(db, options.classroomObjectStorage ?? s3ClassroomObjectStorage),
+  );
+  registerLearningSessionRoutes(app, auth, new LearningSessionService(db));
+  registerQuizAttemptRoutes(app, auth, new QuizAttemptService(db));
+  const classroomGeneration = new ClassroomGenerationService(
+    db,
+    options.classroomOutlineModel ?? piClassroomOutlineModel,
+    options.classroomMediaGenerator ?? {
+      synthesize: (userId, input) => mediaProviders.synthesizeBinary(userId, input),
+      generateImage: (userId, input) => mediaProviders.generateImageBinary(userId, input),
+      async submitVideo(userId, input) {
+        const submitted = await mediaProviders.submitVideo(userId, input);
+        return {
+          providerTaskId: submitted.providerTaskId,
+          providerId: input.providerId,
+          modelId: submitted.model ?? 'provider-default',
+        };
+      },
+      pollVideo: (userId, input) => mediaProviders.pollVideoBinary(userId, input),
+      cancelVideo: (userId, input) => mediaProviders.cancelVideo(userId, input),
+    },
+    options.classroomObjectStorage ?? s3ClassroomObjectStorage,
+    {
+      ...options.classroomGenerationWorker,
+      onError(error) {
+        app.log.error({ err: error }, 'Classroom generation worker failed');
+        options.classroomGenerationWorker?.onError?.(error);
+      },
+    },
+  );
+  if (config.nodeEnv !== 'test' || options.classroomGenerationWorker) {
+    classroomGeneration.startWorker();
+    app.addHook('onClose', async () => classroomGeneration.stopWorker());
+  }
+  registerClassroomGenerationRoutes(
+    app,
+    auth,
+    classroomGeneration,
+  );
   registerAdminRoutes(app, auth, new UserAdministrationService(db));
 
   app.get('/health', async () => ({ status: 'ok' }));

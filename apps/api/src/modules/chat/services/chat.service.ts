@@ -21,6 +21,7 @@ import {
   type ModelSelection,
 } from '../../../providers/llm/model-catalog';
 import { readUploadedObject } from '../../../storage/s3';
+import { PROMPT_IDS, buildPrompt } from '../../../prompts';
 
 export type ChatStreamInput = {
   message: string;
@@ -35,12 +36,6 @@ export type ChatMessageRun = {
 };
 
 const titleModel = { providerId: 'deepseek', modelId: 'deepseek-v4-flash' } as const;
-const titlePrompt = [
-  '你为数学学习产品生成会话标题。',
-  '只根据用户的第一条问题，生成一个简洁、具体的中文标题。',
-  '标题应描述知识点或学习任务，不给答案，不复述整段问题，不使用引号、序号或句号。',
-  '优先控制在 8 到 18 个汉字；只输出标题本身。',
-].join('\n');
 
 function fallbackTitle(message: string) {
   const trimmed = message.trim();
@@ -107,10 +102,11 @@ export class ChatService {
 
   private async generateAutoTitle(userId: string, conversationId: string, message: string) {
     const catalog = await createUserModelCatalog(userId);
+    const titlePrompt = buildPrompt(PROMPT_IDS.CONVERSATION_TITLE, {});
     const response = await catalog.completeSimple(
       titleModel,
       {
-        systemPrompt: titlePrompt,
+        systemPrompt: titlePrompt.system,
         messages: [{
           role: 'user',
           content: [{ type: 'text', text: message }],

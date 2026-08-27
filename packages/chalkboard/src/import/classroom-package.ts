@@ -1,7 +1,9 @@
 import type { CanvasElement } from '../schema';
 
 export interface ClassroomPackageManifest {
+  format?: string;
   formatVersion?: number;
+  classroomId?: string;
   exportedAt?: string;
   appVersion?: string;
   stage?: Record<string, unknown>;
@@ -11,15 +13,60 @@ export interface ClassroomPackageManifest {
   [key: string]: unknown;
 }
 
+/** Returns every packaged media path referenced by classroom canvas elements. */
+export function classroomPackageMediaReferences(manifest: ClassroomPackageManifest): string[] {
+  const references = new Set<string>();
+  for (const rawScene of Array.isArray(manifest.scenes) ? manifest.scenes : []) {
+    collectNamedMediaReferences(rawScene, manifest.mediaIndex, references);
+    const content = record(record(rawScene).content);
+    const elements = record(content.canvas).elements;
+    if (!Array.isArray(elements)) continue;
+    for (const rawElement of elements) {
+      const element = record(rawElement);
+      const reference = typeof element.mediaRef === 'string' && element.mediaRef.trim()
+        ? element.mediaRef.trim()
+        : typeof element.src === 'string' && isPackagedMediaReference(element.src)
+          ? element.src.trim()
+          : null;
+      if (!reference) continue;
+      references.add(resolveMediaPath(reference, manifest.mediaIndex) ?? reference);
+    }
+  }
+  return [...references];
+}
+
+function collectNamedMediaReferences(
+  value: unknown,
+  mediaIndex: Record<string, unknown> | undefined,
+  references: Set<string>,
+) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectNamedMediaReferences(item, mediaIndex, references);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  for (const [key, child] of Object.entries(value)) {
+    if ((key === 'mediaRef' || key === 'audioRef') && typeof child === 'string' && child.trim()) {
+      const reference = child.trim();
+      references.add(resolveMediaPath(reference, mediaIndex) ?? reference);
+      continue;
+    }
+    collectNamedMediaReferences(child, mediaIndex, references);
+  }
+}
+
 export interface ClassroomPackageOptions {
   stageId?: string;
+  now?: number;
   mediaUrl?: (path: string) => string;
+  mediaReference?: (path: string) => string;
 }
 
 /**
- * Converts an OpenMAIC `.maic.zip` manifest into the same loose classroom
- * envelope used by the HTTP adapter. ZIP bytes stay outside the core package;
- * the web route owns extraction and supplies a media URL resolver here.
+ * Converts a Chalk Classroom Archive or OpenMAIC Archive manifest into the
+ * normalized classroom envelope. ZIP bytes stay outside the core package;
+ * the API archive adapter owns extraction and supplies either stable media
+ * references for persistence or resolved URLs for legacy callers.
  */
 export function normalizeClassroomPackageManifest(
   manifest: ClassroomPackageManifest,
@@ -27,7 +74,7 @@ export function normalizeClassroomPackageManifest(
 ): Record<string, unknown> {
   const stage = manifest.stage ?? {};
   const stageId = options.stageId ?? `package-${slug(String(stage.name ?? 'classroom'))}`;
-  const now = Date.now();
+  const now = options.now ?? Date.now();
   const scenes = (Array.isArray(manifest.scenes) ? manifest.scenes : []).map((rawScene, sceneIndex) => {
     const scene = record(rawScene);
     const sceneId = typeof scene.id === 'string' && scene.id.trim() ? scene.id : `${stageId}-scene-${sceneIndex + 1}`;
@@ -37,7 +84,12 @@ export function normalizeClassroomPackageManifest(
         id: typeof record(rawAction).id === 'string' ? record(rawAction).id : `${sceneId}-action-${actionIndex + 1}`,
       }))
       : undefined;
-    const content = rewriteCanvasMedia(record(scene.content), options.mediaUrl, manifest.mediaIndex);
+    const content = rewriteCanvasMedia(
+      record(scene.content),
+      options.mediaUrl,
+      options.mediaReference,
+      manifest.mediaIndex,
+    );
     return {
       ...scene,
       id: sceneId,
@@ -68,9 +120,10 @@ export function normalizeClassroomPackageManifest(
 function rewriteCanvasMedia(
   content: Record<string, unknown>,
   mediaUrl?: (path: string) => string,
+  mediaReference?: (path: string) => string,
   mediaIndex?: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (!mediaUrl) return content;
+  if (!mediaUrl && !mediaReference) return content;
   const canvas = record(content.canvas);
   const elements = Array.isArray(canvas.elements)
     ? canvas.elements.map((rawElement) => {
@@ -82,7 +135,9 @@ function rewriteCanvasMedia(
           : null;
       if (!reference) return element;
       const path = resolveMediaPath(reference, mediaIndex);
-      return path ? { ...element, src: mediaUrl(path), mediaRef: undefined } : element;
+      if (!path) return element;
+      if (mediaUrl) return { ...element, src: mediaUrl(path), mediaRef: undefined };
+      return { ...element, src: undefined, mediaRef: mediaReference!(path) };
     })
     : canvas.elements;
   return { ...content, canvas: { ...canvas, elements } };
@@ -95,6 +150,16 @@ function resolveMediaPath(reference: string, mediaIndex?: Record<string, unknown
     return filename.replace(/\.[^.]+$/, '') === reference;
   });
   return match ?? null;
+}
+
+function isPackagedMediaReference(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return Boolean(normalized)
+    && !normalized.startsWith('http://')
+    && !normalized.startsWith('https://')
+    && !normalized.startsWith('/')
+    && !normalized.startsWith('data:')
+    && !normalized.startsWith('blob:');
 }
 
 function record(value: unknown): Record<string, unknown> {

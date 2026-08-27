@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { QwenAsrAdapter } from '../../src/providers/asr/adapters/qwen';
 import { QwenImageAdapter } from '../../src/providers/image/adapters/qwen';
+import { SeedreamImageAdapter } from '../../src/providers/image/adapters/seedream';
 import { LemonadeImageAdapter } from '../../src/providers/image/adapters/lemonade';
 import { HappyHorseVideoAdapter } from '../../src/providers/video/adapters/happyhorse';
 import { KlingVideoAdapter } from '../../src/providers/video/adapters/kling';
@@ -92,6 +93,24 @@ describe('OpenMAIC-compatible media adapters', () => {
   it('normalizes a Qwen Image URL without leaking the upstream response', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(json({ output: { choices: [{ message: { content: [{ image: 'https://cdn.test/image.png' }] } }] } }));
     await expect(new QwenImageAdapter({ apiKey: 'key', baseUrl: 'https://dashscope.test', fetch: fetcher }).generate({ prompt: '课堂示意图', width: 1024, height: 576 })).resolves.toEqual({ kind: 'remote', url: 'https://cdn.test/image.png', contentType: 'image/png' });
+  });
+
+  it('uses valid Seedream 4.5 2K dimensions for each advertised aspect ratio', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => json({ data: [{ b64_json: 'AQID' }] }));
+    const adapter = new SeedreamImageAdapter({ apiKey: 'key', baseUrl: 'https://ark.test', fetch: fetcher });
+
+    for (const aspectRatio of IMAGE_PROVIDERS.seedream.aspectRatios) {
+      await adapter.generate({
+        prompt: '课堂示意图',
+        model: 'doubao-seedream-4-5-251128',
+        aspectRatio,
+      });
+    }
+
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toMatchObject({ size: '2560x1440' });
+    expect(JSON.parse(String(fetcher.mock.calls[1]?.[1]?.body))).toMatchObject({ size: '2304x1728' });
+    expect(JSON.parse(String(fetcher.mock.calls[2]?.[1]?.body))).toMatchObject({ size: '2048x2048' });
+    expect(JSON.parse(String(fetcher.mock.calls[3]?.[1]?.body))).toMatchObject({ size: '1440x2560' });
   });
 
   it('uses Lemonade OpenAI-compatible image generation and accepts base64 output', async () => {

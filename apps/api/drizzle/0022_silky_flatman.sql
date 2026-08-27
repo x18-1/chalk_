@@ -1,0 +1,7 @@
+ALTER TABLE "classroom_drafts" ADD COLUMN "classroom_id" uuid;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD COLUMN "artifact_id" uuid;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD COLUMN "published_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD CONSTRAINT "classroom_drafts_owned_classroom_fk" FOREIGN KEY ("classroom_id","user_id") REFERENCES "public"."classrooms"("id","user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD CONSTRAINT "classroom_drafts_owned_artifact_fk" FOREIGN KEY ("artifact_id","classroom_id","user_id") REFERENCES "public"."classroom_artifacts"("id","classroom_id","user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD CONSTRAINT "classroom_drafts_artifact_unique" UNIQUE("artifact_id");--> statement-breakpoint
+ALTER TABLE "classroom_drafts" ADD CONSTRAINT "classroom_drafts_publication_check" CHECK (("classroom_drafts"."classroom_id" is null and "classroom_drafts"."artifact_id" is null and "classroom_drafts"."published_at" is null) or ("classroom_drafts"."classroom_id" is not null and "classroom_drafts"."artifact_id" is not null and "classroom_drafts"."published_at" is not null));
