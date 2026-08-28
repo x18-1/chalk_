@@ -27,7 +27,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneItem:hover { color: var(--chalk-ink); background: rgba(255, 253, 249, .72); }
 .sceneItemActive { color: var(--chalk-ink); background: var(--chalk-paper); border-color: var(--chalk-border-light); box-shadow: var(--chalk-shadow-working); }
 .sceneItemTopline { display: flex; align-items: center; justify-content: space-between; color: var(--chalk-stone); }
-.sceneItemActive .sceneItemTopline { color: var(--chalk-clay); }
+.sceneItemActive .sceneItemTopline { color: var(--chalk-clay-hover); }
 .sceneNumber { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 600; }
 .sceneItemTitle { display: block; overflow: hidden; color: var(--chalk-ink-soft); font-size: 12px; font-weight: 600; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .sceneItemActive .sceneItemTitle { color: var(--chalk-ink); }
@@ -275,7 +275,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneGenerationProgress > div:first-child span { display: inline-flex; align-items: center; gap: 6px; color: var(--chalk-ink-soft); font-size: 11px; font-weight: 600; }
 .sceneGenerationProgress > div:first-child strong { color: var(--chalk-clay-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; font-variant-numeric: tabular-nums; }
 .sceneGenerationTrack { height: 3px; margin-top: 9px; overflow: hidden; background: var(--chalk-border-light); border-radius: 999px; }
-.sceneGenerationTrack span { display: block; height: 100%; background: var(--chalk-clay-hover); border-radius: inherit; transition: width .25s ease; }
+.sceneGenerationTrack span { display: block; height: 100%; background: var(--chalk-clay-hover); border-radius: inherit; }
 .sceneGenerationProgress p { margin: 7px 0 0; color: var(--chalk-stone); font-size: 10px; line-height: 1.55; }
 .sceneGenerationProgress > small { display: block; margin-top: 5px; color: var(--chalk-clay-hover); font-size: 9px; font-variant-numeric: tabular-nums; }
 .outlineReviewPrompt { display: grid; padding: 14px 20px; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; color: #4e7455; background: #f0f7f0; border-top: 1px solid #dbe8dc; }
@@ -417,8 +417,9 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .notesRail { grid-area: right; min-width: 0; min-height: 0; overflow: hidden; background: var(--chalk-paper); border-left: 1px solid var(--chalk-border); }
 .notesRailClosed { display: flex; align-items: flex-start; justify-content: center; padding-top: 16px; }
 .notesTabs { display: flex; height: 62px; padding: 0 13px; align-items: center; gap: 5px; border-bottom: 1px solid var(--chalk-border); }
-.notesTabs > button:not(.panelToggle) { display: inline-flex; height: 62px; padding: 0 12px; align-items: center; gap: 6px; color: var(--chalk-stone); font-size: 12px; cursor: pointer; background: transparent; border: 0; border-bottom: 2px solid transparent; }
-.notesTabs > button:not(.panelToggle):hover { color: var(--chalk-ink); }
+.notesTabList { display: flex; min-width: 0; height: 62px; align-items: center; }
+.notesTabList > button { display: inline-flex; height: 62px; padding: 0 12px; align-items: center; gap: 6px; color: var(--chalk-stone); font-size: 12px; cursor: pointer; background: transparent; border: 0; border-bottom: 2px solid transparent; }
+.notesTabList > button:hover { color: var(--chalk-ink); }
 .notesTabs .notesTabActive { color: var(--chalk-ink); font-weight: 600; border-bottom-color: var(--chalk-ink); }
 .panelToggle { display: grid; width: 28px; height: 28px; padding: 0; margin-left: auto; color: var(--chalk-stone); place-items: center; cursor: pointer; background: transparent; border: 0; border-radius: 5px; }
 .panelToggle:hover, .panelExpand:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
@@ -449,7 +450,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .chatParticipants i { display: grid; width: 20px; height: 20px; color: var(--chalk-paper); font-size: 9px; font-style: normal; font-weight: 700; place-items: center; background: var(--chalk-ink-soft); border-radius: 50%; }
 .chatParticipants b { color: var(--chalk-ink-soft); font-size: 9px; font-weight: 600; }
 .chatParticipants small { color: var(--chalk-stone); font-size: 8px; }
-.chatSpeechStatus { display: flex; min-height: 32px; padding: 6px 7px; margin-top: 10px; align-items: center; gap: 6px; color: var(--chalk-ink-soft); font-size: 10px; background: #fdf3ed; border-left: 2px solid var(--chalk-clay); border-radius: 2px 6px 6px 2px; }
+.chatSpeechStatus { display: flex; min-height: 32px; padding: 6px 7px; margin-top: 10px; align-items: center; gap: 6px; color: var(--chalk-ink-soft); font-size: 10px; background: #fdf3ed; border: 1px solid #ecd3c7; border-radius: 6px; }
 .chatSpeechStatus > svg { flex: none; color: var(--chalk-clay); }
 .chatSpeechStatus span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chatSpeechStatus span strong { margin: 0 3px 0 0; font-size: inherit; }
@@ -731,13 +732,14 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 @media (pointer: coarse) {
   .page button, .page a { min-height: 44px; }
   .iconButton, .controlButton, .playControl, .panelToggle, .panelExpand, .inputModeButton, .discussionChatButton, .liveChalkboardActions button { min-width: 44px; min-height: 44px; }
-  .notesTabs > button:not(.panelToggle) { min-height: 62px; }
+  .notesTabList > button { min-height: 62px; }
   .chatComposer, .discussionReply { min-height: 44px; height: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .canvasElementHighlighted, .canvasElementLaser { transition: none; }
-  .importSpinner { animation-duration: 1.8s; }
+  .importSpinner { animation: none; }
+  .sceneGenerationTrack span, .noteRowPlay { transition: none; }
   .liveChalkboardAuthoredElement { animation: none; }
   .streamingCaret { animation: none; }
 }

@@ -80,7 +80,7 @@ export function ChatPanel({
           {canComplete ? <button type="button" onClick={onComplete} disabled={working}><Check size={12} />结束讨论</button> : null}
         </div>
         <p>由老师、助教和课堂同伴共同参与。每位成员会等上一位说完后再发言。</p>
-        <div className={styles.chatParticipants} aria-label="本节课参与者">
+        <div className={styles.chatParticipants} role="group" aria-label="本节课参与者" tabIndex={0}>
           <UsersRound size={13} />
           {participants.map((participant) => <span key={participant.id} title={participant.persona}>
             <i aria-hidden="true">{participant.name.trim().slice(0, 1)}</i>

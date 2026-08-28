@@ -21,6 +21,7 @@ out/
 *.tsbuildinfo
 test-results/
 playwright-report/
+evals/runs/
 
 # Session data
 data/
