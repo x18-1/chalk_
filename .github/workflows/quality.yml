@@ -126,6 +126,7 @@ jobs:
           test "${minio_ready:-false}" = true
           docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-07-21T05-28-08Z \
             -c 'mc alias set chalk http://127.0.0.1:9000 chalk chalk-ci-secret && mc mb --ignore-existing chalk/chalk-ci-uploads chalk/chalk-ci-backups'
+      - run: pnpm --filter @chalk/agent-runtime build
       - run: pnpm --filter @chalk/api db:migrate
       - run: pnpm chalkboard:seed
       - run: pnpm exec playwright install --with-deps chromium
