@@ -86,6 +86,13 @@ docs/
 
 新的分支交接记录统一放在 [handoff/](handoff/README.md)，它们不是主分支架构规范。仓库根目录的 `CHALKBOARD_OPENMAIC_HANDOFF.md` 是旧迁移分支的历史快照；`CONTEXT.md` 是产品与运行术语表，二者都不替代架构或运行手册。
 
+## 3.1 近期调研资料
+
+| 主题 | 文档 | 状态 |
+|---|---|---|
+| Agent 长期记忆（OpenClaw、Hermes、DeepTutor、TencentDB） | [researsh/agent-memory-systems-research.md](researsh/agent-memory-systems-research.md) | Draft；基于固定版本的一手源码/文档 |
+| OpenMAIC v1.0.0 与本地参考快照功能对比 | [researsh/openmaic-v1.0.0-vs-local.md](researsh/openmaic-v1.0.0-vs-local.md) | Draft；基于官方 v1.0.0 README/CHANGELOG 与本地 Git 快照 |
+
 ## 4. 更新规则
 
 1. 新增长期约束时，更新对应的权威文档，不在多个计划文件中复制同一规则。
