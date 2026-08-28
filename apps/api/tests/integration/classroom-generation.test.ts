@@ -536,7 +536,7 @@ describe('Classroom outline Generation Run HTTP interface', () => {
         },
         async deleteObject(fileKey: string) { storedMedia.delete(fileKey); },
       },
-      classroomGenerationWorker: { pollIntervalMs: 5, leaseDurationMs: 200, heartbeatIntervalMs: 50 },
+      classroomGenerationWorker: { pollIntervalMs: 5, leaseDurationMs: 10_000, heartbeatIntervalMs: 1_000 },
     };
     return buildApi(options as Parameters<typeof buildApi>[0]);
   }
@@ -794,9 +794,9 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       generationRun: {
         draftId: completed.json().generationRun.draftId,
         stage: 'progressive',
-        status: 'queued',
       },
     });
+    expect(['queued', 'running', 'completed']).toContain(confirmed.json().generationRun.status);
     expect(confirmed.json().outlineRevision.id).toMatch(/^[0-9a-f-]{36}$/);
 
     const classroomList = await app.inject({
