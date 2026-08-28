@@ -8,26 +8,36 @@ export function createPiClassroomGenerationModel(
   selectClassroomModel: SelectClassroomModel = selectModel,
 ): ClassroomGenerationModel {
   return {
+    async *stream(userId, input) {
+      const { catalog, model } = await selectClassroomModel(userId);
+      const selectedModel = await catalog.resolveModel(model);
+      const stream = await catalog.streamSimple(
+        model,
+        classroomRequestContext(input),
+        classroomRequestOptions(model.thinkingLevel, selectedModel.maxTokens, input),
+      );
+      for await (const event of stream) {
+        if (event.type === 'text_delta') {
+          yield { type: 'text_delta', delta: event.delta };
+        } else if (event.type === 'error') {
+          throw new ApiError(502, 'The classroom outline model request failed', 'CLASSROOM_OUTLINE_MODEL_FAILED');
+        } else if (event.type === 'done') {
+          yield {
+            type: 'done',
+            providerId: model.providerId,
+            modelId: model.modelId,
+            stopReason: event.reason,
+          };
+        }
+      }
+    },
     async generate(userId, input) {
       const { catalog, model } = await selectClassroomModel(userId);
       const selectedModel = await catalog.resolveModel(model);
       const response = await catalog.completeSimple(
         model,
-        {
-          systemPrompt: input.system,
-          messages: [{
-            role: 'user',
-            content: [{ type: 'text', text: input.user }],
-            timestamp: Date.now(),
-          }],
-        },
-        {
-          maxTokens: selectedModel.maxTokens,
-          maxRetries: input.maxRetries ?? 2,
-          timeoutMs: input.timeoutMs ?? 120_000,
-          signal: input.signal,
-          ...(model.thinkingLevel === 'off' ? {} : { reasoning: model.thinkingLevel }),
-        },
+        classroomRequestContext(input),
+        classroomRequestOptions(model.thinkingLevel, selectedModel.maxTokens, input),
       );
       if (response.stopReason === 'error' || response.stopReason === 'aborted') {
         throw new ApiError(502, 'The classroom outline model request failed', 'CLASSROOM_OUTLINE_MODEL_FAILED');
@@ -48,4 +58,30 @@ export function createPiClassroomGenerationModel(
   };
 }
 
+function classroomRequestContext(input: { system: string; user: string }) {
+  return {
+    systemPrompt: input.system,
+    messages: [{
+      role: 'user' as const,
+      content: [{ type: 'text' as const, text: input.user }],
+      timestamp: Date.now(),
+    }],
+  };
+}
+
+function classroomRequestOptions(
+  thinkingLevel: ModelThinkingLevel,
+  maxTokens: number,
+  input: { signal?: AbortSignal; maxRetries?: number; timeoutMs?: number },
+) {
+  return {
+    maxTokens,
+    maxRetries: input.maxRetries ?? 2,
+    timeoutMs: input.timeoutMs ?? 120_000,
+    signal: input.signal,
+    ...(thinkingLevel === 'off' ? {} : { reasoning: thinkingLevel }),
+  };
+}
+
 export const piClassroomOutlineModel = createPiClassroomGenerationModel();
+import type { ModelThinkingLevel } from '@earendil-works/pi-ai';

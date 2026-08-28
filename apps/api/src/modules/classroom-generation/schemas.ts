@@ -66,7 +66,7 @@ export const classroomMediaGenerationRequestSchema = z.discriminatedUnion('type'
   videoGenerationRequestSchema,
 ]);
 
-const sceneOutlineSchema = z.object({
+export const sceneOutlineSchema = z.object({
   id: z.string().trim().min(1).max(120),
   type: z.enum(['slide', 'quiz', 'interactive', 'pbl']),
   title: z.string().trim().min(1).max(240),
@@ -115,6 +115,32 @@ export const classroomOutlineSchema = z.object({
   }
 });
 
+export const classroomAgentProfileSchema = z.object({
+  id: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(120),
+  role: z.enum(['teacher', 'assistant', 'student']),
+  persona: z.string().trim().min(1).max(2_000),
+  priority: z.number().int().min(1).max(10),
+}).strict();
+
+export const classroomAgentProfilesSchema = z.array(classroomAgentProfileSchema)
+  .min(3)
+  .max(5)
+  .superRefine((profiles, context) => {
+    if (profiles.filter((profile) => profile.role === 'teacher').length !== 1) {
+      context.addIssue({ code: 'custom', message: 'Classroom agent profiles require exactly one teacher' });
+    }
+    if (new Set(profiles.map((profile) => profile.id)).size !== profiles.length) {
+      context.addIssue({ code: 'custom', message: 'Classroom agent profile IDs must be unique' });
+    }
+  });
+
+export const confirmClassroomOutlineRevisionSchema = z.object({
+  idempotencyKey: z.string().uuid(),
+  candidateVersion: z.string().regex(/^[a-f0-9]{64}$/),
+  outline: classroomOutlineSchema,
+}).strict();
+
 export const generatedSlideElementTypes = ['text', 'shape', 'line', 'chart', 'latex', 'table', 'image', 'video'] as const;
 
 export const slideGenerationResultSchema = z.object({
@@ -146,5 +172,15 @@ export type ClassroomMediaPlanningConfig = z.infer<typeof classroomMediaPlanning
 export type ClassroomDraftContext = {
   sourceText?: string;
   media?: ClassroomMediaPlanningConfig;
+  agentProfiles?: ClassroomAgentProfile[];
+  agentProfileGeneration?: {
+    source: 'model' | 'fallback';
+    promptId: string;
+    promptRevision: string;
+    providerId?: string;
+    modelId?: string;
+  };
 };
 export type ClassroomOutline = z.infer<typeof classroomOutlineSchema>;
+export type ClassroomAgentProfile = z.infer<typeof classroomAgentProfileSchema>;
+export type ConfirmClassroomOutlineRevisionInput = z.infer<typeof confirmClassroomOutlineRevisionSchema>;

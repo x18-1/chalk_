@@ -2,7 +2,7 @@
 .env
 .env.*
 !.env.example
-/.env[ ]
+/.env[ ]*
 
 # Third-party reference repositories
 .reference/
@@ -21,6 +21,7 @@ out/
 *.tsbuildinfo
 test-results/
 playwright-report/
+evals/runs/
 
 # Session data
 data/

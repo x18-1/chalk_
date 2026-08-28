@@ -11,8 +11,18 @@ export type ClassroomSummary = {
     version: number;
     contentHash: string;
     createdAt: string;
-  };
+  } | null;
+  generation: {
+    runId: string;
+    draftId: string;
+    stage: ClassroomGenerationStage;
+    status: ClassroomGenerationStatus;
+    draftStatus: string;
+  } | null;
 };
+
+type ClassroomGenerationStage = 'outline' | 'scene_content' | 'scene_actions' | 'media_tasks' | 'progressive';
+type ClassroomGenerationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'aborted';
 
 export type ClassroomArtifact = ClassroomSummary & { document: unknown };
 

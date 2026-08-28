@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-27
+> 最后核验：2026-08-28
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -37,8 +37,11 @@
 | Chalkboard V1 Provider 适配结构 | [spec/chalkboard-v1-provider-architecture.md](spec/chalkboard-v1-provider-architecture.md) | Accepted |
 | Chalkboard V1 课堂运行时 | [spec/chalkboard-v1-runtime.md](spec/chalkboard-v1-runtime.md) | Accepted |
 | Chalkboard V1 内容生成 | [spec/chalkboard-v1-generation.md](spec/chalkboard-v1-generation.md) | Accepted |
-| Chalkboard V3 渐进式课堂生成 | [spec/chalkboard-v3-generation.md](spec/chalkboard-v3-generation.md) | Draft；不属于 V1/V2 范围 |
-| Chalkboard V3 课堂讨论候选 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Draft；不属于 V1/V2 范围 |
+| Chalkboard V3 渐进式课堂生成 | [spec/chalkboard-v3-generation.md](spec/chalkboard-v3-generation.md) | Accepted；稳定 Classroom 入口、最多 10 个课堂 Run 并发、单课堂逐 Scene、媒体门禁与显式发布；不含 PBL |
+| Chalkboard V3 课堂讨论 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Accepted；V3 第二个纵向切片 |
+| 课堂讨论 LangGraph 决策 | [adr/0001-langgraph-for-classroom-discussion.md](adr/0001-langgraph-for-classroom-discussion.md) | Accepted |
+| Chalkboard 教学内核与领域插件边界 | [adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md](adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md) | Accepted；保持 `Scene -> Action`，Beat/Checkpoint 暂不引入 |
+| Chalkboard V3–V6 路线 | [plan/chalkboard-roadmap.md](plan/chalkboard-roadmap.md) | Accepted；V4 可观测性/安全，V5 数学插件，V6 单课学习闭环；均等待主分支 Memory/Tools/Chat 生成 Scene 合并 |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
@@ -47,12 +50,14 @@
 | Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和上传文本 adapter 已实现，知识库/Web adapter 待后续阶段 |
 | Tools 基础能力 | [spec/tools-foundation-spec.md](spec/tools-foundation-spec.md) | Draft；核心 runtime、统一 Read facade 和 MinIO 集成验证已实现，更多资源 adapter 待后续阶段 |
 | Tools 实施计划 | [plan/plan-tools-foundation.md](plan/plan-tools-foundation.md) | Draft；实现中 |
-| Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，CI 门禁待后续接入 |
+| Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
+| Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
+| Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Historical；V3 课堂运行时、渐进式生成、多 Agent 讨论、AI Live Chalkboard 与 Chromium 门禁已完成 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
-| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；实现与自动门禁完成，等待人工验收后提交 |
+| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；已通过 GitHub PR #6 合并到 `main` |
 
 当规则冲突时，优先级为：
 
@@ -95,10 +100,10 @@ docs/
 
 以下规则已经接受，但尚未全部由工具强制：
 
-- 尚无 CI workflow、formatter 门禁和自动 package 依赖方向检查。
+- 质量 CI workflow 已定义，但当前分支尚未在远端完成首次运行；仍无 formatter 门禁和自动 package 依赖方向检查。
 - worktree 配置已经参数化，但尚无跨 worktree 端口/路径占用检测和完整应用栈编排。
 - 集成测试会校验、创建并 migrate 专用数据库，但尚不自动重建或销毁测试数据库。
-- E2E 尚不自动启动隔离的 Web/API、数据库、session 和对象存储。
+- Chromium E2E 的 CI job 已定义隔离 Web/API、数据库和对象存储启动流程，但远端运行结果尚未确认；Firefox/WebKit 矩阵暂不属于 V3 门禁。
 - 既有 API route 中仍有 schema、业务编排和 adapter 调用混在同一文件的情况。
 
 这些缺口按各 runbook 的目标状态和实际开发需要逐步收敛。

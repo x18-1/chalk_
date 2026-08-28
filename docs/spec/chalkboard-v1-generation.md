@@ -89,8 +89,8 @@ outline、scene content、scene actions 和 media tasks 的 `completed` 都只�
 normalize、Chalkboard DSL、占位符和媒体引用完整性校验，通过后才提升 Draft 媒体并在单个事务中创建
 Classroom、不可变 Artifact、媒体元数据和 Draft 发布关联。发布使用持久化 reservation/lease 和稳定
 目标 ID；对象复制或数据库提交失败会删除本次目标，硬中断后的重试复用同一 namespace，防止不断
-制造 orphan。重复发布返回原 Classroom/Artifact，不产生新版本。PBL content/actions
-仍属于后续阶段；unsupported 类型必须以稳定错误停止，不得伪装成其他 Scene 类型。
+制造 orphan。重复发布返回原 Classroom/Artifact，不产生新版本。PBL content/actions 未排期且不属于
+Chalkboard V3；unsupported 类型必须以稳定错误停止，不得伪装成其他 Scene 类型。
 
 ## V3 边界
 
@@ -104,7 +104,7 @@ V1/V2 的完成门禁是上述可恢复分阶段生成、逐 Scene 持久化和�
 
 这些能力已延后到 [Chalkboard V3 渐进式课堂生成](chalkboard-v3-generation.md)，不作为 V1/V2
 人工验收或提交门禁。V3 设计不得把未完成 Draft 当作已发布 Artifact，也不能放宽现有 owner、恢复和
-认证约束。
+认证约束。PBL 不随这些渐进式体验进入 V3，V3 仍只生成 `slide`、`quiz` 和 `interactive`。
 
 ## 兼容约束
 

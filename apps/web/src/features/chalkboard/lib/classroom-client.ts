@@ -16,6 +16,7 @@ import {
   type ClassroomSummary,
   type LearningSession,
   type QuizAttempt,
+  type QuizQuestionResult,
 } from "../../../api";
 
 function cursorStore(stageId: string): CursorSnapshotStore {
@@ -45,20 +46,27 @@ function cursorStore(stageId: string): CursorSnapshotStore {
 
 export type LoadedClassroomSession = {
   classroom: AdaptedClassroom;
-  learningSession: ServerClassroomSession;
-  selected: ClassroomSummary;
-  classrooms: ClassroomSummary[];
+  learningSession: ClassroomSession;
 };
 
 export type CursorSaveResult =
-  | { status: "saved"; learningSession: LearningSession }
+  | { status: "saved"; learningSession?: LearningSession }
   | { status: "conflict"; learningSession: LearningSession };
 
-export type QuizAttemptSaveResult =
-  | { status: "saved"; quizAttempt: QuizAttempt }
-  | { status: "conflict"; quizAttempt: QuizAttempt };
+export type ClassroomQuizAttempt = Pick<QuizAttempt, "answers" | "results" | "score" | "maxScore">;
 
-export class ServerClassroomSession {
+export type QuizAttemptSaveResult =
+  | { status: "saved"; quizAttempt: ClassroomQuizAttempt }
+  | { status: "conflict"; quizAttempt: ClassroomQuizAttempt };
+
+export interface ClassroomSession {
+  discussionTarget(): { kind: "learning_session" | "generation_run"; id: string };
+  quizAttempt(sceneId: string): ClassroomQuizAttempt | null;
+  saveQuizAttempt(sceneId: string, answers: Record<string, string[]>): Promise<QuizAttemptSaveResult>;
+  save(cursor: RuntimeSnapshot): Promise<CursorSaveResult>;
+}
+
+export class ServerClassroomSession implements ClassroomSession {
   private current: LearningSession;
   private readonly quizAttempts = new Map<string, QuizAttempt>();
   private saveQueue: Promise<void> = Promise.resolve();
@@ -72,6 +80,10 @@ export class ServerClassroomSession {
 
   get snapshot() {
     return this.current;
+  }
+
+  discussionTarget() {
+    return { kind: "learning_session" as const, id: this.current.id };
   }
 
   quizAttempt(sceneId: string) {
@@ -140,16 +152,114 @@ export class ServerClassroomSession {
   }
 }
 
+/**
+ * Draft playback remains deliberately separate from a formal Learning Session.
+ * These snapshots make an owner able to refresh the same browser while the
+ * mutable draft grows, without inventing an Artifact or sending draft progress
+ * to the immutable-session API.
+ */
+export class DraftClassroomSession implements ClassroomSession {
+  private readonly attempts = new Map<string, ClassroomQuizAttempt>();
+
+  constructor(
+    private readonly draftId: string,
+    private readonly generationRunId: string,
+    private readonly document: AdaptedClassroom["document"],
+  ) {
+    try {
+      const stored = window.localStorage.getItem(this.quizKey());
+      const attempts = stored ? JSON.parse(stored) as Record<string, ClassroomQuizAttempt> : {};
+      for (const [sceneId, attempt] of Object.entries(attempts)) this.attempts.set(sceneId, attempt);
+    } catch {
+      window.localStorage.removeItem(this.quizKey());
+    }
+  }
+
+  discussionTarget() {
+    return { kind: "generation_run" as const, id: this.generationRunId };
+  }
+
+  restoreCursor(classroom: AdaptedClassroom) {
+    try {
+      const stored = window.localStorage.getItem(this.cursorKey());
+      if (!stored) return;
+      const snapshot = JSON.parse(stored) as RuntimeSnapshot;
+      if (!classroom.document.scenes.some((scene) => scene.id === snapshot.sceneId)) return;
+      const restored = classroom.runtime.restore(normalizeGrowingDraftSnapshot(snapshot, classroom));
+      if (!restored.ok) window.localStorage.removeItem(this.cursorKey());
+    } catch {
+      window.localStorage.removeItem(this.cursorKey());
+    }
+  }
+
+  quizAttempt(sceneId: string) {
+    return this.attempts.get(sceneId) ?? null;
+  }
+
+  async saveQuizAttempt(sceneId: string, answers: Record<string, string[]>): Promise<QuizAttemptSaveResult> {
+    const scene = this.document.scenes.find((candidate) => candidate.id === sceneId);
+    const questions = scene?.type === "quiz" && Array.isArray(scene.content.questions)
+      ? scene.content.questions as Array<{ id?: unknown; answer?: unknown; points?: unknown }>
+      : [];
+    const results: QuizQuestionResult[] = questions.map((question, index) => {
+      const questionId = typeof question.id === "string" ? question.id : `question-${index + 1}`;
+      const expected = Array.isArray(question.answer) && question.answer.every((value) => typeof value === "string")
+        ? [...question.answer].sort()
+        : null;
+      const actual = [...(answers[questionId] ?? [])].sort();
+      const maxPoints = typeof question.points === "number" && Number.isFinite(question.points) ? question.points : 1;
+      const correct = expected ? expected.length === actual.length && expected.every((value, answerIndex) => value === actual[answerIndex]) : null;
+      return { questionId, correct, awardedPoints: correct === null ? null : correct ? maxPoints : 0, maxPoints: correct === null ? null : maxPoints };
+    });
+    const maxScore = results.reduce((total, result) => total + (result.maxPoints ?? 0), 0);
+    const attempt: ClassroomQuizAttempt = {
+      answers,
+      results,
+      score: results.reduce((total, result) => total + (result.awardedPoints ?? 0), 0),
+      maxScore,
+    };
+    this.attempts.set(sceneId, attempt);
+    window.localStorage.setItem(this.quizKey(), JSON.stringify(Object.fromEntries(this.attempts)));
+    return { status: "saved", quizAttempt: attempt };
+  }
+
+  async save(cursor: RuntimeSnapshot): Promise<CursorSaveResult> {
+    window.localStorage.setItem(this.cursorKey(), JSON.stringify(cursor));
+    return { status: "saved" };
+  }
+
+  private cursorKey() {
+    return `chalkboard:draft-cursor:${this.draftId}`;
+  }
+
+  private quizKey() {
+    return `chalkboard:draft-quizzes:${this.draftId}`;
+  }
+}
+
+export function restoreGrowingDraftCursor(
+  previous: AdaptedClassroom,
+  next: AdaptedClassroom,
+) {
+  const snapshot = previous.runtime.getSnapshot();
+  if (!next.document.scenes.some((scene) => scene.id === snapshot.sceneId)) return;
+  next.runtime.restore(normalizeGrowingDraftSnapshot(snapshot, next));
+}
+
+function normalizeGrowingDraftSnapshot(snapshot: RuntimeSnapshot, classroom: AdaptedClassroom): RuntimeSnapshot {
+  const sceneIndex = classroom.document.scenes.findIndex((scene) => scene.id === snapshot.sceneId);
+  const isLastAvailableScene = sceneIndex === classroom.document.scenes.length - 1;
+  if (!snapshot.completed || isLastAvailableScene) return snapshot;
+  return { ...snapshot, mode: "paused", completed: false };
+}
+
 export async function loadClassroomSession(
-  requestedClassroomId: string | null,
+  selected: ClassroomSummary,
   signal: AbortSignal,
 ): Promise<LoadedClassroomSession> {
-  const { classrooms } = await classroomsApi.list(signal);
-  if (classrooms.length === 0) throw new ApiRequestError(404, "还没有可学习的课堂。", "CLASSROOMS_EMPTY");
-  const selected = requestedClassroomId
-    ? classrooms.find((classroom) => classroom.id === requestedClassroomId)
-    : classrooms[0];
-  if (!selected) throw new ApiRequestError(404, "没有找到这门课堂，它可能已被移除。", "CLASSROOM_NOT_FOUND");
+  if (!selected.latestArtifact) {
+    throw new ApiRequestError(409, "这门课堂仍在生成中。", "CLASSROOM_GENERATION_ACTIVE");
+  }
   const [artifact, sessionResult] = await Promise.all([
     classroomsApi.artifact(selected.id, selected.latestArtifact.id, signal),
     learningSessionsApi.createOrResume(selected.id, selected.latestArtifact.id, signal),
@@ -195,14 +305,12 @@ export async function loadClassroomSession(
   return {
     classroom,
     learningSession: new ServerClassroomSession(learningSession, quizAttempts),
-    selected,
-    classrooms,
   };
 }
 
 export function saveClassroomCursor(
   classroom: AdaptedClassroom,
-  learningSession: ServerClassroomSession,
+  learningSession: ClassroomSession,
 ): Promise<CursorSaveResult> {
   return learningSession.save(classroom.runtime.getSnapshot());
 }

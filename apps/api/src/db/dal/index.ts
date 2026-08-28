@@ -9,5 +9,6 @@ export * from './classrooms';
 export * from './learning-sessions';
 export * from './quiz-attempts';
 export * from './classroom-generation';
+export * from './classroom-discussions';
 export * from './agent-run-observations';
 export * from './auth-users';

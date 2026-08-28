@@ -2,7 +2,13 @@ import { and, desc, eq } from 'drizzle-orm';
 
 import type { Database } from '../client';
 import { AuthRequiredError, OwnershipError } from '../errors';
-import { classroomArtifactMedia, classroomArtifacts, classrooms } from '../schema';
+import {
+  classroomArtifactMedia,
+  classroomArtifacts,
+  classroomDrafts,
+  classroomGenerationRuns,
+  classrooms,
+} from '../schema';
 
 function requireUserId(userId: string) {
   if (!userId) throw new AuthRequiredError();
@@ -65,18 +71,43 @@ export function createClassroomsDal(db: Database) {
     async list(userId: string) {
       requireUserId(userId);
       const rows = await db
-        .select({ classroom: classrooms, artifact: classroomArtifacts })
+        .select({
+          classroom: classrooms,
+          artifact: classroomArtifacts,
+          draft: classroomDrafts,
+          run: classroomGenerationRuns,
+        })
         .from(classrooms)
-        .innerJoin(classroomArtifacts, and(
+        .leftJoin(classroomArtifacts, and(
           eq(classroomArtifacts.classroomId, classrooms.id),
           eq(classroomArtifacts.userId, userId),
         ))
+        .leftJoin(classroomDrafts, and(
+          eq(classroomDrafts.classroomId, classrooms.id),
+          eq(classroomDrafts.userId, userId),
+        ))
+        .leftJoin(classroomGenerationRuns, and(
+          eq(classroomGenerationRuns.draftId, classroomDrafts.id),
+          eq(classroomGenerationRuns.userId, userId),
+        ))
         .where(eq(classrooms.userId, userId))
-        .orderBy(desc(classrooms.updatedAt), desc(classroomArtifacts.version));
+        .orderBy(desc(classrooms.updatedAt));
 
       const latestByClassroom = new Map<string, (typeof rows)[number]>();
       for (const row of rows) {
-        if (!latestByClassroom.has(row.classroom.id)) latestByClassroom.set(row.classroom.id, row);
+        const current = latestByClassroom.get(row.classroom.id);
+        if (!current) {
+          latestByClassroom.set(row.classroom.id, row);
+          continue;
+        }
+        const artifact = !current.artifact || (row.artifact?.version ?? 0) > current.artifact.version
+          ? row.artifact
+          : current.artifact;
+        const run = !current.run || (row.run?.updatedAt.getTime() ?? 0) > current.run.updatedAt.getTime()
+          ? row.run
+          : current.run;
+        const draft = run === row.run ? row.draft : current.draft;
+        latestByClassroom.set(row.classroom.id, { ...current, artifact, draft, run });
       }
       return [...latestByClassroom.values()];
     },

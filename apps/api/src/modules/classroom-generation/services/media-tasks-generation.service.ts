@@ -117,10 +117,23 @@ export class MediaTasksGenerationService {
   }
 
   async processClaim(context: GenerationClaimContext) {
+    await this.processTasks(context);
+    return this.generation.completeMediaTasksRun(context.userId, {
+      runId: context.runId,
+      draftId: context.draft.id,
+      workerId: context.workerId,
+    });
+  }
+
+  async processTasks(
+    context: GenerationClaimContext,
+    options: { waitUntilSceneContentReady?(sceneId: string): Promise<void> } = {},
+  ) {
     const tasks = await this.generation.listMediaTasks(context.userId, context.runId);
     for (const task of tasks) {
       if (task.status === 'completed') continue;
       context.signal.throwIfAborted();
+      await options.waitUntilSceneContentReady?.(task.sceneId);
       const started = await this.generation.startMediaTask(context.userId, {
         runId: context.runId,
         draftId: context.draft.id,
@@ -190,11 +203,6 @@ export class MediaTasksGenerationService {
         throw new MediaTasksError('CLASSROOM_MEDIA_GENERATION_FAILED');
       }
     }
-    return this.generation.completeMediaTasksRun(context.userId, {
-      runId: context.runId,
-      draftId: context.draft.id,
-      workerId: context.workerId,
-    });
   }
 
   private async generateVideo(

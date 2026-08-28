@@ -1,11 +1,13 @@
 # Chalkboard V2 Handoff
 
-> 文档状态：Accepted
-> 文档类型：Active branch handoff
+> 文档状态：Historical
+> 文档类型：Final branch handoff
 > 适用分支：`feat/chalkboard-v2`
 > Worktree：`/home/xcodd/code/chalk_/.worktree/chalkboard-v2`
 > 基线提交：`b8804dfccb93bb15d1384be64c9466001074c637`
 > 基线来源：PR #5 合并后的 `origin/main`
+> 最终分支提交：`36ce6982ec4b932766d4774802e0a7b40b489dd4`
+> 合并结果：GitHub PR #6，merge commit `82832ee07cc43aec4f583ccc8e704756334d8f3a`
 > 最后核验：2026-08-27
 
 本文记录 Chalkboard 第二个工程迁移阶段的真实工作现场。V2 是工程阶段名，不是新的产品

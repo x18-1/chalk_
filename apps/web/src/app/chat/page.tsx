@@ -534,7 +534,9 @@ export default function ChatPage() {
     setIsDraftConversation(true);
     setSelectedId("");
     setMessages([]);
-    window.history.replaceState(null, "", "/chat?new=1");
+    if (window.location.pathname !== "/chat" || window.location.search !== "?new=1") {
+      window.history.replaceState(window.history.state, "", "/chat?new=1");
+    }
   }
 
   function stopStreaming() {

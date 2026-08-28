@@ -1,9 +1,9 @@
-import { apiJson, ApiRequestError } from './client';
+import { apiJson, apiUrl, ApiRequestError } from './client';
 import type { ClassroomSummary } from './classrooms';
 
 export type ClassroomSceneOutline = {
   id: string;
-  type: 'slide' | 'quiz' | 'interactive' | 'pbl';
+  type: 'slide' | 'quiz' | 'interactive';
   title: string;
   description: string;
   keyPoints: string[];
@@ -20,6 +20,9 @@ export type ClassroomSceneOutline = {
     difficulty: 'easy' | 'medium' | 'hard';
     questionTypes: Array<'single' | 'multiple' | 'text'>;
   };
+  interactiveConfig?: Record<string, unknown>;
+  widgetType?: 'simulation' | 'diagram' | 'code' | 'game' | 'visualization3d';
+  widgetOutline?: Record<string, unknown>;
 };
 
 export type ClassroomGeneratedScene = {
@@ -31,6 +34,7 @@ export type ClassroomGeneratedScene = {
   content: Record<string, unknown> | null;
   actions: Array<Record<string, unknown>> | null;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  phase: 'content' | 'actions' | 'completed';
   attempt: number;
   prompt: { id: string; revision: string } | null;
   model: { providerId: string; modelId: string } | null;
@@ -41,12 +45,33 @@ export type ClassroomGeneratedScene = {
 
 export type ClassroomGenerationRun = {
   id: string;
+  classroomId: string | null;
   draftId: string;
-  stage: 'outline' | 'scene_content' | 'scene_actions' | 'media_tasks';
+  outlineRevisionId: string | null;
+  draftStatus: string;
+  stage: 'outline' | 'scene_content' | 'scene_actions' | 'media_tasks' | 'progressive';
   status: 'queued' | 'running' | 'completed' | 'failed' | 'aborted';
   attempt: number;
   requirements: string;
-  context: { sourceText?: string; media?: ClassroomMediaPlanning };
+  context: {
+    sourceText?: string;
+    media?: ClassroomMediaPlanning;
+    agentProfiles?: Array<{
+      id: string;
+      name: string;
+      role: 'teacher' | 'assistant' | 'student';
+      persona: string;
+      priority: number;
+    }>;
+    agentProfileGeneration?: {
+      source: 'model' | 'fallback';
+      promptId: string;
+      promptRevision: string;
+      providerId?: string;
+      modelId?: string;
+    };
+  };
+  candidateVersion: string | null;
   prompt: { id: string; revision: string } | null;
   model: { providerId: string; modelId: string } | null;
   outline: {
@@ -67,6 +92,7 @@ export type ClassroomGenerationRun = {
     providerId: string | null;
     modelId: string | null;
     mediaRef: string | null;
+    url: string | null;
     contentType: string | null;
     size: number | null;
     error: { code: string } | null;
@@ -78,12 +104,28 @@ export type ClassroomGenerationRun = {
     completed: number;
     failed: number;
     currentSceneId: string | null;
+    media: { total: number; completed: number; failed: number } | null;
   } | null;
+  previewReady: boolean;
+  publishReady: boolean;
   error: { code: string } | null;
   cancelRequested: boolean;
   startedAt: string | null;
   finishedAt: string | null;
 };
+
+export type ClassroomOutlineStreamEvent =
+  | { type: 'languageDirective'; data: string }
+  | { type: 'courseTitle'; data: string }
+  | { type: 'outline'; data: ClassroomSceneOutline; index: number }
+  | { type: 'retry'; attempt: number; maxAttempts: number }
+  | {
+      type: 'done';
+      outlines: ClassroomSceneOutline[];
+      languageDirective: string;
+      courseTitle: string;
+    }
+  | { type: 'error'; error: string };
 
 type MediaAspectRatio = '16:9' | '4:3' | '1:1' | '9:16' | '3:4' | '21:9';
 export type ClassroomMediaPlanning = {
@@ -116,6 +158,55 @@ export const classroomGenerationApi = {
       `/classroom-generation-runs/${encodeURIComponent(runId)}/retry`,
       { method: 'POST', signal },
     );
+  },
+  confirmOutline(runId: string, input: {
+    idempotencyKey: string;
+    candidateVersion: string;
+    outline: NonNullable<ClassroomGenerationRun['outline']>;
+  }, signal?: AbortSignal) {
+    return apiJson<{
+      created: boolean;
+      outlineRevision: { id: string; number: number; contentHash: string; createdAt: string };
+      generationRun: ClassroomGenerationRun;
+    }>(`/classroom-generation-runs/${encodeURIComponent(runId)}/outline-revisions`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+      signal,
+    });
+  },
+  async streamOutline(
+    runId: string,
+    onEvent: (event: ClassroomOutlineStreamEvent, eventId: string) => void,
+    signal?: AbortSignal,
+    lastEventId?: string,
+  ) {
+    const response = await fetch(apiUrl(`/classroom-generation-runs/${encodeURIComponent(runId)}/outline-events`), {
+      credentials: 'include',
+      headers: {
+        Accept: 'text/event-stream',
+        ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
+      },
+      signal,
+    });
+    if (!response.ok || !response.body) {
+      const body = await response.json().catch(() => ({})) as { error?: string; code?: string };
+      throw new ApiRequestError(response.status, body.error ?? `Request failed (${response.status})`, body.code);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        const id = frame.match(/^id: (\d+)$/m)?.[1];
+        const data = frame.match(/^data: (.+)$/m)?.[1];
+        if (id && data) onEvent(JSON.parse(data) as ClassroomOutlineStreamEvent, id);
+      }
+      if (done) break;
+    }
   },
   createSceneContent(runId: string, signal?: AbortSignal) {
     return apiJson<{ generationRun: ClassroomGenerationRun }>(
@@ -157,6 +248,9 @@ export function classroomGenerationErrorMessage(error: unknown) {
     if (error.status === 409) return '这个生成任务当前不能执行该操作，请刷新进度后再试。';
     if (error.status === 429) return '模型请求过于频繁，请稍后再试。';
     if (error.code === 'CLASSROOM_OUTLINE_INVALID') return '模型返回的大纲没有通过校验，可以在同一任务上重试。';
+    if (error.code === 'CLASSROOM_OUTLINE_TYPE_UNSUPPORTED') return 'PBL 不在 Chalkboard V3 的生成范围内，请改用讲解、小测或互动场景。';
+    if (error.code === 'CLASSROOM_OUTLINE_REVISION_CONFLICT') return '这份大纲已经用另一版内容确认，请刷新后继续。';
+    if (error.code === 'CLASSROOM_PROGRESSIVE_GENERATION_FAILED') return '课堂生成在当前场景中断；已完成场景和媒体均已保留，可以继续重试。';
     if (error.code === 'CLASSROOM_SCENE_CONTENT_UNSUPPORTED') return '大纲中还有暂未迁移的场景类型；已完成内容会保留，后续可以继续补生成。';
     if (error.code === 'CLASSROOM_SCENE_ACTIONS_UNSUPPORTED') return '当前场景类型的课堂动作尚未迁移；已经生成的动作会保留。';
     if (error.code === 'PROVIDER_NOT_CONFIGURED') return '所选媒体 Provider 尚未配置，请先在设置中保存凭据。';

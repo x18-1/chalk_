@@ -54,80 +54,89 @@ export class SceneContentGenerationService {
     const scenes = await this.generation.listScenes(context.userId, context.draft.id);
     for (const scene of scenes) {
       if (scene.status === 'completed') continue;
-      context.signal.throwIfAborted();
-      const outline = course.outlines.find((candidate) => candidate.id === scene.outlineId);
-      if (!outline) throw new SceneContentError('CLASSROOM_SCENE_OUTLINE_MISSING');
-      const prompt = scenePrompt(outline, course.languageDirective);
-      if (!prompt) {
-        await this.generation.startScene(context.userId, {
-          runId: context.runId,
-          draftId: context.draft.id,
-          sceneId: scene.id,
-          workerId: context.workerId,
-          promptId: null,
-          promptRevision: null,
-        });
-        await this.generation.failScene(context.userId, {
-          runId: context.runId,
-          draftId: context.draft.id,
-          sceneId: scene.id,
-          workerId: context.workerId,
-          errorCode: 'CLASSROOM_SCENE_CONTENT_UNSUPPORTED',
-        });
-        throw new SceneContentError('CLASSROOM_SCENE_CONTENT_UNSUPPORTED');
-      }
-      const started = await this.generation.startScene(context.userId, {
-        runId: context.runId,
-        draftId: context.draft.id,
-        sceneId: scene.id,
-        workerId: context.workerId,
-        promptId: prompt.id,
-        promptRevision: prompt.revision,
-      });
-      if (!started) throw new LeaseLostError();
-      try {
-        const generated = await generateWithAbort(this.model, context.userId, {
-          system: prompt.system,
-          user: prompt.user,
-          signal: context.signal,
-          maxRetries: 0,
-          timeoutMs: 300_000,
-        });
-        context.signal.throwIfAborted();
-        if (generated.stopReason === 'length') {
-          throw new SceneContentError(truncatedContentErrorCode(outline.type));
-        }
-        const content = parseSceneContent(outline, generated.text);
-        const saved = await this.generation.completeScene(context.userId, {
-          runId: context.runId,
-          draftId: context.draft.id,
-          sceneId: scene.id,
-          workerId: context.workerId,
-          content,
-          modelProviderId: generated.providerId,
-          modelId: generated.modelId,
-        });
-        if (!saved) throw new LeaseLostError();
-      } catch (error) {
-        if (context.signal.aborted || error instanceof LeaseLostError) throw error;
-        const code = error instanceof SceneContentError
-          ? error.code
-          : 'CLASSROOM_SCENE_CONTENT_GENERATION_FAILED';
-        await this.generation.failScene(context.userId, {
-          runId: context.runId,
-          draftId: context.draft.id,
-          sceneId: scene.id,
-          workerId: context.workerId,
-          errorCode: code,
-        });
-        throw new SceneContentError(code);
-      }
+      await this.processScene(context, course, scene);
     }
     return this.generation.completeSceneContentRun(context.userId, {
       runId: context.runId,
       draftId: context.draft.id,
       workerId: context.workerId,
     });
+  }
+
+  async processScene(
+    context: GenerationClaimContext,
+    course: ClassroomOutline,
+    scene: Awaited<ReturnType<ClassroomGenerationDal['listScenes']>>[number],
+  ) {
+    context.signal.throwIfAborted();
+    const outline = course.outlines.find((candidate) => candidate.id === scene.outlineId);
+    if (!outline) throw new SceneContentError('CLASSROOM_SCENE_OUTLINE_MISSING');
+    const prompt = scenePrompt(outline, course.languageDirective);
+    if (!prompt) {
+      await this.generation.startScene(context.userId, {
+        runId: context.runId,
+        draftId: context.draft.id,
+        sceneId: scene.id,
+        workerId: context.workerId,
+        promptId: null,
+        promptRevision: null,
+      });
+      await this.generation.failScene(context.userId, {
+        runId: context.runId,
+        draftId: context.draft.id,
+        sceneId: scene.id,
+        workerId: context.workerId,
+        errorCode: 'CLASSROOM_SCENE_CONTENT_UNSUPPORTED',
+      });
+      throw new SceneContentError('CLASSROOM_SCENE_CONTENT_UNSUPPORTED');
+    }
+    const started = await this.generation.startScene(context.userId, {
+      runId: context.runId,
+      draftId: context.draft.id,
+      sceneId: scene.id,
+      workerId: context.workerId,
+      promptId: prompt.id,
+      promptRevision: prompt.revision,
+    });
+    if (!started) throw new LeaseLostError();
+    try {
+      const generated = await generateWithAbort(this.model, context.userId, {
+        system: prompt.system,
+        user: prompt.user,
+        signal: context.signal,
+        maxRetries: 0,
+        timeoutMs: 300_000,
+      });
+      context.signal.throwIfAborted();
+      if (generated.stopReason === 'length') {
+        throw new SceneContentError(truncatedContentErrorCode(outline.type));
+      }
+      const content = parseSceneContent(outline, generated.text);
+      const saved = await this.generation.completeScene(context.userId, {
+        runId: context.runId,
+        draftId: context.draft.id,
+        sceneId: scene.id,
+        workerId: context.workerId,
+        content,
+        modelProviderId: generated.providerId,
+        modelId: generated.modelId,
+      });
+      if (!saved) throw new LeaseLostError();
+      return saved;
+    } catch (error) {
+      if (context.signal.aborted || error instanceof LeaseLostError) throw error;
+      const code = error instanceof SceneContentError
+        ? error.code
+        : 'CLASSROOM_SCENE_CONTENT_GENERATION_FAILED';
+      await this.generation.failScene(context.userId, {
+        runId: context.runId,
+        draftId: context.draft.id,
+        sceneId: scene.id,
+        workerId: context.workerId,
+        errorCode: code,
+      });
+      throw new SceneContentError(code);
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 # Chalk 技术栈
 
 > 文档状态：Draft
-> 最后核验：2026-08-26
+> 最后核验：2026-08-28
 > 说明：技术方向仍可迭代；`AGENTS.md` 已确认约束和 [Accepted 架构文档](../README.md) 优先。
 > 配套：[功能定义](../spec/functional-spec.md)
 
@@ -17,15 +17,15 @@
 | 层 | 选择 | 说明 |
 |---|---|---|
 | 语言 | **TypeScript 全栈** | DSL 校验器需同时跑在浏览器、agent 侧、服务端，一份代码三处共用 |
-| Agent 运行时 | **pi-agent-core** | 见第 3 节 |
+| Agent 运行时 | **pi-agent-core**；课堂多 Agent 讨论使用 **LangGraph.js** | 见第 3 节与 [ADR 0001](../adr/0001-langgraph-for-classroom-discussion.md) |
 | 前端 | Next.js（App Router）+ React | 只负责页面、浏览器状态和 HTTP/SSE 客户端，不承载业务 API |
 | 后端 API | Fastify + TypeScript | 独立进程和部署单元；认证、业务 API、Agent 装配、SSE、上传和数据库访问集中在此 |
 | 客户端状态 | Zustand | |
-| 播放引擎状态机 | XState | 状态多于 OpenMAIC（含 checkpoint 等待态、讨论室进出），手写易错 |
+| 课堂播放运行时 | `@chalk/chalkboard` TypeScript runtime | V3 已使用 `Scene -> Action` 游标、播放/暂停与 Discussion bridge；目前不引入 XState |
 | 数据库 | Postgres + Drizzle | 证据表 append-only；课件 JSONB；课程图关系表 |
 | 任务队列 | pg-boss（或 Graphile Worker） | 课件编译是分钟级任务。用 Postgres 省掉 Redis |
-| 几何渲染 / 动画 | **manim-web** | TypeScript，见第 4 节 |
-| 几何约束层 | **自建** | 见第 4 节。系统内唯一必须从零写的核心资产 |
+| 数学插件的几何渲染 / 动画 | **manim-web** | TypeScript，版本锁定；它是候选数学 Domain Plugin 的渲染能力，不是 Teaching Kernel |
+| 数学插件的几何约束层 | **自建** | 不绑定 manim-web 对象模型；具体插件边界在 V5 规格确定 |
 | 数学排版 | KaTeX | manim-web 内部也用它 |
 | 校验 | **Zod + TypeBox** | Chalk 业务结构、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。业务 schema 是主来源，工具边界通过明确 adapter 对接。将来若引入 Python，由 Zod 生成 JSON Schema → Pydantic |
 | 测试 | Vitest + Playwright + LLM eval | 见第 6 节 |
@@ -53,12 +53,11 @@ LLM tool arguments
 
 | | 原因 |
 |---|---|
-| LangGraph | OpenMAIC 的 director graph 单次最多执行一轮 `director → agent`，多轮靠客户端连续请求驱动。这点事不值一个框架，pi 的 agent loop 更直接 |
-| fork OpenMAIC | 核心对象不同（它以 `Stage` 为中心，我们以学习者与证据为中心）；`SceneType` / `Action` 是闭合联合类型且有编译期穷举检查；Beat 粒度比 Scene 细，DSL 重写不可避免。302k 行里 PPTX/MP4 导出、PBL v2、importer、i18n、Partners 都不需要 |
+| fork OpenMAIC | 核心对象不同（它以 `Stage` 为中心，我们以学习者与证据为中心）；Chalk 只对固定参考提交的 Scene/Action 、生成链路和讨论能力做有边界迁移。PPTX/MP4 导出、PBL v2、Partners 等都不需要 |
 | GeoGebra | `evalCommand()` 只返回成功/失败，无结构化错误；宽松解释器可能把错误表达式解释成另一种合法对象 |
-| Python 做主后端 | 跨语言边界会切在最热的调用路径上（checkpoint 判定 → 讨论室 agent → 生成 → 写证据）；DSL 校验器会被迫写两遍（zod + Pydantic）且必须永远等价。**已决定：后端全 TS，后续如需再调整** |
+| Python 做主后端 | 跨语言边界会切在最热的调用路径上（学习活动判定 → 讨论室 Agent → 生成 → 写证据）；DSL 校验器会被迫写两遍（Zod + Pydantic）且必须永远等价。**已决定：后端全 TS，后续如需再调整** |
 
-## 3. Agent 运行时：pi-agent
+## 3. Agent 运行时：pi-agent 与课堂讨论 LangGraph
 
 `@earendil-works/pi-agent-core` `0.84.1`（2026-08-07），仓库 `github.com/earendil-works/pi`。同版本号下成套：`pi-ai`（统一 LLM 层，内置 OpenAI/Anthropic/Google/Mistral/Bedrock）、`pi-telemetry`、`pi-coding-agent`、`pi-tui`、`pi-protocol`、`pi-client`、`pi-storage-sqlite-node`、`gondolin`（Alpine 沙箱）。
 
@@ -75,6 +74,18 @@ LLM tool arguments
 | 上下文管理 | 自动 compaction（`shouldCompact` / `findCutPoint` / `estimateContextTokens`）、session 管理与搜索、branch summarization |
 
 模型层可绕开：注入自己的 `StreamFn`，pi 只需要一个 metadata 占位模型对象，多供应商路由仍由我们自己控制。
+
+### 课堂多 Agent 讨论例外
+
+Chalkboard 的在线多角色讨论使用锁定版本的 TypeScript LangGraph，把 Director 选择、参与 Agent
+发言、等待学生和结束条件表达成显式状态图。该例外只属于课堂讨论模块：通用 Chat、Tools、Skills、
+审批和子 Agent 仍由 `pi-agent-core` 承担。LangGraph 节点不直接装配 OpenAI、Anthropic 等
+LangChain Provider；它们通过一个薄的 Chalk adapter 复用 `@earendil-works/pi-ai` 的用户模型目录、
+凭据和模型选择。PostgreSQL 中 owner-scoped Discussion Session/Transcript 是恢复权威，LangGraph
+state 和浏览器状态都不是。决策背景见 [ADR 0001](../adr/0001-langgraph-for-classroom-discussion.md)。
+
+当前锁定版本为 `@langchain/core` `1.1.31`、`@langchain/langgraph` `1.2.2`，并通过 workspace
+override 锁定 LangGraph 的 checkpoint/sdk 传递依赖组合；版本原因和升级验证门禁记录在 ADR 0001。
 
 ### 需要自己补
 
@@ -99,7 +110,9 @@ LLM tool arguments
 - **禁止「解析失败给默认分」**（OpenMAIC 的做法是判分失败默认给 50%，会污染证据）
 - 低置信度判定在重算时可降权或剔除
 
-## 4. Chalkboard 中的几何能力
+## 4. 候选数学 Domain Plugin：几何能力
+
+本节记录已确认的几何技术约束，不把几何定义为 Chalkboard 产品本体。插件协议与首个数学插件在 V5 开始前另行定义；首个插件不预先锁定为几何。
 
 ### manim-web
 
@@ -116,10 +129,10 @@ LLM tool arguments
 
 manim-web 是动画引擎，**不管理几何约束**。`Draggable` 让点能拖，但拖动 A 之后派生对象（BC 中点、垂足、交点）不会自动重算 —— 那需要依赖图和拓扑排序的更新顺序。
 
-几何 Agent 是 Chalkboard 内部的小型子 Agent，主要由 prompt、工具和脚本组成，不建立独立 package。它生成受限几何 DSL，约束计算和渲染适配也由 `@chalk/chalkboard` 内部实现：
+若 V5 选择几何作为参考插件，几何 Agent 负责生成受限几何 DSL，约束计算与渲染适配归该 Domain Plugin 所有，Teaching Kernel 只负责挂载活动与消费结果。下列仅是候选内部结构：
 
 ```
-packages/chalkboard/src/internal/geometry/
+packages/<math-domain-plugin>/src/internal/geometry/
   ├─ agent/                  prompt + tools + scripts
   ├─ 约束与依赖图          纯逻辑，不依赖渲染，可脱离浏览器单测
   ├─ 派生对象求值器        中点 / 交点 / 垂线 / 平行线 / 角平分线 / 圆上点
@@ -178,7 +191,7 @@ packages/chalkboard/src/internal/geometry/
 **确定性检查（CI 门禁，不过则构建失败）**
 
 - 几何后置条件：构造出的图形是否满足题设（`DE == AD`、垂直、共线…）
-- Beat 结构 lint：**任何非平凡步骤前必须有「动机」Beat**（功能文档 4.2 的硬要求）
+- 教学结构 lint：**任何非平凡步骤前，对应 Scene/Action 序列必须先解释「为什么」**（功能文档 4.2）
 - DSL schema 校验：类型、依赖、重复 id、依赖环
 - 判题一致性：同一份作答重复判定结果是否稳定
 
@@ -223,7 +236,7 @@ eval/               确定性门禁 + LLM / 视觉评分 harness
 
 **后端职责全部在 TS：** 认证与会话、用户与家长账号、租户隔离、课程图与题库 CRUD、画像读写、错题本、学情报告、文件上传、支付（如有）都放在 `apps/api`。`apps/web` 不能导入 Drizzle、Postgres、Pi runtime、认证实现或对象存储 SDK。
 
-`@chalk/chalkboard` 是一个深模块：内部拥有 Zod 课件 schema、Beat / Action / Checkpoint、结构 lint、播放状态、渲染和互动；外部只暴露解析、编译、运行和渲染所需的少量稳定接口。它承接 OpenMAIC 能力迁移，并加入 Chalk 的教学语义。
+`@chalk/chalkboard` 是一个深模块：内部拥有 Zod 课件 schema、Scene / Action 运行模型、结构 lint、播放状态、渲染和互动；外部只暴露解析、运行和渲染所需的少量稳定接口。它是 Teaching Kernel，不拥有几何、代码或视频等 Domain Plugin 的内部对象模型。
 
 LLM Provider 统一使用 `@earendil-works/pi-ai`。`apps/api/src/providers/llm/` 负责 Pi 模型目录、用户凭据、自定义 Provider 和模型选择的应用级装配，普通业务 Service 与 `@chalk/agent-runtime` 共用这套能力；`agent-runtime` 不另建一套 LLM Provider。
 
@@ -247,7 +260,7 @@ LLM Provider 统一使用 `@earendil-works/pi-ai`。`apps/api/src/providers/llm/
 
 ## 9. 待验证
 
-1. **几何约束层技术尖刺**（最高优先）：不接 LLM，手写一道倍长中线（△ABC，D 为 BC 中点，延长 AD 到 E 使 DE=AD，连 BE），验证四件事：
+1. **候选几何插件的约束层技术尖刺**：只在 V5 规格选择几何作为参考插件后执行。不接 LLM，手写一道倍长中线（△ABC，D 为 BC 中点，延长 AD 到 E 使 DE=AD，连 BE），验证四件事：
    - 拖动 A 点，派生对象是否正确跟随
    - 能否从外部读到 E 的当前坐标（AI 观察输入的前提）
    - 非法构造（三点共线求交点）是否返回结构化错误
@@ -278,6 +291,6 @@ LLM Provider 统一使用 `@earendil-works/pi-ai`。`apps/api/src/providers/llm/
 ### 引入时必须遵守
 
 1. **只做离线 worker**，通过队列调用，不进请求路径
-2. **接口面窄到不需要共享复杂类型**。例如符号验证只收几何 DSL 片段、只回 `{ valid, errors[] }`；Python 侧不需要认识 Beat 结构
+2. **接口面窄到不需要共享复杂类型**。例如符号验证只收几何 DSL 片段、只回 `{ valid, errors[] }`；Python 侧不需要认识 Scene/Action 结构
 3. **schema 单一来源**：zod 定义 → 生成 JSON Schema → `datamodel-code-generator` 生成 Pydantic 模型，接入 CI。禁止两边手写同一结构
 4. **证据账本和 DSL 校验永不跨界**，始终留在 TS

@@ -38,6 +38,7 @@ export {
   classroomGenerationApi,
   classroomGenerationErrorMessage,
   type ClassroomGenerationRun,
+  type ClassroomOutlineStreamEvent,
   type ClassroomGeneratedScene,
   type ClassroomSceneOutline,
 } from './classroom-generation';
@@ -50,6 +51,15 @@ export {
   type QuizAttempt,
   type QuizQuestionResult,
 } from './quiz-attempts';
+export {
+  classroomDiscussionsApi,
+  classroomDiscussionErrorMessage,
+  type ClassroomDiscussion,
+  type ClassroomDiscussionMessage,
+  type ClassroomDiscussionParticipant,
+  type ClassroomDiscussionStreamEvent,
+  type ClassroomDiscussionTarget,
+} from './classroom-discussions';
 export {
   telemetryApi,
   type AgentRun,

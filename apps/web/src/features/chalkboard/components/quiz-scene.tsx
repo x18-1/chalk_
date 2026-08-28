@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, FileQuestion } from "lucide-react";
 import type { QuizQuestion, SceneView } from "@chalk/chalkboard";
-import type { QuizAttempt } from "../../../api";
-import type { QuizAttemptSaveResult } from "../lib/classroom-client";
+import type { ClassroomQuizAttempt, QuizAttemptSaveResult } from "../lib/classroom-client";
 import styles from "../chalkboard.module.css";
 
 export function QuizScene({
@@ -13,11 +12,11 @@ export function QuizScene({
   onSubmit,
 }: {
   scene: SceneView;
-  attempt: QuizAttempt | null;
+  attempt: ClassroomQuizAttempt | null;
   onSubmit(answers: Record<string, string[]>): Promise<QuizAttemptSaveResult>;
 }) {
   const [answers, setAnswers] = useState<Record<string, string[]>>(() => attempt?.answers ?? {});
-  const [savedAttempt, setSavedAttempt] = useState<QuizAttempt | null>(attempt);
+  const [savedAttempt, setSavedAttempt] = useState<ClassroomQuizAttempt | null>(attempt);
   const [submitted, setSubmitted] = useState(Boolean(attempt));
   const [validationMessage, setValidationMessage] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "conflict" | "offline" | "error">(attempt ? "saved" : "idle");

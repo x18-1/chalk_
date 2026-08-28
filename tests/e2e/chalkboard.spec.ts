@@ -1,86 +1,131 @@
 import { expect, test } from '@playwright/test';
+import { classroomRecords, openClassroom, resetClassroomCursor, signIn } from './support/chalkboard';
 
-async function signIn(page: import('@playwright/test').Page) {
-  const email = process.env.DEV_USER_EMAIL ?? 'user@qq.com';
-  const password = process.env.DEV_USER_PASSWORD ?? 'user123';
-  await page.goto('/login');
-  await page.getByLabel('邮箱').fill(email);
-  await page.getByLabel('密码').fill(password);
-  await page.getByRole('button', { name: '进入 Chalk' }).click();
-  await page.waitForURL(/\/chat(?:\?.*)?$/, { timeout: 15_000 });
-}
-
-async function openClassroom(
+async function mockClassroomDiscussion(
   page: import('@playwright/test').Page,
-  title = '等式的性质与移项变号',
-  resetCursor = true,
+  options: { holdRoundUntilAbort?: boolean } = {},
 ) {
-  const records = await classroomRecords(page);
-  const classroom = records.find((record) => record.title === title);
-  expect(classroom, `Expected seeded classroom ${title}`).toBeDefined();
-  if (resetCursor) await resetClassroomCursor(page, classroom!.id);
-  await page.goto(`/chalkboard?id=${encodeURIComponent(classroom!.id)}`);
-  await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 15_000 });
-}
+  const discussionId = '00000000-0000-4000-8000-000000000901';
+  const now = new Date().toISOString();
+  const messages: Array<Record<string, unknown>> = [];
+  let discussion: Record<string, unknown> | null = null;
+  let abortRequested = false;
+  let releaseHeldRound: (() => void) | null = null;
+  const envelope = () => discussion ? { ...discussion, messages } : null;
 
-async function resetClassroomCursor(
-  page: import('@playwright/test').Page,
-  classroomId: string,
-  target: { sceneIndex?: number; actionIndex?: number; mode?: 'idle' | 'paused' } = {},
-) {
-  const apiUrl = (process.env.E2E_API_URL ?? 'http://localhost:3001').replace('127.0.0.1', 'localhost');
-  await page.evaluate(async ({ url, id, target }) => {
-    const listResponse = await fetch(`${url}/classrooms`, { credentials: 'include' });
-    const records = (await listResponse.json() as {
-      classrooms: Array<{ id: string; latestArtifact: { id: string } }>;
-    }).classrooms;
-    const record = records.find((candidate) => candidate.id === id);
-    if (!record) throw new Error(`Classroom ${id} was not found`);
-    const artifactResponse = await fetch(
-      `${url}/classrooms/${id}/artifacts/${record.latestArtifact.id}`,
-      { credentials: 'include' },
-    );
-    const artifact = await artifactResponse.json() as {
-      document: { stage: { id: string }; scenes: Array<{ id: string; order: number }> };
-    };
-    const sessionResponse = await fetch(
-      `${url}/classrooms/${id}/artifacts/${record.latestArtifact.id}/learning-session`,
-      { method: 'POST', credentials: 'include' },
-    );
-    const session = (await sessionResponse.json() as {
-      learningSession: { id: string; revision: number };
-    }).learningSession;
-    const scenes = [...artifact.document.scenes].sort((left, right) => left.order - right.order);
-    const sceneIndex = target.sceneIndex ?? 0;
-    const scene = scenes[sceneIndex];
-    const saveResponse = await fetch(`${url}/learning-sessions/${session.id}/cursor`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        expectedRevision: session.revision,
-        cursor: {
+  await page.route('**/classroom-discussions**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = url.pathname;
+    if (request.method() === 'GET' && path === '/classroom-discussions/current') {
+      const target = discussion?.target as { kind?: string; id?: string } | undefined;
+      const current = discussion?.status === 'active' &&
+        target?.kind === url.searchParams.get('kind') &&
+        target.id === url.searchParams.get('id') &&
+        discussion.sceneId === url.searchParams.get('sceneId')
+        ? envelope()
+        : null;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ discussion: current }) });
+    }
+    if (request.method() === 'POST' && path === '/classroom-discussions') {
+      const input = request.postDataJSON() as { kind: string; id: string; sceneId: string; topic: string; entryCursor?: unknown };
+      messages.splice(0);
+      discussion = {
+        id: discussionId,
+        status: 'active',
+        sceneId: input.sceneId,
+        topic: input.topic,
+        prompt: null,
+        triggerAgentId: null,
+        target: { kind: input.kind, id: input.id },
+        participants: [
+          { id: 'teacher', name: '林老师', role: 'teacher', persona: '耐心引导。' },
+          { id: 'assistant', name: '小助教', role: 'assistant', persona: '用类比补充。' },
+        ],
+        entryCursor: input.entryCursor ?? {
           version: 1,
-          stageId: artifact.document.stage.id,
-          sceneId: scene?.id ?? null,
-          sceneIndex,
-          actionIndex: target.actionIndex ?? 0,
-          mode: target.mode ?? 'idle',
-          completed: false,
+          stageId: '4DuyVUkWv3',
+          sceneId: input.sceneId,
+          sceneIndex: input.sceneId === 'scene_7bGb3criKW' ? 1 : 0,
+          actionIndex: 0, mode: 'paused', completed: false,
         },
-      }),
-    });
-    if (!saveResponse.ok) throw new Error(`Cursor reset failed with ${saveResponse.status}`);
-  }, { url: apiUrl, id: classroomId, target });
-}
-
-async function classroomRecords(page: import('@playwright/test').Page) {
-  const apiUrl = (process.env.E2E_API_URL ?? 'http://localhost:3001').replace('127.0.0.1', 'localhost');
-  return page.evaluate(async (url) => {
-    const response = await fetch(`${url}/classrooms`, { credentials: 'include' });
-    if (!response.ok) throw new Error(`Classroom list failed with ${response.status}`);
-    return (await response.json() as { classrooms: Array<{ id: string; title: string }> }).classrooms;
-  }, apiUrl);
+        createdAt: now,
+        updatedAt: now,
+        finishedAt: null,
+      };
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ discussion: envelope(), created: true }) });
+    }
+    if (request.method() === 'POST' && path === `/classroom-discussions/${discussionId}/rounds/stream`) {
+      const input = request.postDataJSON() as { message: string };
+      const roundId = '00000000-0000-4000-8000-000000000902';
+      const student = {
+        id: '00000000-0000-4000-8000-000000000903', roundId, sequence: 1, sender: 'student',
+        agentId: null, agentName: null, agentRole: null, content: input.message, status: 'completed',
+        actions: [],
+        createdAt: now, updatedAt: now,
+      };
+      const teacherActions = [
+        { id: 'discussion-board-open', type: 'wb_open' },
+        { id: 'discussion-balance-formula', type: 'wb_draw_latex', elementId: 'balance-formula', latex: 'x + 3 = 7', x: 120, y: 90, width: 360, height: 110 },
+      ];
+      const teacher = {
+        id: '00000000-0000-4000-8000-000000000904', roundId, sequence: 2, sender: 'agent',
+        agentId: 'teacher', agentName: '林老师', agentRole: 'teacher', content: '移项不是凭空变号，而是等式两边同时做相反运算。', status: 'completed',
+        actions: teacherActions,
+        createdAt: now, updatedAt: now,
+      };
+      const assistant = {
+        id: '00000000-0000-4000-8000-000000000905', roundId, sequence: 3, sender: 'agent',
+        agentId: 'assistant', agentName: '小助教', agentRole: 'assistant', content: '把等式想成天平，两边一起减去同一个数就更直观。', status: 'completed',
+        actions: [],
+        createdAt: now, updatedAt: now,
+      };
+      messages.splice(0, messages.length, student, teacher, assistant);
+      const frames = [
+        ['round_started', { type: 'round_started', roundId }],
+        ['agent_started', { type: 'agent_started', roundId, messageId: teacher.id, sequence: 2, agentId: 'teacher', agentName: '林老师', agentRole: 'teacher' }],
+        ['action', { type: 'action', roundId, messageId: teacher.id, sequence: 2, agentId: 'teacher', action: teacherActions[0] }],
+        ['action', { type: 'action', roundId, messageId: teacher.id, sequence: 2, agentId: 'teacher', action: teacherActions[1] }],
+        ['text_delta', { type: 'text_delta', roundId, messageId: teacher.id, sequence: 2, delta: '移项不是凭空变号，' }],
+        ['text_delta', { type: 'text_delta', roundId, messageId: teacher.id, sequence: 2, delta: '而是等式两边同时做相反运算。' }],
+        ['message_completed', { type: 'message_completed', roundId, message: teacher }],
+        ['agent_started', { type: 'agent_started', roundId, messageId: assistant.id, sequence: 3, agentId: 'assistant', agentName: '小助教', agentRole: 'assistant' }],
+        ['text_delta', { type: 'text_delta', roundId, messageId: assistant.id, sequence: 3, delta: '把等式想成天平，' }],
+        ['text_delta', { type: 'text_delta', roundId, messageId: assistant.id, sequence: 3, delta: '两边一起减去同一个数就更直观。' }],
+        ['message_completed', { type: 'message_completed', roundId, message: assistant }],
+        ['round_completed', { type: 'round_completed', roundId, status: 'completed' }],
+      ].map(([type, data]) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`).join('');
+      if (options.holdRoundUntilAbort) {
+        await new Promise<void>((resolve) => { releaseHeldRound = resolve; });
+        if (abortRequested) {
+          const abortedFrame = `event: round_completed\ndata: ${JSON.stringify({ type: 'round_completed', roundId, status: 'aborted' })}\n\n`;
+          return route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: abortedFrame });
+        }
+      }
+      return route.fulfill({ status: 200, contentType: 'text/event-stream; charset=utf-8', body: frames });
+    }
+    if (request.method() === 'POST' && path === `/classroom-discussions/${discussionId}/abort`) {
+      abortRequested = true;
+      releaseHeldRound?.();
+      releaseHeldRound = null;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    }
+    if (request.method() === 'GET' && path === `/classroom-discussions/${discussionId}`) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ discussion: envelope() }) });
+    }
+    if (request.method() === 'POST' && path === `/classroom-discussions/${discussionId}/complete`) {
+      discussion = { ...discussion, status: 'completed', finishedAt: now };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          discussion: envelope(),
+          entryCursor: (discussion as { entryCursor: unknown }).entryCursor,
+        }),
+      });
+    }
+    return route.fallback();
+  });
 }
 
 async function openQuizScene(page: import('@playwright/test').Page, resetCursor = true) {
@@ -134,6 +179,7 @@ test('renders classroom Notes without React list-key warnings', async ({ page })
 
 test('opens the real classroom workspace and completes core panel interactions', async ({ page }) => {
   await signIn(page);
+  await mockClassroomDiscussion(page);
   await page.route('**/learning-sessions/*/quiz-attempts', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await route.fulfill({
@@ -143,9 +189,21 @@ test('opens the real classroom workspace and completes core panel interactions',
     });
   });
   await openClassroom(page);
+  await page.getByRole('button', { name: '打开实时黑板' }).click();
+  await expect(page.getByRole('region', { name: '实时黑板' })).toContainText('课堂 Agent 正在准备板书。');
+  await page.getByRole('region', { name: '实时黑板' }).getByRole('button', { name: '收起实时黑板' }).click();
 
   const firstShapePath = page.locator('[class*="canvasShape"] path').first();
   await expect(firstShapePath).toHaveAttribute('d', /\S+/);
+
+  await page.getByRole('tab', { name: '讲义' }).click();
+  await page.getByRole('button', { name: /从此处播放：如果天平两边同时增加/ }).click();
+  await expect(page.getByRole('button', { name: '开始讨论' })).toBeVisible();
+  await page.getByRole('button', { name: '开始讨论' }).click();
+  const authoredDiscussionSidebar = page.getByLabel('课堂侧栏', { exact: true });
+  await expect(authoredDiscussionSidebar.getByText('移项不是凭空变号，而是等式两边同时做相反运算。')).toBeVisible();
+  await authoredDiscussionSidebar.getByRole('button', { name: '结束讨论' }).click();
+  await expect(authoredDiscussionSidebar.getByRole('button', { name: '结束讨论' })).toHaveCount(0);
 
   await page.getByRole('complementary', { name: '课程场景' }).getByRole('button', { name: /两边同时减去同一个数/ }).click();
   const classroomLine = page.locator('[class*="canvasLine"] > path').first();
@@ -153,7 +211,7 @@ test('opens the real classroom workspace and completes core panel interactions',
   await expect(classroomLine).toHaveAttribute('marker-end', /arrow/);
 
   await expect(page.getByRole('complementary', { name: '课程场景' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Notes' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '讲义' })).toBeVisible();
   await expect(page.getByRole('region', { name: '课堂讨论' })).toBeVisible();
   await expect(page.locator('[class*="sceneInteractiveThumbnail"] iframe')).toHaveCount(0);
   await expect(page.locator('[class*="sceneInteractivePreview"]')).toContainText('INTERACTIVE');
@@ -163,18 +221,184 @@ test('opens the real classroom workspace and completes core panel interactions',
   await page.getByRole('button', { name: '收起侧栏' }).click();
   await expect(page.getByRole('button', { name: '展开侧栏' })).toBeVisible();
   await page.getByRole('button', { name: '展开侧栏' }).click();
-  await page.getByRole('tab', { name: 'Chat' }).click();
-  await expect(page.getByText('当老师发起课堂提问时，这里会出现讨论内容。')).toBeVisible();
+  await page.getByRole('tab', { name: '讨论' }).click();
+  await expect(page.getByText('你可以随时提问；当课件发起讨论时，议题也会出现在这里。')).toBeVisible();
   await expect(page.getByText('老师会在播放课堂动作时补充讲解。')).toHaveCount(0);
   const chatInput = page.getByLabel('写下你想追问的地方');
   await chatInput.fill('我想再看一遍移项的依据');
   await page.getByRole('button', { name: '发送' }).click();
-  await expect(page.getByText('我想再看一遍移项的依据')).toBeVisible();
+  const classroomSidebar = page.getByLabel('课堂侧栏', { exact: true });
+  await expect(classroomSidebar.getByText('我想再看一遍移项的依据')).toBeVisible();
+  await expect(classroomSidebar.getByText('移项不是凭空变号，而是等式两边同时做相反运算。')).toBeVisible();
+  await expect(classroomSidebar.getByText('把等式想成天平，两边一起减去同一个数就更直观。')).toBeVisible();
+  await expect(page.getByRole('region', { name: '实时黑板' })).toBeVisible();
+  await expect(page.getByRole('img', { name: '数学公式：x + 3 = 7' })).toBeVisible();
+  await page.getByRole('region', { name: '实时黑板' }).getByRole('button', { name: '收起实时黑板' }).click();
+  await expect(page.getByRole('region', { name: '实时黑板' })).toHaveCount(0);
+  await page.getByRole('button', { name: '打开实时黑板' }).click();
+  await expect(page.getByRole('img', { name: '数学公式：x + 3 = 7' })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '等式的性质与移项变号' })).toBeVisible();
+  await page.getByRole('tab', { name: '讨论' }).click();
+  const restoredClassroomSidebar = page.getByLabel('课堂侧栏', { exact: true });
+  await expect(restoredClassroomSidebar.getByText('移项不是凭空变号，而是等式两边同时做相反运算。')).toBeVisible();
+  await expect(restoredClassroomSidebar.getByText('小助教', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('region', { name: '实时黑板' })).toBeVisible();
+  await expect(page.getByRole('img', { name: '数学公式：x + 3 = 7' })).toBeVisible();
+  await restoredClassroomSidebar.getByRole('button', { name: '结束讨论' }).click();
+  await expect(page.getByText('讨论已结束，已回到发起讨论时的课堂位置。')).toBeVisible();
+  await expect(restoredClassroomSidebar.getByRole('button', { name: '结束讨论' })).toHaveCount(0);
 
   await page.getByRole('button', { name: /小测验/ }).click();
   await expect(page.getByText('用自己的话检查理解')).toBeVisible();
   await page.getByRole('button', { name: '提交答案' }).click();
   await expect(page.locator('p[role="alert"]')).toContainText('请先完成每一道题');
+});
+
+test('keeps discussion speech queued and asks before stopping it for a scene switch', async ({ page }) => {
+  await page.addInitScript(() => {
+    const calls = { cancelCount: 0, spoken: [] as Array<{ text: string; utterance: TestUtterance }> };
+    class TestUtterance {
+      lang = '';
+      rate = 1;
+      volume = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(readonly text: string) {}
+    }
+    Object.defineProperty(window, '__chalkDiscussionSpeechCalls', { value: calls });
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: TestUtterance });
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        cancel: () => { calls.cancelCount += 1; },
+        pause: () => undefined,
+        resume: () => undefined,
+        getVoices: () => [],
+        speak: (utterance: TestUtterance) => calls.spoken.push({ text: utterance.text, utterance }),
+      },
+    });
+  });
+  await signIn(page);
+  await mockClassroomDiscussion(page);
+  await openClassroom(page);
+  await page.evaluate(() => {
+    (window as unknown as {
+      __chalkDiscussionSpeechCalls: { cancelCount: number };
+    }).__chalkDiscussionSpeechCalls.cancelCount = 0;
+  });
+
+  await page.getByRole('tab', { name: '讨论' }).click();
+  await page.getByLabel('写下你想追问的地方').fill('为什么移项要变号？');
+  await page.getByRole('button', { name: '发送' }).click();
+
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { spoken: Array<{ text: string }> };
+    }
+  ).__chalkDiscussionSpeechCalls.spoken.map((entry) => entry.text))).toEqual([
+    '移项不是凭空变号，而是等式两边同时做相反运算。',
+  ]);
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { cancelCount: number };
+    }
+  ).__chalkDiscussionSpeechCalls.cancelCount)).toBe(0);
+
+  const quizScene = page.getByRole('complementary', { name: '课程场景' }).getByRole('button', { name: /小测验/ });
+  await quizScene.click();
+  const switchDialog = page.getByRole('dialog', { name: /切换到“.*小测验.*”/ });
+  await expect(switchDialog).toBeVisible();
+  await expect(switchDialog).toContainText('切换将停止这一轮回答和语音');
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { cancelCount: number };
+    }
+  ).__chalkDiscussionSpeechCalls.cancelCount)).toBe(0);
+
+  await switchDialog.getByRole('button', { name: '留在当前页' }).click();
+  await expect(switchDialog).toHaveCount(0);
+  await expect(quizScene).not.toHaveAttribute('aria-current', 'page');
+  await expect(quizScene).toBeFocused();
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { cancelCount: number };
+    }
+  ).__chalkDiscussionSpeechCalls.cancelCount)).toBe(0);
+
+  await page.evaluate(() => {
+    const first = (window as unknown as {
+      __chalkDiscussionSpeechCalls: { spoken: Array<{ utterance: { onend: (() => void) | null } }> };
+    }).__chalkDiscussionSpeechCalls.spoken[0];
+    first?.utterance.onend?.();
+  });
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { spoken: Array<{ text: string }> };
+    }
+  ).__chalkDiscussionSpeechCalls.spoken.map((entry) => entry.text))).toEqual([
+    '移项不是凭空变号，而是等式两边同时做相反运算。',
+    '把等式想成天平，两边一起减去同一个数就更直观。',
+  ]);
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { cancelCount: number };
+    }
+  ).__chalkDiscussionSpeechCalls.cancelCount)).toBe(0);
+
+  await quizScene.click();
+  await page.getByRole('dialog', { name: /切换到“.*小测验.*”/ }).getByRole('button', { name: '停止并切换' }).click();
+  await expect(quizScene).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('用自己的话检查理解')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkDiscussionSpeechCalls: { cancelCount: number };
+    }
+  ).__chalkDiscussionSpeechCalls.cancelCount)).toBeGreaterThan(0);
+});
+
+test('allows switching slides after a discussion round is idle even while its Session remains resumable', async ({ page }) => {
+  await signIn(page);
+  await mockClassroomDiscussion(page);
+  await openClassroom(page);
+  await page.getByRole('button', { name: '静音' }).click();
+  await page.getByRole('tab', { name: '讨论' }).click();
+  await page.getByLabel('写下你想追问的地方').fill('为什么移项要变号？');
+  await page.getByRole('button', { name: '发送' }).click();
+  await expect(page.getByLabel('课堂侧栏', { exact: true }).getByText('把等式想成天平，两边一起减去同一个数就更直观。')).toBeVisible();
+
+  const nextScene = page.getByRole('complementary', { name: '课程场景' }).getByRole('button', { name: /两边同时减去同一个数/ });
+  await nextScene.click();
+
+  await expect(nextScene).toHaveAttribute('aria-current', 'page');
+  const originalScene = page.getByRole('complementary', { name: '课程场景' }).getByRole('button', { name: /天平与等式/ }).first();
+  await originalScene.click();
+  await expect(originalScene).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('tab', { name: '讨论' }).click();
+  await expect(page.getByLabel('课堂侧栏', { exact: true }).getByText('把等式想成天平，两边一起减去同一个数就更直观。')).toBeVisible();
+});
+
+test('asks before aborting a streaming discussion round to switch scenes', async ({ page }) => {
+  await signIn(page);
+  await mockClassroomDiscussion(page, { holdRoundUntilAbort: true });
+  await openClassroom(page);
+  await page.getByRole('button', { name: '静音' }).click();
+  await page.getByRole('tab', { name: '讨论' }).click();
+  await page.getByLabel('写下你想追问的地方').fill('这个回答可以再展开一点吗？');
+  await page.getByRole('button', { name: '发送' }).click();
+
+  const nextScene = page.getByRole('complementary', { name: '课程场景' }).getByRole('button', { name: /两边同时减去同一个数/ });
+  await nextScene.click();
+  const switchDialog = page.getByRole('dialog', { name: /切换到“.*两边同时减去同一个数.*”/ });
+  await expect(switchDialog).toBeVisible();
+
+  await switchDialog.getByRole('button', { name: '留在当前页' }).click();
+  await expect(nextScene).not.toHaveAttribute('aria-current', 'page');
+
+  await nextScene.click();
+  await page.getByRole('dialog', { name: /切换到“.*两边同时减去同一个数.*”/ }).getByRole('button', { name: '停止并切换' }).click();
+  await expect(nextScene).toHaveAttribute('aria-current', 'page');
 });
 
 test('renders supported slide elements and exposes unsupported imported content', async ({ page }) => {
@@ -301,14 +525,19 @@ test('renders supported slide elements and exposes unsupported imported content'
 test('autoplay advances through authored actions after starting the classroom', async ({ page }) => {
   await signIn(page);
   await openClassroom(page);
+  await page.getByRole('tab', { name: '讲义' }).click();
 
-  await expect(page.getByText('第 1 页 · 1 / 9')).toBeVisible();
+  const initialAction = page.locator('button[aria-current="step"]');
+  await expect(initialAction).toBeVisible();
+  const initialActionLabel = await initialAction.getAttribute('aria-label');
+  expect(initialActionLabel).not.toBeNull();
+  const initialActionButton = page.getByRole('button', { name: initialActionLabel! });
   await page.getByRole('button', { name: '播放', exact: true }).click();
 
   // Speech is backed by the browser adapter in this test environment. The
   // classroom must still advance after the action completes, rather than
   // leaving playback stuck on the first cursor.
-  await expect(page.getByText('第 1 页 · 1 / 9')).toBeHidden({ timeout: 15_000 });
+  await expect(initialActionButton).not.toHaveAttribute('aria-current', 'step', { timeout: 15_000 });
 });
 
 test('uses browser speech for authored narration and exposes pause, resume, and cancel controls', async ({ page }) => {
@@ -388,6 +617,7 @@ test('starts the lecture from the note paragraph selected by the learner', async
   await signIn(page);
   await openClassroom(page);
 
+  await page.getByRole('tab', { name: '讲义' }).click();
   const notes = page.getByRole('complementary', { name: '课堂侧栏' });
   const paragraphs = notes.getByRole('button', { name: /^从此处播放：/ });
   await expect(paragraphs).not.toHaveCount(0);
@@ -446,7 +676,7 @@ test('restores the same artifact cursor in a new authenticated browser context',
   await signIn(page);
   await openClassroom(page);
   await page.getByRole('button', { name: '下一页', exact: true }).click();
-  await expect(page.getByText(/第 2 页/)).toBeVisible();
+  await expect(page.getByText('第 2 / 5 节', { exact: true })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('进度已保存');
 
   const secondContext = await browser.newContext();
@@ -454,7 +684,7 @@ test('restores the same artifact cursor in a new authenticated browser context',
     const secondPage = await secondContext.newPage();
     await signIn(secondPage);
     await openClassroom(secondPage, '等式的性质与移项变号', false);
-    await expect(secondPage.getByText(/第 2 页/)).toBeVisible();
+    await expect(secondPage.getByText('第 2 / 5 节', { exact: true })).toBeVisible();
   } finally {
     await secondContext.close();
   }
@@ -463,7 +693,7 @@ test('restores the same artifact cursor in a new authenticated browser context',
 test('recovers the newer server cursor instead of overwriting it after a revision conflict', async ({ page }) => {
   await signIn(page);
   await openClassroom(page);
-  const apiUrl = (process.env.E2E_API_URL ?? 'http://localhost:3001').replace('127.0.0.1', 'localhost');
+  const apiUrl = process.env.E2E_API_URL ?? 'http://localhost:3001';
   await page.evaluate(async (url) => {
     const records = (await (await fetch(`${url}/classrooms`, { credentials: 'include' })).json() as {
       classrooms: Array<{ id: string; title: string; latestArtifact: { id: string } }>;
@@ -501,7 +731,7 @@ test('recovers the newer server cursor instead of overwriting it after a revisio
 
   await page.getByRole('button', { name: '下一页', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('已恢复较新进度');
-  await expect(page.getByText(/第 3 页/)).toBeVisible();
+  await expect(page.getByText('第 3 / 5 节', { exact: true })).toBeVisible();
   await expect(page.getByText('检测到另一处设备保存了更新进度')).toBeVisible();
 });
 
@@ -510,12 +740,12 @@ test('marks offline cursor changes as unsaved and retries after reconnecting', a
   await openClassroom(page);
   await page.context().setOffline(true);
   await page.getByRole('button', { name: '下一页', exact: true }).click();
-  await expect(page.getByText(/第 2 页/)).toBeVisible();
+  await expect(page.getByText('第 2 / 5 节', { exact: true })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('离线 · 进度未保存');
 
   await page.context().setOffline(false);
   await page.getByRole('button', { name: '下一页', exact: true }).click();
-  await expect(page.getByText(/第 3 页/)).toBeVisible();
+  await expect(page.getByText('第 3 / 5 节', { exact: true })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('进度已保存');
 });
 
@@ -553,7 +783,7 @@ test('keeps quiz answers recoverable across offline failure and revision conflic
   await page.getByRole('button', { name: /^(提交答案|重新提交)$/ }).click();
   await expect(page.getByText('已保存，可以修改后再次提交。')).toBeVisible();
 
-  const apiUrl = (process.env.E2E_API_URL ?? 'http://localhost:3001').replace('127.0.0.1', 'localhost');
+  const apiUrl = process.env.E2E_API_URL ?? 'http://localhost:3001';
   await page.evaluate(async (url) => {
     const records = (await (await fetch(`${url}/classrooms`, { credentials: 'include' })).json() as {
       classrooms: Array<{ id: string; title: string; latestArtifact: { id: string } }>;
@@ -605,6 +835,7 @@ test('keeps playback controls and interactive widgets without exposing a student
   await expect(page.getByRole('img', { name: '可书写白板' })).toHaveCount(0);
 
   await page.getByRole('button', { name: '信号合成实验室' }).click();
+  await page.getByRole('tab', { name: '讲义' }).click();
   await expect(page.getByLabel('聚光').first()).toBeVisible();
   await expect(page.getByLabel('互动状态').first()).toBeVisible();
   const frame = page.locator('[class*="interactiveFrameWrap"] iframe');
@@ -631,7 +862,7 @@ test('adapts the classroom to a phone viewport without horizontal overflow', asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
   await page.getByRole('button', { name: '展开侧栏' }).click();
-  await expect(page.getByRole('tab', { name: 'Notes' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: '讲义' })).toBeVisible();
   await page.getByRole('button', { name: '收起侧栏' }).click();
   await expect(page.getByRole('button', { name: '播放', exact: true })).toBeVisible();
 });
@@ -685,8 +916,9 @@ test('switches classroom from the sidebar without a full page reload', async ({ 
   await target.click();
   await expect(page).toHaveURL(/\/chalkboard\?id=[0-9a-f-]{36}$/);
   await expect(page.getByRole('heading', { name: '傅里叶变换入门' })).toBeVisible();
-  await expect(page.locator('[class*="participantAvatar"] img')).toHaveCount(0);
-  await expect(page.locator('[class*="participantAvatar"]')).not.toHaveCount(0);
+  const participants = page.getByLabel('本节课参与者');
+  await expect(participants.locator('img')).toHaveCount(0);
+  await expect(participants.locator('i')).not.toHaveCount(0);
 });
 
 test('imports a classroom archive and opens the returned Classroom Artifact', async ({ page }) => {
@@ -716,8 +948,9 @@ test('imports a classroom archive and opens the returned Classroom Artifact', as
   expect(uploadedFilename).toContain('函数入门.chalk.zip');
 });
 
-test('restores an unfinished Generation Run after refresh', async ({ page }) => {
+test('restores an unfinished classroom from its stable sidebar entry after refresh', async ({ page }) => {
   await signIn(page);
+  const classroomId = '00000000-0000-4000-8000-000000000300';
   const outline = {
     languageDirective: '使用简体中文教学。',
     courseTitle: '加减综合练习',
@@ -732,12 +965,16 @@ test('restores an unfinished Generation Run after refresh', async ({ page }) => 
   };
   const failedRun = {
     id: '00000000-0000-4000-8000-000000000301',
+    classroomId,
     draftId: '00000000-0000-4000-8000-000000000302',
-    stage: 'scene_content',
+    outlineRevisionId: '00000000-0000-4000-8000-000000000304',
+    draftStatus: 'progressive_failed',
+    stage: 'progressive',
     status: 'failed',
     attempt: 2,
     requirements: '生成一堂加减法练习课',
     context: {},
+    candidateVersion: "a".repeat(64),
     prompt: null,
     model: null,
     outline,
@@ -749,6 +986,7 @@ test('restores an unfinished Generation Run after refresh', async ({ page }) => 
       outline: outline.outlines[0],
       content: null,
       actions: null,
+      phase: 'content',
       status: 'failed',
       attempt: 1,
       prompt: { id: 'classroom-interactive-content', revision: 'e'.repeat(64) },
@@ -759,32 +997,53 @@ test('restores an unfinished Generation Run after refresh', async ({ page }) => 
     }],
     mediaTasks: [],
     progress: { total: 1, completed: 0, failed: 1, currentSceneId: null },
+    previewReady: false,
+    publishReady: false,
     error: { code: 'CLASSROOM_INTERACTIVE_CONTENT_INCOMPLETE' },
     cancelRequested: false,
     startedAt: new Date().toISOString(),
     finishedAt: new Date().toISOString(),
   };
-  await page.route('**/classroom-generation-runs/current', async (route) => route.fulfill({
+  await page.route('**/classrooms', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ classrooms: [{
+      id: classroomId,
+      title: outline.courseTitle,
+      description: failedRun.requirements,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      latestArtifact: null,
+      generation: {
+        runId: failedRun.id,
+        draftId: failedRun.draftId,
+        stage: failedRun.stage,
+        status: failedRun.status,
+        draftStatus: failedRun.draftStatus,
+      },
+    }] }),
+  }));
+  await page.route(`**/classroom-generation-runs/${failedRun.id}`, async (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ generationRun: failedRun }),
   }));
 
-  await page.goto('/chalkboard');
-  const continueGeneration = page.getByRole('button', { name: '继续课堂生成' });
-  await expect(continueGeneration).toBeVisible();
-  await continueGeneration.click();
-  await expect(page.getByRole('heading', { name: '加减综合练习' })).toBeVisible();
-  await expect(page.getByText('互动页面没有完整结束，模型返回可能不完整；重试只会补生成这个场景。')).toBeVisible();
+  await page.goto(`/chalkboard?id=${classroomId}`);
+  await expect(page.getByRole('link', { name: /加减综合练习.*生成暂停/ })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: '加减综合练习' }).last()).toBeVisible();
+  await expect(page.getByText('互动场景没有通过完整性校验；重试会从该 Scene 的 content 开始。')).toBeVisible();
   await expect(page.getByRole('button', { name: '补生成未完成场景' })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByRole('button', { name: '继续课堂生成' })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/chalkboard\\?id=${classroomId}$`));
+  await expect(page.getByRole('heading', { name: '加减综合练习' }).last()).toBeVisible();
 });
 
 test('keeps the primary action visible in a long classroom generation panel', async ({ page }) => {
   await page.setViewportSize({ width: 1365, height: 640 });
   await signIn(page);
+  const classroomId = '00000000-0000-4000-8000-000000000400';
   const outlines = Array.from({ length: 12 }, (_, index) => ({
     id: `scene_${index + 1}`,
     type: index % 4 === 2 ? 'interactive' : index % 4 === 3 ? 'quiz' : 'slide',
@@ -796,7 +1055,10 @@ test('keeps the primary action visible in a long classroom generation panel', as
   const now = new Date().toISOString();
   const completedMediaRun = {
     id: '00000000-0000-4000-8000-000000000401',
+    classroomId,
     draftId: '00000000-0000-4000-8000-000000000402',
+    outlineRevisionId: '00000000-0000-4000-8000-000000000403',
+    draftStatus: 'media_ready',
     stage: 'media_tasks',
     status: 'completed',
     attempt: 1,
@@ -840,32 +1102,76 @@ test('keeps the primary action visible in a long classroom generation panel', as
       finishedAt: now,
     }],
     progress: { total: 1, completed: 1, failed: 0, currentSceneId: null },
+    previewReady: false,
+    publishReady: true,
     error: null,
     cancelRequested: false,
     startedAt: now,
     finishedAt: now,
   };
-  await page.route('**/classroom-generation-runs/current', async (route) => route.fulfill({
+  await page.route('**/classrooms', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ classrooms: [{
+      id: classroomId,
+      title: completedMediaRun.outline.courseTitle,
+      description: completedMediaRun.requirements,
+      createdAt: now,
+      updatedAt: now,
+      latestArtifact: null,
+      generation: {
+        runId: completedMediaRun.id,
+        draftId: completedMediaRun.draftId,
+        stage: completedMediaRun.stage,
+        status: completedMediaRun.status,
+        draftStatus: completedMediaRun.draftStatus,
+      },
+    }] }),
+  }));
+  await page.route(`**/classroom-generation-runs/${completedMediaRun.id}`, async (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ generationRun: completedMediaRun }),
   }));
 
-  await page.goto('/chalkboard');
-  await page.getByRole('button', { name: '继续课堂生成' }).click();
-  const dialog = page.getByRole('dialog');
+  await page.goto(`/chalkboard?id=${classroomId}`);
+  const panel = page.getByRole('region', { name: '长课堂媒体发布检查' });
   const publish = page.getByRole('button', { name: '校验并发布课堂' });
 
   await expect(publish).toBeInViewport();
-  await dialog.hover();
+  await panel.hover();
   await page.mouse.wheel(0, 50_000);
   await expect(publish).toBeInViewport();
   await page.mouse.wheel(0, -50_000);
   await expect(publish).toBeInViewport();
 });
 
-test('polls Generation Runs, publishes the completed draft, and opens its artifact', async ({ page }) => {
+test('opens the draft classroom when Scene 1 is ready, keeps teaching while later scenes generate, and publishes it', async ({ page }) => {
+  await page.addInitScript(() => {
+    const calls = { spoken: [] as Array<{ text: string; utterance: TestUtterance }> };
+    class TestUtterance {
+      lang = '';
+      rate = 1;
+      volume = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(readonly text: string) {}
+    }
+    Object.defineProperty(window, '__chalkProgressiveSpeechCalls', { value: calls });
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: TestUtterance });
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: {
+        cancel: () => undefined,
+        pause: () => undefined,
+        resume: () => undefined,
+        getVoices: () => [],
+        speak: (utterance: TestUtterance) => calls.spoken.push({ text: utterance.text, utterance }),
+      },
+    });
+  });
   await signIn(page);
+  await mockClassroomDiscussion(page);
   const outlineRunId = '00000000-0000-4000-8000-000000000101';
   const contentRunId = '00000000-0000-4000-8000-000000000103';
   const actionsRunId = '00000000-0000-4000-8000-000000000104';
@@ -895,20 +1201,48 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
       { id: 'scene_3', type: 'interactive', title: '探索斜率变化', description: '调整状态观察图像。', keyPoints: ['调整斜率', '观察变化'], order: 3, widgetType: 'simulation', widgetOutline: { concept: 'linear_slope', keyVariables: ['slope'] } },
     ],
   };
+  const generatedContent = (scene: (typeof outline.outlines)[number]) => {
+    if (scene.type === 'slide') {
+      return {
+        type: 'slide',
+        canvas: {
+          viewportSize: 1000,
+          viewportRatio: 0.5625,
+          elements: [
+            { id: 'heading', type: 'text', left: 80, top: 80, width: 700, height: 100, content: '勾股定理' },
+            { id: 'gen_img_1', type: 'image', left: 580, top: 210, width: 300, height: 220, src: generationCanComplete ? 'media/generated/scene-1.png' : 'gen_img_1' },
+          ],
+        },
+      };
+    }
+    if (scene.type === 'quiz') {
+      return {
+        type: 'quiz',
+        questions: [{ id: 'q1', type: 'single', question: '哪一条是斜边？', options: [{ value: 'a', label: '直角对边' }], answer: ['a'], analysis: '斜边与直角相对。' }],
+      };
+    }
+    return { type: 'interactive', url: '', html: generatedInteractiveHtml, widgetType: 'simulation', widgetConfig: { type: 'simulation', concept: 'linear_slope' } };
+  };
   const run = (overrides: Record<string, unknown>) => ({
     id: outlineRunId,
     draftId: '00000000-0000-4000-8000-000000000102',
+    classroomId: publishedClassroomId,
     stage: 'outline',
     status: 'queued',
     attempt: 1,
     requirements: '请为初一学生生成一堂勾股定理入门课',
     context: {},
+    candidateVersion: "a".repeat(64),
     prompt: { id: 'classroom-outline', revision: 'a'.repeat(64) },
     model: null,
     outline: null,
     scenes: [],
     mediaTasks: [],
     progress: null,
+    outlineRevisionId: null,
+    draftStatus: 'generating',
+    previewReady: false,
+    publishReady: false,
     error: null,
     cancelRequested: false,
     startedAt: null,
@@ -916,7 +1250,10 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
     ...overrides,
   });
   let outlinePolls = 0;
-  let contentPolls = 0;
+  let outlineConfirmations = 0;
+  let outlineCanComplete = false;
+  let generationStarted = false;
+  let generationCanComplete = false;
   let actionsPolls = 0;
   let mediaPolls = 0;
   let published = false;
@@ -927,12 +1264,35 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     latestArtifact: { id: publishedArtifactId, version: 1, contentHash: 'd'.repeat(64), createdAt: new Date().toISOString() },
+    generation: null,
   };
   await page.route('**/classrooms**', async (route) => {
-    if (!published) return route.fallback();
     const path = new URL(route.request().url()).pathname;
     if (path === '/classrooms') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ classrooms: [publishedSummary] }) });
+      if (published) {
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ classrooms: [publishedSummary] }) });
+      }
+      if (generationStarted) {
+        const progressive = outlineConfirmations > 0;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            classrooms: [{
+              ...publishedSummary,
+              latestArtifact: null,
+              generation: {
+                runId: progressive ? contentRunId : outlineRunId,
+                draftId: '00000000-0000-4000-8000-000000000102',
+                stage: progressive ? 'progressive' : 'outline',
+                status: progressive ? 'running' : 'queued',
+                draftStatus: progressive ? 'preview_ready' : 'generating',
+              },
+            }],
+          }),
+        });
+      }
+      return route.fallback();
     }
     if (path === `/classrooms/${publishedClassroomId}/artifacts/${publishedArtifactId}`) {
       return route.fulfill({
@@ -1071,7 +1431,22 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
         image: { providerId: 'seedream', model: 'doubao-seedream-4-5-251128', aspectRatio: '16:9' },
         video: { providerId: 'grok', model: 'grok-imagine-video', aspectRatio: '16:9', durationSeconds: 6, resolution: '720p' },
       });
+      generationStarted = true;
       generationRun = run({});
+    } else if (request.method() === 'GET' && path.endsWith(`/${outlineRunId}/outline-events`)) {
+      while (!outlineCanComplete) await new Promise((resolve) => setTimeout(resolve, 20));
+      const events = [
+        { id: 1, data: { type: 'languageDirective', data: outline.languageDirective } },
+        { id: 2, data: { type: 'courseTitle', data: outline.courseTitle } },
+        ...outline.outlines.map((scene, index) => ({ id: index + 3, data: { type: 'outline', data: scene, index } })),
+        { id: 6, data: { type: 'done', ...outline } },
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream; charset=utf-8',
+        body: events.map((event) => `id: ${event.id}\ndata: ${JSON.stringify(event.data)}\n\n`).join(''),
+      });
+      return;
     } else if (request.method() === 'GET' && path.endsWith(`/${outlineRunId}`)) {
       outlinePolls += 1;
       if (outlinePolls === 1) {
@@ -1082,6 +1457,9 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
         });
         return;
       }
+      if (!outlineCanComplete) {
+        generationRun = run({ status: 'running', startedAt: new Date().toISOString() });
+      } else {
       generationRun = run({
         status: 'completed',
         model: { providerId: 'deepseek', modelId: 'deepseek-chat' },
@@ -1089,6 +1467,51 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
         startedAt: new Date().toISOString(),
         finishedAt: new Date().toISOString(),
       });
+      }
+    } else if (request.method() === 'POST' && path.endsWith(`/${outlineRunId}/outline-revisions`)) {
+      outlineConfirmations += 1;
+      const payload = request.postDataJSON() as { idempotencyKey: string; candidateVersion: string; outline: typeof outline };
+      expect(payload.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/);
+      expect(payload.candidateVersion).toBe("a".repeat(64));
+      expect(payload.outline.outlines.map((scene) => scene.type).sort()).toEqual(['interactive', 'quiz', 'slide']);
+      expect(payload.outline.outlines.map((scene) => scene.order)).toEqual([1, 2, 3]);
+      generationRun = run({
+        id: contentRunId,
+        outlineRevisionId: '00000000-0000-4000-8000-000000000109',
+        draftStatus: 'generating_progressive',
+        stage: 'progressive',
+        status: 'queued',
+        prompt: null,
+        outline: payload.outline,
+        scenes: payload.outline.outlines.map((scene, index) => ({
+          id: `00000000-0000-4000-8000-00000000020${index}`,
+          outlineId: scene.id,
+          type: scene.type,
+          order: scene.order,
+          outline: scene,
+          content: null,
+          actions: null,
+          status: 'pending',
+          phase: 'content',
+          attempt: 0,
+          prompt: null,
+          model: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null,
+        })),
+        progress: { total: 3, completed: 0, failed: 0, currentSceneId: null, media: { total: 0, completed: 0, failed: 0 } },
+      });
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          created: true,
+          outlineRevision: { id: '00000000-0000-4000-8000-000000000109', number: 1, contentHash: 'f'.repeat(64), createdAt: new Date().toISOString() },
+          generationRun,
+        }),
+      });
+      return;
     } else if (request.method() === 'POST' && path.endsWith(`/${outlineRunId}/scene-content`)) {
       generationRun = run({
         id: contentRunId,
@@ -1114,11 +1537,13 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
         progress: { total: 3, completed: 0, failed: 0, currentSceneId: null },
       });
     } else if (request.method() === 'GET' && path.endsWith(`/${contentRunId}`)) {
-      contentPolls += 1;
+      const complete = generationCanComplete;
       generationRun = run({
         id: contentRunId,
-        stage: 'scene_content',
-        status: contentPolls >= 2 ? 'completed' : 'running',
+        outlineRevisionId: '00000000-0000-4000-8000-000000000109',
+        draftStatus: complete ? 'media_ready' : 'preview_ready',
+        stage: 'progressive',
+        status: complete ? 'completed' : 'running',
         prompt: null,
         outline,
         scenes: outline.outlines.map((scene, index) => ({
@@ -1127,23 +1552,37 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
           type: scene.type,
           order: scene.order,
           outline: scene,
-          content: contentPolls >= 2 || index === 0 ? { type: scene.type } : null,
-          status: contentPolls >= 2 || index === 0 ? 'completed' : 'running',
+          content: complete || index === 0 ? generatedContent(scene) : null,
+          actions: complete || index === 0 ? [{ id: `action_${index}`, type: 'speech', text: '课堂讲解' }] : null,
+          status: complete || index === 0 ? 'completed' : 'running',
+          phase: complete || index === 0 ? 'completed' : 'content',
           attempt: 1,
           prompt: { id: `classroom-${scene.type}-content`, revision: 'b'.repeat(64) },
           model: { providerId: 'deepseek', modelId: 'deepseek-chat' },
           error: null,
           startedAt: new Date().toISOString(),
-          finishedAt: contentPolls >= 2 || index === 0 ? new Date().toISOString() : null,
+          finishedAt: complete || index === 0 ? new Date().toISOString() : null,
         })),
         progress: {
           total: 3,
-          completed: contentPolls >= 2 ? 3 : 1,
+          completed: complete ? 3 : 1,
           failed: 0,
-          currentSceneId: contentPolls >= 2 ? null : 'scene_2',
+          currentSceneId: complete ? null : 'scene_2',
+          media: { total: 1, completed: complete ? 1 : 0, failed: 0 },
         },
+        mediaTasks: [{
+          id: '00000000-0000-4000-8000-000000000301', sceneId: '00000000-0000-4000-8000-000000000200',
+          actionId: null, elementId: 'gen_img_1', providerTaskId: null, kind: 'image',
+          status: complete ? 'completed' : 'running', attempt: 1, providerId: 'seedream',
+          modelId: 'doubao-seedream-4-5-251128', mediaRef: complete ? 'media/generated/scene-1.png' : null,
+          url: complete ? 'https://storage.test/classroom-drafts/scene-1.png' : null,
+          contentType: complete ? 'image/png' : null, size: complete ? 68 : null, error: null,
+          startedAt: new Date().toISOString(), finishedAt: complete ? new Date().toISOString() : null,
+        }],
+        previewReady: true,
+        publishReady: complete,
         startedAt: new Date().toISOString(),
-        finishedAt: contentPolls >= 2 ? new Date().toISOString() : null,
+        finishedAt: complete ? new Date().toISOString() : null,
       });
     } else if (request.method() === 'POST' && path.endsWith(`/${contentRunId}/scene-actions`)) {
       generationRun = run({
@@ -1248,7 +1687,7 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
         progress: { total: 0, completed: 0, failed: 0, currentSceneId: null },
         startedAt: new Date().toISOString(), finishedAt: complete ? new Date().toISOString() : null,
       });
-    } else if (request.method() === 'POST' && path.endsWith(`/${mediaRunId}/publish`)) {
+    } else if (request.method() === 'POST' && (path.endsWith(`/${mediaRunId}/publish`) || path.endsWith(`/${contentRunId}/publish`))) {
       published = true;
       await route.fulfill({
         status: 201,
@@ -1265,6 +1704,11 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
       body: JSON.stringify({ generationRun }),
     });
   });
+  await page.route('https://storage.test/**', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'image/svg+xml',
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="220"><rect width="300" height="220" fill="#ead8c8"/></svg>',
+  }));
   await page.route(`**/learning-sessions/00000000-0000-4000-8000-000000000108/quiz-attempts`, async (route) => {
     await route.fulfill({
       status: 200,
@@ -1303,31 +1747,66 @@ test('polls Generation Runs, publishes the completed draft, and opens its artifa
   await page.getByRole('checkbox', { name: '生成视频' }).check();
   await page.getByLabel('课堂要求').fill('请为初一学生生成一堂勾股定理入门课');
   await page.getByRole('button', { name: '生成大纲' }).click();
-  await expect(page.getByText('任务已进入队列')).toBeVisible();
-  await page.getByRole('button', { name: '关闭面板' }).click();
-  await expect(page.getByRole('button', { name: '课堂生成中' })).toBeVisible();
-  await page.getByRole('button', { name: '课堂生成中' }).click();
+  await expect(page).toHaveURL(new RegExp(`/chalkboard\\?id=${publishedClassroomId}$`), { timeout: 5_000 });
 
-  await expect(page.getByRole('heading', { name: '勾股定理入门' })).toBeVisible({ timeout: 5_000 });
+  const outlineWaitingPanel = page.getByRole('region', { name: '正在搭建课堂大纲' });
+  await expect(outlineWaitingPanel).toBeVisible();
+  const waitingPanelBox = await outlineWaitingPanel.boundingBox();
+  const stopButtonBox = await page.getByRole('button', { name: '停止生成' }).boundingBox();
+  expect(waitingPanelBox?.height).toBeLessThanOrEqual(360);
+  expect(stopButtonBox?.height).toBeLessThanOrEqual(44);
+  outlineCanComplete = true;
+
+  await expect(page.getByRole('heading', { name: '勾股定理入门' }).last()).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText('认识直角三角形')).toBeVisible();
   await expect(page.getByText('检查边长关系')).toBeVisible();
-  await page.getByRole('button', { name: '逐场景生成内容' }).click();
-  await expect(page.getByRole('region', { name: '课堂内容生成进度' })).toContainText('0 / 3');
-  await expect(page.getByRole('region', { name: '课堂内容生成进度' })).toContainText('3 / 3', { timeout: 5_000 });
-  await expect(page.getByText('场景内容已保存')).toBeVisible();
-  await expect(page.getByText('当前已完成 slide、quiz 和 interactive 内容；下一步可以逐场景生成教师动作。')).toBeVisible();
-  await page.getByRole('button', { name: '逐场景生成动作' }).click();
-  await expect(page.getByRole('region', { name: '课堂动作生成进度' })).toContainText('0 / 3');
-  await expect(page.getByRole('region', { name: '课堂动作生成进度' })).toContainText('3 / 3', { timeout: 5_000 });
-  await expect(page.getByText('课堂动作已保存')).toBeVisible();
-  await expect(page.getByText('slide、quiz 和 interactive 的内容与教师动作已保存；媒体、最终校验和课堂发布尚未开始。')).toBeVisible();
-  await expect(page.getByLabel('语音 Provider')).toHaveCount(0);
-  await expect(page.getByLabel('教师声音')).toHaveCount(0);
-  await page.getByRole('button', { name: '确认课堂媒体' }).click();
-  await expect(page.getByRole('region', { name: '课堂媒体生成进度' })).toContainText('0 / 0');
-  await expect(page.getByRole('region', { name: '课堂媒体生成进度' })).toContainText('未规划额外图片或视频，媒体阶段无需生成内容。');
-  await expect(page.getByText('课堂媒体已保存')).toBeVisible();
-  await expect(page.locator('footer').getByText('课堂没有规划额外图片或视频，可以继续校验并发布。')).toBeVisible();
+  await page.waitForTimeout(3_000);
+  expect(outlineConfirmations).toBe(0);
+  await expect(page.getByRole('button', { name: '审阅大纲' })).toBeVisible();
+  await page.getByRole('button', { name: '审阅大纲' }).click();
+  await expect(page.getByRole('region', { name: '课堂大纲编辑器' })).toBeVisible();
+  await page.getByLabel('上移“检查边长关系”').click();
+  await expect(page.getByRole('region', { name: '课堂大纲编辑器' }).getByText('02')).toBeVisible();
+  await page.getByRole('button', { name: '确认并生成整堂课' }).click();
+  await expect(page.getByRole('region', { name: '整堂课生成进度' })).toContainText('0 / 3');
+  await expect(page).toHaveURL(new RegExp(`/chalkboard\\?id=${publishedClassroomId}$`), { timeout: 5_000 });
+  await expect(page.getByRole('heading', { name: '勾股定理入门' }).last()).toBeVisible();
+  await expect(page.getByText('勾股定理').last()).toBeVisible();
+  await expect(page.getByText('第 1 / 3 节', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: /勾股定理入门.*可开始.*其余生成中/ })).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('button', { name: /检查边长关系 · 正在生成/ }).click();
+  await expect(page.getByRole('heading', { name: '正在生成课件内容' })).toBeVisible();
+  await page.getByRole('button', { name: /认识直角三角形/ }).click();
+  await page.getByRole('button', { name: '播放', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkProgressiveSpeechCalls: { spoken: Array<{ text: string }> };
+    }
+  ).__chalkProgressiveSpeechCalls.spoken.filter((entry) => entry.text === '课堂讲解').length)).toBe(1);
+  await page.evaluate(() => (
+    window as unknown as {
+      __chalkProgressiveSpeechCalls: { spoken: Array<{ utterance: { onend: (() => void) | null } }> };
+    }
+  ).__chalkProgressiveSpeechCalls.spoken[0]?.utterance.onend?.());
+  generationCanComplete = true;
+  await expect(page.getByText('3 / 3 个场景已就绪')).toBeVisible({ timeout: 6_000 });
+  await expect(page.locator('img[src="https://storage.test/classroom-drafts/scene-1.png"]').first()).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as {
+      __chalkProgressiveSpeechCalls: { spoken: Array<{ text: string }> };
+    }
+  ).__chalkProgressiveSpeechCalls.spoken.filter((entry) => entry.text === '课堂讲解').length)).toBe(1);
+  await expect(page.getByRole('region', { name: '课堂讨论' })).toBeVisible();
+  await expect(page.getByText('检查边长关系').last()).toBeVisible();
+  await page.getByLabel('写下你想追问的地方').fill('我先用三条边拼一个直角三角形');
+  await page.getByRole('button', { name: '发送' }).click();
+  const draftChat = page.getByLabel('课堂侧栏', { exact: true });
+  await expect(draftChat.getByText('我先用三条边拼一个直角三角形')).toBeVisible();
+  await expect(draftChat.getByText('把等式想成天平，两边一起减去同一个数就更直观。')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '勾股定理入门' })).toBeVisible();
+  await expect(page.getByRole('region', { name: '课堂讨论' })).toBeVisible();
+  await expect(page.getByText('3 / 3 个场景已就绪')).toBeVisible({ timeout: 6_000 });
   await page.getByRole('button', { name: '校验并发布课堂' }).click();
   await expect(page).toHaveURL(new RegExp(`/chalkboard\\?id=${publishedClassroomId}$`));
   await expect(page.getByRole('heading', { name: '勾股定理入门' })).toBeVisible();

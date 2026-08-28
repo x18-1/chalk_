@@ -1,0 +1,48 @@
+[
+  {
+    "id": "primary-addition-and-subtraction",
+    "tags": ["generation", "discussion"],
+    "requirements": "为小学二年级学生生成一节 10 分钟的加减法概念课。先用生活情境解释加法和减法的意义，再安排一道小测和一个可以改变数量的互动场景。不要使用 PBL。",
+    "expect": {
+      "minScenes": 4,
+      "maxScenes": 10,
+      "requiredTypes": ["slide", "quiz", "interactive"]
+    },
+    "discussion": {
+      "message": "我懂了，加法就是放在一起，减法就是拿走，对吗？",
+      "expectTeacherFirst": true,
+      "maxAgentMessages": 3
+    }
+  },
+  {
+    "id": "middle-school-linear-equation",
+    "tags": ["generation", "interactive", "discussion"],
+    "requirements": "为初一学生生成一节一元一次方程移项的题型课。必须先解释为什么等式两边要做相同运算，再覆盖典型误区、一道变式小测和一个天平式互动场景。不要使用 PBL。",
+    "expect": {
+      "minScenes": 5,
+      "maxScenes": 12,
+      "requiredTypes": ["slide", "quiz", "interactive"]
+    },
+    "discussion": {
+      "message": "为什么移到等号另一边就一定要变号？能不能直接记规则？",
+      "expectTeacherFirst": true,
+      "maxAgentMessages": 3
+    }
+  },
+  {
+    "id": "fraction-media-smoke",
+    "tags": ["generation", "media"],
+    "requirements": "为小学五年级学生生成一节分数加法课。用一张披萨分块示意图解释同分母分数相加，并安排一道小测。不要生成 PBL 或视频。",
+    "media": {
+      "image": {
+        "providerId": "openai",
+        "aspectRatio": "16:9"
+      }
+    },
+    "expect": {
+      "minScenes": 3,
+      "maxScenes": 8,
+      "requiredTypes": ["slide", "quiz"]
+    }
+  }
+]

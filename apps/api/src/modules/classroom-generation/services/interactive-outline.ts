@@ -15,7 +15,7 @@ export function normalizeInteractiveOutlines(outline: ClassroomOutline): Classro
   };
 }
 
-function normalizeInteractiveOutline(outline: SceneOutline): SceneOutline {
+export function normalizeInteractiveOutline(outline: SceneOutline): SceneOutline {
   if (outline.type !== 'interactive' || (outline.widgetType && outline.widgetOutline)) return outline;
   const legacy = outline.interactiveConfig;
   if (!legacy) return outline;

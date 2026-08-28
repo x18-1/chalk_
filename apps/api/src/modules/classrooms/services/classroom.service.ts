@@ -57,7 +57,21 @@ export class ClassroomService {
   }
 
   async listClassrooms(userId: string) {
-    return (await this.classrooms.list(userId)).map(projectClassroom);
+    return (await this.classrooms.list(userId)).map((row) => ({
+      id: row.classroom.id,
+      title: row.classroom.title,
+      description: row.classroom.description,
+      createdAt: row.classroom.createdAt.toISOString(),
+      updatedAt: row.classroom.updatedAt.toISOString(),
+      latestArtifact: row.artifact ? projectArtifact(row.artifact) : null,
+      generation: row.draft && row.run && !row.draft.publishedAt ? {
+        runId: row.run.id,
+        draftId: row.draft.id,
+        stage: row.run.stage,
+        status: row.run.status,
+        draftStatus: row.draft.status,
+      } : null,
+    }));
   }
 
   async getArtifact(userId: string, classroomId: string, artifactId: string) {
@@ -219,12 +233,21 @@ function projectClassroom(row: Awaited<ReturnType<ReturnType<typeof createClassr
     description: row.classroom.description,
     createdAt: row.classroom.createdAt.toISOString(),
     updatedAt: row.classroom.updatedAt.toISOString(),
-    latestArtifact: {
-      id: row.artifact.id,
-      version: row.artifact.version,
-      contentHash: row.artifact.contentHash,
-      createdAt: row.artifact.createdAt.toISOString(),
-    },
+    latestArtifact: projectArtifact(row.artifact),
+  };
+}
+
+function projectArtifact(artifact: {
+  id: string;
+  version: number;
+  contentHash: string;
+  createdAt: Date;
+}) {
+  return {
+    id: artifact.id,
+    version: artifact.version,
+    contentHash: artifact.contentHash,
+    createdAt: artifact.createdAt.toISOString(),
   };
 }
 

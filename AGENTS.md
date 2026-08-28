@@ -22,7 +22,9 @@
 以下决定已确认，不要在未询问的情况下偏离：
 
 - 全栈 TypeScript。后端（认证、CRUD、业务逻辑、数据访问）同样在 TS，不引入 Python。
-- Agent 运行时使用 `@earendil-works/pi-agent-core`，版本锁定，不用 `^`。
+- 通用 Agent 运行时使用 `@earendil-works/pi-agent-core`，版本锁定，不用 `^`。Chalkboard
+  课堂多 Agent 讨论按 [ADR 0001](docs/adr/0001-langgraph-for-classroom-discussion.md) 使用锁定版本的
+  TypeScript LangGraph 编排；模型与凭据仍走现有 `@earendil-works/pi-ai` Provider 层。
 - 几何渲染使用 `manim-web`，版本锁定。几何约束层自建，不绑渲染器的对象模型。
 - 数据库 Postgres + Drizzle。
 - 第一批学科只做数学。

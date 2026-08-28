@@ -264,6 +264,15 @@ export class ModelCatalog {
     return this.models.completeSimple(model, context, options);
   }
 
+  async streamSimple(
+    ref: ModelRef,
+    context: Parameters<Models['streamSimple']>[1],
+    options?: Parameters<Models['streamSimple']>[2],
+  ) {
+    const model = await this.resolveModel(ref);
+    return this.models.streamSimple(model, context, options);
+  }
+
   async testConnection(ref: ModelRef) {
     const startedAt = Date.now();
     const response = await this.completeSimple(

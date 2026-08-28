@@ -1,6 +1,6 @@
 import type { Action } from './schema';
 
-export interface WhiteboardPresentationState {
+export interface LiveChalkboardPresentationState {
   open: boolean;
   elements: readonly Action[];
 }
@@ -15,52 +15,89 @@ export interface WidgetPresentationState {
 export interface ScenePresentationState {
   discussion: string;
   widget: WidgetPresentationState;
-  whiteboard: WhiteboardPresentationState;
+  liveChalkboard: LiveChalkboardPresentationState;
 }
 
 export function emptyScenePresentation(): ScenePresentationState {
   return {
     discussion: '',
     widget: { highlightTarget: null, state: null, annotation: null, revealTarget: null },
-    whiteboard: { open: false, elements: [] },
+    liveChalkboard: { open: false, elements: [] },
   };
 }
 
-function whiteboardElementId(action: Action): string {
+function chalkboardElementId(action: Action): string {
   return typeof action.elementId === 'string' && action.elementId ? action.elementId : action.id;
 }
 
-export function applyWhiteboardAction(
-  state: WhiteboardPresentationState,
+function editCode(code: string, currentLineIds: unknown, action: Action) {
+  const lines = code.split('\n');
+  const lineIds = Array.isArray(currentLineIds) && currentLineIds.length === lines.length && currentLineIds.every((id) => typeof id === 'string')
+    ? [...currentLineIds] as string[]
+    : lines.map((_, index) => `L${index + 1}`);
+  const lineIndex = (lineId: unknown) => typeof lineId === 'string' ? lineIds.indexOf(lineId) : -1;
+  const content = typeof action.content === 'string' ? action.content.split('\n') : [];
+  const newLineIds = Array.isArray(action.newLineIds) && action.newLineIds.length === content.length && action.newLineIds.every((id) => typeof id === 'string')
+    ? action.newLineIds as string[]
+    : content.map((_, index) => `${action.id}-line-${index + 1}`);
+  const operation = action.operation;
+  if (operation === 'insert_after' || operation === 'insert_before') {
+    const index = lineIndex(action.lineId);
+    if (index < 0 || index >= lines.length || content.length === 0) return { code, lineIds };
+    const insertAt = operation === 'insert_after' ? index + 1 : index;
+    lines.splice(insertAt, 0, ...content);
+    lineIds.splice(insertAt, 0, ...newLineIds);
+    return { code: lines.join('\n'), lineIds };
+  }
+  const indices = Array.isArray(action.lineIds)
+    ? action.lineIds.map(lineIndex).filter((index) => index >= 0 && index < lines.length)
+    : [];
+  if (indices.length === 0) return { code, lineIds };
+  const first = Math.min(...indices);
+  const remove = new Set(indices);
+  const retained = lines.filter((_, index) => !remove.has(index));
+  const retainedIds = lineIds.filter((_, index) => !remove.has(index));
+  if (operation === 'replace_lines' && content.length > 0) {
+    retained.splice(first, 0, ...content);
+    retainedIds.splice(first, 0, ...newLineIds);
+  }
+  return { code: retained.join('\n'), lineIds: retainedIds };
+}
+
+export function applyLiveChalkboardAction(
+  state: LiveChalkboardPresentationState,
   action: Action,
-): WhiteboardPresentationState {
+): LiveChalkboardPresentationState {
   if (action.type === 'wb_open') return { ...state, open: true };
   if (action.type === 'wb_close') return { ...state, open: false };
   if (action.type === 'wb_clear') return { open: true, elements: [] };
   if (action.type === 'wb_delete') {
     return {
       open: true,
-      elements: state.elements.filter((element) => whiteboardElementId(element) !== action.elementId),
+      elements: state.elements.filter((element) => chalkboardElementId(element) !== action.elementId),
     };
   }
   if (action.type === 'wb_edit_code') {
     return {
       open: true,
       elements: state.elements.map((element) => {
-        if (whiteboardElementId(element) !== action.elementId) return element;
+        if (chalkboardElementId(element) !== action.elementId) return element;
+        const edited = typeof element.code === 'string'
+          ? editCode(element.code, element.lineIds, action)
+          : null;
         return {
           ...element,
-          ...(typeof action.code === 'string' ? { code: action.code } : {}),
+          ...(edited ?? {}),
           lastEdit: action.operation,
         };
       }),
     };
   }
   if (action.type.startsWith('wb_draw_')) {
-    const id = whiteboardElementId(action);
+    const id = chalkboardElementId(action);
     return {
       open: true,
-      elements: [...state.elements.filter((element) => whiteboardElementId(element) !== id), action],
+      elements: [...state.elements.filter((element) => chalkboardElementId(element) !== id), action],
     };
   }
   return state;
@@ -77,7 +114,7 @@ export function projectScenePresentation(
   const limit = Math.max(0, Math.min(actions.length, actionIndex));
   for (const action of actions.slice(0, limit)) {
     if (action.type.startsWith('wb_')) {
-      state.whiteboard = applyWhiteboardAction(state.whiteboard, action);
+      state.liveChalkboard = applyLiveChalkboardAction(state.liveChalkboard, action);
       continue;
     }
     if (action.type === 'discussion' && typeof action.topic === 'string') {

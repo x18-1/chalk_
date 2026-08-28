@@ -44,12 +44,12 @@ describe('OpenMAIC -> Chalkboard adapter', () => {
       actionIndex: 0,
     });
     expect(adapted.participants).toEqual([
-      { id: 'default-1', name: 'default-1', role: 'agent' },
-      { id: 'default-2', name: 'default-2', role: 'agent' },
-      { id: 'default-3', name: 'default-3', role: 'agent' },
-      { id: 'default-4', name: 'default-4', role: 'agent' },
-      { id: 'default-5', name: 'default-5', role: 'agent' },
-      { id: 'default-6', name: 'default-6', role: 'agent' },
+      { id: 'default-1', name: 'default-1', role: 'student' },
+      { id: 'default-2', name: 'default-2', role: 'student' },
+      { id: 'default-3', name: 'default-3', role: 'student' },
+      { id: 'default-4', name: 'default-4', role: 'student' },
+      { id: 'default-5', name: 'default-5', role: 'student' },
+      { id: 'default-6', name: 'default-6', role: 'student' },
     ]);
   });
 
@@ -128,19 +128,19 @@ describe('OpenMAIC -> Chalkboard adapter', () => {
     ]);
   });
 
-  it('executes accepted whiteboard actions through one presentation capability', async () => {
+  it('executes accepted Live Chalkboard actions through one presentation capability', async () => {
     const calls: string[] = [];
     const executor: ActionExecutor = {
       speak: () => undefined,
       spotlight: () => undefined,
       discussion: () => undefined,
       widgetHighlight: () => undefined,
-      whiteboard: (action) => calls.push(`${action.type}:${String(action.elementId ?? action.id)}`),
+      liveChalkboard: (action) => calls.push(`${action.type}:${String(action.elementId ?? action.id)}`),
     };
 
     await expect(executeAction({ id: 'open', type: 'wb_open' }, executor)).resolves.toMatchObject({
       ok: true,
-      effect: { kind: 'whiteboard', action: { type: 'wb_open' } },
+      effect: { kind: 'live_chalkboard', action: { type: 'wb_open' } },
     });
     await executeAction({
       id: 'draw', type: 'wb_draw_text', elementId: 'note-1', content: '等式两边同时减 3', x: 40, y: 80,

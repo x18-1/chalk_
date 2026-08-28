@@ -45,15 +45,22 @@ export {
   toSceneView,
 } from './adapter';
 export {
-  applyWhiteboardAction,
+  applyLiveChalkboardAction,
   emptyScenePresentation,
   projectScenePresentation,
 } from './presentation-state';
 export type {
   ScenePresentationState,
-  WhiteboardPresentationState,
+  LiveChalkboardPresentationState,
   WidgetPresentationState,
 } from './presentation-state';
+export {
+  applyLiveChalkboardCommand,
+  describeChalkboardState,
+  emptyChalkboardState,
+  replayLiveChalkboardActions,
+} from './live-chalkboard';
+export type { LiveChalkboardAction, LiveChalkboardRejection } from './live-chalkboard';
 export type {
   ActionEffect,
   ActionExecutionResult,

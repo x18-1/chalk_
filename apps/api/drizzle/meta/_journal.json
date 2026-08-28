@@ -190,6 +190,48 @@
       "when": 1787801529435,
       "tag": "0026_brainy_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787827943517,
+      "tag": "0027_lazy_mordo",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787829003714,
+      "tag": "0028_dizzy_thunderbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787838015535,
+      "tag": "0029_lumpy_hammerhead",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787886354959,
+      "tag": "0030_wide_the_professor",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787893164845,
+      "tag": "0031_groovy_stone_men",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787900674532,
+      "tag": "0032_abnormal_leo",
+      "breakpoints": true
     }
   ]
 }
