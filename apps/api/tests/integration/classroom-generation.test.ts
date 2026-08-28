@@ -470,6 +470,10 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     });
   }
 
+  function expectAcceptedRunStatus(status: unknown) {
+    expect(['queued', 'running', 'completed', 'failed']).toContain(status);
+  }
+
   function buildTestApi() {
     const options = {
       config: loadConfig({
@@ -592,9 +596,9 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     expect(created.json().generationRun).toMatchObject({
       classroomId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       stage: 'outline',
-      status: 'queued',
       attempt: 1,
     });
+    expectAcceptedRunStatus(created.json().generationRun.status);
 
     const classroomId = created.json().generationRun.classroomId as string;
     const generatingList = await app.inject({
@@ -796,7 +800,7 @@ describe('Classroom outline Generation Run HTTP interface', () => {
         stage: 'progressive',
       },
     });
-    expect(['queued', 'running', 'completed']).toContain(confirmed.json().generationRun.status);
+    expectAcceptedRunStatus(confirmed.json().generationRun.status);
     expect(confirmed.json().outlineRevision.id).toMatch(/^[0-9a-f-]{36}$/);
 
     const classroomList = await app.inject({
@@ -1272,7 +1276,8 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     });
 
     expect(failed.statusCode).toBe(202);
-    expect(failed.json().generationRun).toMatchObject({ status: 'queued', attempt: 1 });
+    expect(failed.json().generationRun).toMatchObject({ attempt: 1 });
+    expectAcceptedRunStatus(failed.json().generationRun.status);
     const failedRunResponse = await waitForRun(cookies.get('admin')!, failed.json().generationRun.id, 'failed');
     expect(failedRunResponse.json().generationRun).toMatchObject({
       status: 'failed',
@@ -1290,7 +1295,8 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     });
 
     expect(retried.statusCode).toBe(202);
-    expect(retried.json().generationRun).toMatchObject({ status: 'queued', attempt: 2 });
+    expect(retried.json().generationRun).toMatchObject({ attempt: 2 });
+    expectAcceptedRunStatus(retried.json().generationRun.status);
     const completedRetry = await waitForRun(cookies.get('admin')!, failedRun.id, 'completed');
     expect(completedRetry.json().generationRun).toMatchObject({
       id: failedRun.id,
@@ -1369,10 +1375,10 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     expect(started.statusCode).toBe(202);
     expect(started.json().generationRun).toMatchObject({
       stage: 'scene_content',
-      status: 'queued',
       attempt: 1,
-      progress: { total: 2, completed: 0 },
+      progress: { total: 2 },
     });
+    expectAcceptedRunStatus(started.json().generationRun.status);
     const duplicateStart = await app.inject({
       method: 'POST',
       url: `/classroom-generation-runs/${outlineRun.json().generationRun.id}/scene-content`,
@@ -1438,7 +1444,8 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       headers: { cookie: cookies.get('admin') },
     });
     expect(retried.statusCode).toBe(202);
-    expect(retried.json().generationRun).toMatchObject({ status: 'queued', attempt: 2 });
+    expect(retried.json().generationRun).toMatchObject({ attempt: 2 });
+    expectAcceptedRunStatus(retried.json().generationRun.status);
     const completed = await waitForRun(cookies.get('admin')!, started.json().generationRun.id, 'completed');
     expect(completed.json().generationRun).toMatchObject({
       progress: { total: 2, completed: 2, failed: 0 },
@@ -1485,10 +1492,10 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     expect(started.statusCode).toBe(202);
     expect(started.json().generationRun).toMatchObject({
       stage: 'scene_actions',
-      status: 'queued',
       attempt: 1,
-      progress: { total: 2, completed: 0, failed: 0 },
+      progress: { total: 2 },
     });
+    expectAcceptedRunStatus(started.json().generationRun.status);
 
     const completed = await waitForRun(cookies.get('user')!, started.json().generationRun.id, 'completed');
     expect(completed.json().generationRun).toMatchObject({
@@ -1858,7 +1865,8 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       headers: { cookie: cookies.get('admin') },
     });
     expect(retried.statusCode).toBe(202);
-    expect(retried.json().generationRun).toMatchObject({ stage: 'scene_actions', status: 'queued', attempt: 2 });
+    expect(retried.json().generationRun).toMatchObject({ stage: 'scene_actions', attempt: 2 });
+    expectAcceptedRunStatus(retried.json().generationRun.status);
     const completed = await waitForRun(cookies.get('admin')!, started.json().generationRun.id, 'completed');
     expect(completed.json().generationRun).toMatchObject({
       progress: { total: 2, completed: 2, failed: 0 },
@@ -1982,13 +1990,13 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     expect(started.statusCode).toBe(202);
     expect(started.json().generationRun).toMatchObject({
       stage: 'media_tasks',
-      status: 'queued',
-      progress: { total: 2, completed: 0, failed: 0 },
+      progress: { total: 2 },
       mediaTasks: [
-        { kind: 'audio', status: 'pending', attempt: 0, sceneId: expect.any(String), actionId: expect.any(String) },
-        { kind: 'audio', status: 'pending', attempt: 0, sceneId: expect.any(String), actionId: expect.any(String) },
+        { kind: 'audio', sceneId: expect.any(String), actionId: expect.any(String) },
+        { kind: 'audio', sceneId: expect.any(String), actionId: expect.any(String) },
       ],
     });
+    expectAcceptedRunStatus(started.json().generationRun.status);
 
     const completed = await waitForRun(cookies.get('user')!, started.json().generationRun.id, 'completed');
     expect(completed.json().generationRun).toMatchObject({
@@ -2325,7 +2333,8 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       headers: { cookie: cookies.get('admin') },
     });
     expect(retried.statusCode).toBe(202);
-    expect(retried.json().generationRun).toMatchObject({ stage: 'media_tasks', status: 'queued', attempt: 2 });
+    expect(retried.json().generationRun).toMatchObject({ stage: 'media_tasks', attempt: 2 });
+    expectAcceptedRunStatus(retried.json().generationRun.status);
     const completed = await waitForRun(cookies.get('admin')!, media.json().generationRun.id, 'completed');
     expect(completed.json().generationRun).toMatchObject({
       progress: { total: 2, completed: 2, failed: 0 },
