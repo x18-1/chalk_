@@ -51,6 +51,11 @@ jobs:
     env:
       DATABASE_URL: postgresql://chalk:chalk@127.0.0.1:5432/chalk_ci
       TEST_DATABASE_URL: postgresql://chalk:chalk@127.0.0.1:5432/chalk_ci_test
+      CREDENTIAL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      DEV_ADMIN_EMAIL: admin@qq.com
+      DEV_ADMIN_PASSWORD: admin123
+      DEV_USER_EMAIL: user@qq.com
+      DEV_USER_PASSWORD: user123
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -112,11 +117,15 @@ jobs:
             --env MINIO_ROOT_USER=chalk --env MINIO_ROOT_PASSWORD=chalk-ci-secret \
             minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
           for attempt in {1..30}; do
-            curl --fail --silent http://127.0.0.1:9000/minio/health/live && break
+            if curl --fail --silent http://127.0.0.1:9000/minio/health/live > /dev/null; then
+              minio_ready=true
+              break
+            fi
             sleep 1
           done
-          docker run --rm --network host minio/mc:RELEASE.2025-07-21T05-28-08Z \
-            sh -c 'mc alias set chalk http://127.0.0.1:9000 chalk chalk-ci-secret && mc mb --ignore-existing chalk/chalk-ci-uploads chalk/chalk-ci-backups'
+          test "${minio_ready:-false}" = true
+          docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2025-07-21T05-28-08Z \
+            -c 'mc alias set chalk http://127.0.0.1:9000 chalk chalk-ci-secret && mc mb --ignore-existing chalk/chalk-ci-uploads chalk/chalk-ci-backups'
       - run: pnpm --filter @chalk/api db:migrate
       - run: pnpm chalkboard:seed
       - run: pnpm exec playwright install --with-deps chromium
