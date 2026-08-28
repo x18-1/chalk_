@@ -40,6 +40,8 @@
 | Chalkboard V3 渐进式课堂生成 | [spec/chalkboard-v3-generation.md](spec/chalkboard-v3-generation.md) | Accepted；稳定 Classroom 入口、最多 10 个课堂 Run 并发、单课堂逐 Scene、媒体门禁与显式发布；不含 PBL |
 | Chalkboard V3 课堂讨论 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Accepted；V3 第二个纵向切片 |
 | 课堂讨论 LangGraph 决策 | [adr/0001-langgraph-for-classroom-discussion.md](adr/0001-langgraph-for-classroom-discussion.md) | Accepted |
+| Chalkboard 教学内核与领域插件边界 | [adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md](adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md) | Accepted；保持 `Scene -> Action`，Beat/Checkpoint 暂不引入 |
+| Chalkboard V3–V6 路线 | [plan/chalkboard-roadmap.md](plan/chalkboard-roadmap.md) | Accepted；V4 可观测性/安全，V5 数学插件，V6 单课学习闭环；均等待主分支 Memory/Tools/Chat 生成 Scene 合并 |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
@@ -51,7 +53,7 @@
 | Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
 | Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
-| Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Active；已打通渐进式生成与文本多 Agent 课堂讨论两个纵向切片 |
+| Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Historical；V3 课堂运行时、渐进式生成、多 Agent 讨论、AI Live Chalkboard 与 Chromium 门禁已完成 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |

@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：跨模块产品与运行术语
-> 最后核验：2026-08-26
+> 最后核验：2026-08-28
 
 ## Agent Run
 
@@ -27,6 +27,41 @@ Trace 中有边界、耗时和结果的一个操作，例如模型调用、工�
 ## Classroom
 
 由 Account 创建、导入或生成，并可进入持续学习的一项教学内容。它归属于该 Account，身份在内容修订后保持稳定。
+
+## Teaching Kernel
+
+Chalkboard 中组织并运行有界教学过程的核心；它决定课堂顺序、交互与后续教学行为，不自身成为几何、视频或代码产品。
+_避免使用_：几何引擎、视频工具、代码编辑器。
+
+## Scene
+
+Classroom Artifact 中一个有序的完整教学单元，承载可呈现内容及其 Action 序列。
+_避免使用_：页面状态、Beat、PPT 文件。
+
+## Action
+
+Scene 中按顺序执行的最小课堂指令，例如讲解、聚焦、讨论邀请或领域活动。
+_避免使用_：Beat、Scene、界面 Note。
+
+## Learning Activity
+
+要求学生回答或操作并产生可观察结果的课堂活动；它可由 Quiz 或 Domain Plugin 承载。
+_避免使用_：Discussion Action、Checkpoint、单纯观看。
+
+## Learning Evidence
+
+从 Learning Activity 的回答、操作和判定中得到的结构化学习事实，可用于课堂调整和长期成长记录。
+_避免使用_：播放进度、Discussion Transcript、未经判定的模型猜测。
+
+## Domain Plugin
+
+注入课堂的领域学习环境，负责学生在特定学科中如何学、看、做和试错，并向 Teaching Kernel 返回活动结果。
+_避免使用_：Agent Tool、Teaching Kernel、整节课编排器。
+
+## Agent Tool
+
+供 Agent 在 Chat 或其他运行上下文中调用的能力，例如生成一个 Chalkboard Scene；它不等同于学生操作的 Domain Plugin。
+_避免使用_：Domain Plugin、Action、课堂控件。
 
 ## Classroom Artifact
 
@@ -61,8 +96,8 @@ _避免使用_：Quiz 本身、浏览器答案状态、课堂完成状态。
 
 ## Discussion Action
 
-Classroom Artifact 中预先编排的教师提问与播放暂停点；它不是实时对话，也不产生 Discussion Transcript。
-_避免使用_：课堂对话、Discussion Transcript、课堂 Chat。
+Classroom Artifact 中预先编排的教师提问与可选讨论邀请；它暂停播放，但不要求学生必须作答，也不单独产生学习证据或 Discussion Transcript。
+_避免使用_：Checkpoint、Learning Activity、课堂对话、Discussion Transcript、课堂 Chat。
 
 ## Discussion Session
 

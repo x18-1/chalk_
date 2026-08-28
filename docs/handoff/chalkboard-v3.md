@@ -1,15 +1,16 @@
 # Chalkboard V3 Handoff
 
-> 文档状态：Accepted
-> 文档类型：Active branch handoff
+> 文档状态：Historical
+> 文档类型：Completed branch handoff
 > 适用分支：`feat/chalkboard-v3`
 > Worktree：`/home/xcodd/code/chalk_/.worktree/chalkboard-v3`
 > 基线提交：`3d49a34c7e65aa87ce0c14748bc7fbf508b62d78`
 > 基线来源：Chalkboard V2 PR #6 合并并完成主分支文档维护后的 `origin/main`
 > 最后核验：2026-08-28
 
-本文记录 Chalkboard V3 分支的真实工作现场。产品与架构约束仍以
-[文档索引](../README.md)列出的权威文档为准；本文只记录分支状态、实施顺序、验证结果和下一步。
+本文保留 Chalkboard V3 分支的最终工作现场。V3 开发已结束；产品与架构约束仍以
+[文档索引](../README.md)列出的权威文档为准，后续版本顺序见
+[Chalkboard V3–V6 路线](../plan/chalkboard-roadmap.md)。
 
 ## 1. 当前目标
 
@@ -298,3 +299,18 @@ TypeScript 编译已通过；真实 Provider 案例、媒体 smoke 和远端 Git
 - [Chalkboard V1 内容生成](../spec/chalkboard-v1-generation.md)
 - [worktree 开发手册](../runbooks/worktree-development.md)
 - [数据库开发手册](../runbooks/database-development.md)
+
+## 11. V3 完成后的边界
+
+V3 已作为基本课堂运行时收口。下一个 Chalkboard 功能分支不从本 worktree 继续累加；先在
+`main` 完成 Memory、Tool 安装/调用、Chalkboard Tools 和 Chat 中生成单 Scene。这些能力合并后，再从当时的
+最新 `main` 依次开始：
+
+1. V4：可观测性、安全与非功能加固；
+2. V5：插件协议与首个数学插件；
+3. V6：消费学习活动结果、调整教学并写入记忆的单节课程闭环。
+
+已确认的长期边界是：Chalkboard 是 Teaching Kernel；几何、代码和沉浸式视频等领域环境通过
+Domain Plugin 接入；Agent Tool 与 Domain Plugin 保持分离；课堂继续使用 `Scene -> Action`，不引入 Beat，
+也不把可跳过的 Discussion Action 重命名为 Checkpoint。该决策见
+[ADR 0002](../adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md)。

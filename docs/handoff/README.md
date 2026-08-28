@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：功能分支的暂停、恢复与交接记录
-> 最后核验：2026-08-26
+> 最后核验：2026-08-28
 
 `docs/handoff/` 保存正在开发或已经暂停的工作现场，使下一次会话可以从明确的代码、环境和验证状态继续。Handoff 不是架构规范、产品规格或长期计划。
 
@@ -36,12 +36,11 @@
 - 分支合并或停止开发后，将文档状态改为 `Historical`，保留最终结果和后续入口；
 - 已稳定的结论必须回写权威文档，不能长期只留在 handoff。
 
-当前活跃记录：
-
-- [chalkboard-v3.md](chalkboard-v3.md) — 渐进式课堂生成、多 Agent 讨论与 AI Live Chalkboard 分支现场
+当前活跃记录：无。Chalkboard 后续版本等待主分支 Memory、Tools 与 Chat 生成 Scene 能力合并后再建立新 handoff。
 
 历史记录：
 
+- [chalkboard-v3.md](chalkboard-v3.md) — V3 渐进式课堂生成、多 Agent 讨论、AI Live Chalkboard 和工程门禁最终现场
 - [chalkboard-v2.md](chalkboard-v2.md) — V2 后端持久化、AI 生成和真实学习状态闭环最终现场
 - [chalkboard-v1.md](chalkboard-v1.md) — V1 前端迁移最终现场
 
