@@ -1,14 +1,5 @@
 import { expect, test } from '@playwright/test';
-
-async function signIn(page: import('@playwright/test').Page) {
-  const email = process.env.DEV_USER_EMAIL ?? 'user@qq.com';
-  const password = process.env.DEV_USER_PASSWORD ?? 'user123';
-  await page.goto('/login');
-  await page.getByLabel('邮箱').fill(email);
-  await page.getByLabel('密码').fill(password);
-  await page.getByRole('button', { name: '进入 Chalk' }).click();
-  await page.waitForURL(/\/chat(?:\?.*)?$/, { timeout: 15_000 });
-}
+import { signIn } from './support/chalkboard';
 
 test('new conversation initialization does not rewrite an already canonical URL', async ({ page }) => {
   await signIn(page);
