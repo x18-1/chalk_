@@ -18,14 +18,17 @@ export class ClassroomPublicationService {
     const source = await this.generation.get(userId, runId);
     const existing = await this.generation.getPublishedClassroom(userId, source.draft.id);
     if (existing) return { created: false, classroom: projectClassroom(existing) };
+    if (!source.draft.classroomId) {
+      throw new ApiError(409, 'The classroom draft has no stable classroom identity', 'CLASSROOM_IDENTITY_MISSING');
+    }
     if (
-      source.run.stage !== 'media_tasks'
+      !['media_tasks', 'progressive'].includes(source.run.stage)
       || source.run.status !== 'completed'
       || !['media_ready', 'publishing'].includes(source.draft.status)
     ) {
       throw new ApiError(
         409,
-        'Only a completed classroom media run can be published',
+        'Only a completed classroom generation run can be published',
         'CLASSROOM_DRAFT_NOT_READY',
       );
     }
@@ -56,7 +59,7 @@ export class ClassroomPublicationService {
       throw new ApiError(409, 'Classroom publication is already in progress', 'CLASSROOM_PUBLICATION_IN_PROGRESS');
     }
     const publicationToken = reservation.publicationToken;
-    const classroomId = stableUuid(publicationToken, 'classroom');
+    const classroomId = source.draft.classroomId;
     const artifactId = stableUuid(publicationToken, 'artifact');
     const copiedKeys: string[] = [];
     const media = prepared.media.map((asset) => ({
@@ -150,6 +153,7 @@ function preparePublication(
     if (mediaRefs.size !== media.length) throw new Error('Draft media references are duplicated');
 
     const stageId = source.draft.id;
+    const context = isRecord(source.draft.context) ? source.draft.context : {};
     const document = normalizeClassroomDocument({
       stage: {
         id: stageId,
@@ -157,6 +161,7 @@ function preparePublication(
         description: source.draft.requirements,
         createdAt: source.draft.createdAt.getTime(),
         updatedAt: (source.run.finishedAt ?? source.draft.updatedAt).getTime(),
+        ...(Array.isArray(context.agentProfiles) ? { agentProfiles: context.agentProfiles } : {}),
       },
       scenes: scenes.slice().sort((left, right) => left.order - right.order).map((scene) => {
         if (

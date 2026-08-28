@@ -57,63 +57,8 @@ export class SceneActionsGenerationService {
         previousSpeeches.push(...speechTexts(scene.actions));
         continue;
       }
-      context.signal.throwIfAborted();
-      const outline = course.outlines.find((candidate) => candidate.id === scene.outlineId);
-      if (!outline) throw new SceneActionsError('CLASSROOM_SCENE_OUTLINE_MISSING');
-      const prompt = sceneActionsPrompt({
-        course,
-        outline,
-        content: scene.content,
-        previousSpeeches,
-      });
-      if (!prompt) {
-        throw new SceneActionsError('CLASSROOM_SCENE_ACTIONS_UNSUPPORTED');
-      }
-      const started = await this.generation.startSceneActions(context.userId, {
-        runId: context.runId,
-        draftId: context.draft.id,
-        sceneId: scene.id,
-        workerId: context.workerId,
-        promptId: prompt.id,
-        promptRevision: prompt.revision,
-      });
-      if (!started) throw new LeaseLostError();
-
-      try {
-        const generated = await generateWithAbort(this.model, context.userId, {
-          system: prompt.system,
-          user: prompt.user,
-          signal: context.signal,
-          maxRetries: 0,
-          timeoutMs: 60_000,
-        });
-        context.signal.throwIfAborted();
-        const actions = parseSceneActions(outline, scene.content, generated.text);
-        const saved = await this.generation.completeSceneActions(context.userId, {
-          runId: context.runId,
-          draftId: context.draft.id,
-          sceneId: scene.id,
-          workerId: context.workerId,
-          actions,
-          modelProviderId: generated.providerId,
-          modelId: generated.modelId,
-        });
-        if (!saved) throw new LeaseLostError();
-        previousSpeeches.push(...speechTexts(actions));
-      } catch (error) {
-        if (context.signal.aborted || error instanceof LeaseLostError) throw error;
-        const code = error instanceof SceneActionsError
-          ? error.code
-          : 'CLASSROOM_SCENE_ACTIONS_GENERATION_FAILED';
-        await this.generation.failSceneActions(context.userId, {
-          runId: context.runId,
-          draftId: context.draft.id,
-          sceneId: scene.id,
-          workerId: context.workerId,
-          errorCode: code,
-        });
-        throw new SceneActionsError(code);
-      }
+      const actions = await this.processScene(context, course, scene, previousSpeeches);
+      previousSpeeches.push(...speechTexts(actions));
     }
 
     return this.generation.completeSceneActionsRun(context.userId, {
@@ -121,6 +66,70 @@ export class SceneActionsGenerationService {
       draftId: context.draft.id,
       workerId: context.workerId,
     });
+  }
+
+  async processScene(
+    context: GenerationClaimContext,
+    course: ClassroomOutline,
+    scene: Awaited<ReturnType<ClassroomGenerationDal['listScenes']>>[number],
+    previousSpeeches: string[],
+  ) {
+    context.signal.throwIfAborted();
+    const outline = course.outlines.find((candidate) => candidate.id === scene.outlineId);
+    if (!outline) throw new SceneActionsError('CLASSROOM_SCENE_OUTLINE_MISSING');
+    const prompt = sceneActionsPrompt({
+      course,
+      outline,
+      content: scene.content,
+      previousSpeeches,
+      agents: formatAgentProfiles(context.draft.context),
+    });
+    if (!prompt) throw new SceneActionsError('CLASSROOM_SCENE_ACTIONS_UNSUPPORTED');
+    const started = await this.generation.startSceneActions(context.userId, {
+      runId: context.runId,
+      draftId: context.draft.id,
+      sceneId: scene.id,
+      workerId: context.workerId,
+      promptId: prompt.id,
+      promptRevision: prompt.revision,
+    });
+    if (!started) throw new LeaseLostError();
+
+    try {
+      const generated = await generateWithAbort(this.model, context.userId, {
+        system: prompt.system,
+        user: prompt.user,
+        signal: context.signal,
+        maxRetries: 0,
+        timeoutMs: 60_000,
+      });
+      context.signal.throwIfAborted();
+      const actions = parseSceneActions(outline, scene.content, generated.text);
+      const saved = await this.generation.completeSceneActions(context.userId, {
+        runId: context.runId,
+        draftId: context.draft.id,
+        sceneId: scene.id,
+        workerId: context.workerId,
+        actions,
+        modelProviderId: generated.providerId,
+        modelId: generated.modelId,
+      });
+      if (!saved) throw new LeaseLostError();
+      return actions;
+    } catch (error) {
+      if (context.signal.aborted || error instanceof LeaseLostError) throw error;
+      const code = error instanceof SceneActionsError
+        ? error.code
+        : 'CLASSROOM_SCENE_ACTIONS_GENERATION_FAILED';
+      await this.generation.failSceneActions(context.userId, {
+        runId: context.runId,
+        draftId: context.draft.id,
+        sceneId: scene.id,
+        workerId: context.workerId,
+        errorCode: code,
+      });
+      throw new SceneActionsError(code);
+    }
   }
 }
 
@@ -135,6 +144,7 @@ function sceneActionsPrompt(input: {
   outline: ClassroomOutline['outlines'][number];
   content: unknown;
   previousSpeeches: string[];
+  agents: string;
 }) {
   const keyPoints = input.outline.keyPoints.map((point, index) => `${index + 1}. ${point}`).join('\n');
   const courseContext = buildCourseContext(
@@ -151,7 +161,7 @@ function sceneActionsPrompt(input: {
       description: input.outline.description,
       elements: formatElements(elements),
       courseContext,
-      agents: '',
+      agents: input.agents,
       userProfile: '',
       languageDirective: input.course.languageDirective,
     });
@@ -166,7 +176,7 @@ function sceneActionsPrompt(input: {
       keyPoints,
       description: input.outline.description,
       courseContext,
-      agents: '',
+      agents: input.agents,
       languageDirective: input.course.languageDirective,
     });
     return { id: PROMPT_IDS.CLASSROOM_QUIZ_ACTIONS, ...prompt, user: prompt.user! };
@@ -186,12 +196,25 @@ function sceneActionsPrompt(input: {
       widgetConfig: JSON.stringify(interactive.widgetConfig),
       elementInventory: interactiveElementInventory(interactive.html).prompt || '(no interactive elements detected)',
       courseContext,
-      agents: '',
+      agents: input.agents,
       languageDirective: input.course.languageDirective,
     });
     return { id: PROMPT_IDS.CLASSROOM_INTERACTIVE_ACTIONS, ...prompt, user: prompt.user! };
   }
   return null;
+}
+
+function formatAgentProfiles(context: unknown) {
+  if (!isRecord(context) || !Array.isArray(context.agentProfiles)) return '';
+  const profiles = context.agentProfiles.flatMap((value) => {
+    if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string') return [];
+    const role = value.role === 'teacher' || value.role === 'assistant' || value.role === 'student'
+      ? value.role
+      : 'student';
+    const persona = typeof value.persona === 'string' ? value.persona : '';
+    return [`- id: "${value.id}", name: "${value.name}", role: ${role}, persona: "${persona}"`];
+  });
+  return profiles.length > 0 ? `Classroom Agents:\n${profiles.join('\n')}` : '';
 }
 
 function buildCourseContext(titles: string[], pageIndex: number, previousSpeeches: string[]) {

@@ -31,9 +31,56 @@ describe('Prompt module interface', () => {
 
   it('keeps every execution template structurally paired with its Chinese review copy', () => {
     expect(validatePromptRegistry()).toEqual({
-      promptCount: 14,
+      promptCount: 17,
       snippetCount: 7,
     });
+  });
+
+  it('preserves the OpenMAIC Director prompt and records the speech-only participant adaptation', () => {
+    expect(promptRegistry[PROMPT_IDS.CLASSROOM_DISCUSSION_DIRECTOR].provenance).toEqual({
+      sourceRepository: 'OpenMAIC',
+      sourceCommit: '1466a55eef9e31e229a0e2e60a0811020d7b06e2',
+      files: {
+        'system.en.md': '3f4b581ef8f136ce1b2413a5548adb7cf852c5a9494c1b620a2e28d1e15328a0',
+      },
+    });
+    expect(promptRegistry[PROMPT_IDS.CLASSROOM_DISCUSSION_PARTICIPANT].adaptedFrom).toMatchObject({
+      sourceRepository: 'OpenMAIC',
+      sourceCommit: '1466a55eef9e31e229a0e2e60a0811020d7b06e2',
+      sourceFile: 'lib/prompts/templates/agent-system/system.md',
+      sourceHash: '7da837b795d1d6bb6d3cbc029c3323ef2700384ddacf93ad8b1af4ab8e8ae63e',
+    });
+
+    const director = buildPrompt(PROMPT_IDS.CLASSROOM_DISCUSSION_DIRECTOR, {
+      agentList: '- id: "teacher", name: "林老师", role: teacher, priority: 10',
+      respondedList: 'None yet.',
+      conversationSummary: '[Student (Human)]: 为什么移项要变号？',
+      discussionSection: '',
+      whiteboardSection: '',
+      studentProfileSection: '',
+      rule1: '1. The teacher speaks first.',
+      turnCountPlusOne: 1,
+      whiteboardOpenText: 'NOT AVAILABLE',
+    });
+    expect(director.system).toContain('{"next_agent":"<agent_id>"}');
+    expect(director.system).toContain('[Student (Human)]: 为什么移项要变号？');
+    expect(director.system).not.toMatch(/\{\{[^}]+\}\}/);
+
+    const participant = buildPrompt(PROMPT_IDS.CLASSROOM_DISCUSSION_PARTICIPANT, {
+      agentName: '林老师',
+      persona: '耐心引导。',
+      roleGuideline: 'teacher',
+      peerContext: '',
+      languageConstraint: 'Use Simplified Chinese.',
+      stateContext: 'Scene: 等式像天平',
+      discussionContextSection: 'Topic: 移项',
+      lengthGuidelines: 'Keep it concise.',
+      chalkboardState: 'Live Chalkboard is closed and empty.',
+      chalkboardGuidelines: 'Use it only when it helps.',
+    });
+    expect(participant.system).toContain('# Live Chalkboard');
+    expect(participant.system).toContain('# Output Format');
+    expect(participant.system).not.toMatch(/\{\{[^}]+\}\}/);
   });
 
   it('preserves the fixed OpenMAIC outline prompt provenance byte for byte', () => {

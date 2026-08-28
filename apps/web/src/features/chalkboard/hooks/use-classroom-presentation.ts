@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  applyWhiteboardAction,
+  applyLiveChalkboardAction,
   type PlaybackExecutor,
   type ScenePresentationState,
-  type WhiteboardPresentationState,
+  type LiveChalkboardPresentationState,
 } from "@chalk/chalkboard";
 
 import { postInteractiveMessage } from "../lib/interactive-html";
@@ -26,7 +26,7 @@ export interface ClassroomPlaybackSettings {
  * media/effect lifecycles and exposes only render state plus one executor. */
 export function useClassroomPresentation(
   settings: ClassroomPlaybackSettings,
-  onDiscussion: (topic: string) => void,
+  onDiscussion: (input: { topic: string; prompt?: string; agentId?: string }) => void | Promise<void>,
 ) {
   const [highlightedElementId, setHighlightedElementId] = useState<string | null>(null);
   const [laserElementId, setLaserElementId] = useState<string | null>(null);
@@ -34,11 +34,14 @@ export function useClassroomPresentation(
   const [widgetState, setWidgetState] = useState<Record<string, unknown> | null>(null);
   const [widgetAnnotation, setWidgetAnnotation] = useState<{ target: string; content?: string } | null>(null);
   const [widgetRevealTarget, setWidgetRevealTarget] = useState<string | null>(null);
-  const [whiteboard, setWhiteboard] = useState<WhiteboardPresentationState>({ open: false, elements: [] });
+  const [liveChalkboard, setLiveChalkboard] = useState<LiveChalkboardPresentationState>({ open: false, elements: [] });
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const lessonViewportRef = useRef<HTMLDivElement>(null);
   const speechResolveRef = useRef<(() => void) | null>(null);
   const speechTimerRef = useRef<number | null>(null);
+  const speechQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const speechQueueEpochRef = useRef(0);
+  const speechBusyRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const videoResolveRef = useRef<(() => void) | null>(null);
   const videoTimerRef = useRef<number | null>(null);
@@ -59,24 +62,21 @@ export function useClassroomPresentation(
     }
   }, [settings]);
 
-  const executor = useMemo<PlaybackExecutor>(() => ({
-    speak: (text) => {
+  const executor = useMemo<PlaybackExecutor>(() => {
+    const speakNow = (text: string) => {
       const current = settingsRef.current;
       if (!current.speechEnabled || current.ttsMuted || current.ttsVolume === 0 || !("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
       return new Promise<void>((resolve) => {
-        const startedAt = performance.now();
-        const minimumDuration = Math.max(900, Math.min(60_000, (text.length * 220) / current.playbackSpeed));
+        let settled = false;
+        let timer: number | null = null;
         const finish = () => {
-          if (speechTimerRef.current !== null) window.clearTimeout(speechTimerRef.current);
-          speechTimerRef.current = null;
-          speechResolveRef.current = null;
+          if (settled) return;
+          settled = true;
+          if (timer !== null) window.clearTimeout(timer);
+          if (speechTimerRef.current === timer) speechTimerRef.current = null;
+          if (speechResolveRef.current === finish) speechResolveRef.current = null;
           resolve();
-        };
-        const finishAfterMinimum = () => {
-          const remaining = minimumDuration - (performance.now() - startedAt);
-          if (remaining > 0) speechTimerRef.current = window.setTimeout(finishAfterMinimum, remaining);
-          else finish();
         };
         speechResolveRef.current = finish;
         const utterance = new SpeechSynthesisUtterance(text);
@@ -84,13 +84,26 @@ export function useClassroomPresentation(
         utterance.voice = window.speechSynthesis.getVoices().find((voice) => voice.voiceURI === current.speechVoiceUri) ?? null;
         utterance.rate = current.speechRate * current.playbackSpeed;
         utterance.volume = current.ttsVolume;
-        utterance.onend = finishAfterMinimum;
-        utterance.onerror = finishAfterMinimum;
-        speechTimerRef.current = window.setTimeout(finish, minimumDuration + 3_000);
+        utterance.onend = finish;
+        utterance.onerror = finish;
+        timer = window.setTimeout(finish, Math.max(15_000, Math.min(90_000, text.length * 400)));
+        speechTimerRef.current = timer;
         window.speechSynthesis.speak(utterance);
       });
-    },
-    spotlight: (elementId) => {
+    };
+    return {
+      speak: (text) => {
+        const epoch = speechQueueEpochRef.current;
+        speechBusyRef.current = true;
+        const queued = speechQueueRef.current
+          .catch(() => undefined)
+          .then(() => epoch === speechQueueEpochRef.current ? speakNow(text) : undefined);
+        speechQueueRef.current = queued;
+        return queued.finally(() => {
+          if (speechQueueRef.current === queued) speechBusyRef.current = false;
+        });
+      },
+      spotlight: (elementId) => {
       if (effectTimerRef.current !== null) window.clearTimeout(effectTimerRef.current);
       setHighlightedElementId(elementId);
       setLaserElementId(null);
@@ -99,8 +112,8 @@ export function useClassroomPresentation(
         setHighlightedElementId(null);
         effectTimerRef.current = null;
       }, 5_000);
-    },
-    laser: (elementId) => {
+      },
+      laser: (elementId) => {
       if (effectTimerRef.current !== null) window.clearTimeout(effectTimerRef.current);
       setLaserElementId(elementId);
       setHighlightedElementId(null);
@@ -109,8 +122,8 @@ export function useClassroomPresentation(
         setLaserElementId(null);
         effectTimerRef.current = null;
       }, 5_000);
-    },
-    playVideo: async (elementId) => {
+      },
+      playVideo: async (elementId) => {
       setHighlightedElementId(elementId);
       const findVideo = () => Array.from(lessonViewportRef.current?.querySelectorAll<HTMLVideoElement>("[data-video-element]") ?? [])
         .find((candidate) => candidate.dataset.elementId === elementId) ?? null;
@@ -151,35 +164,38 @@ export function useClassroomPresentation(
           void video.play().catch(finish);
         });
       });
-    },
-    discussion: ({ topic }) => { discussionRef.current(topic); },
-    widgetHighlight: ({ target, content }) => {
+      },
+      discussion: (input) => discussionRef.current(input),
+      widgetHighlight: ({ target, content }) => {
       setHighlightTarget(target);
       postInteractiveMessage(iframeRef.current, { type: "HIGHLIGHT_ELEMENT", target, content });
-    },
-    widgetSetState: ({ state, content }) => {
+      },
+      widgetSetState: ({ state, content }) => {
       setWidgetState(state);
       postInteractiveMessage(iframeRef.current, { type: "SET_WIDGET_STATE", state, content });
-    },
-    widgetAnnotation: ({ target, content }) => {
+      },
+      widgetAnnotation: ({ target, content }) => {
       setWidgetAnnotation({ target, ...(content ? { content } : {}) });
       postInteractiveMessage(iframeRef.current, { type: "ANNOTATE_ELEMENT", target, content });
-    },
-    widgetReveal: ({ target, content }) => {
+      },
+      widgetReveal: ({ target, content }) => {
       setWidgetRevealTarget(target);
       postInteractiveMessage(iframeRef.current, { type: "REVEAL_ELEMENT", target, content });
-    },
-    whiteboard: (action) => setWhiteboard((current) => applyWhiteboardAction(current, action)),
-    cancel: () => {
-      speechResolveRef.current?.();
-      window.speechSynthesis?.cancel();
-      videoResolveRef.current?.();
-      videoRef.current?.pause();
-      if (effectTimerRef.current !== null) window.clearTimeout(effectTimerRef.current);
-      effectTimerRef.current = null;
-    },
-    pause: () => { window.speechSynthesis?.pause(); videoRef.current?.pause(); },
-    resume: () => {
+      },
+      liveChalkboard: (action) => setLiveChalkboard((current) => applyLiveChalkboardAction(current, action)),
+      cancel: () => {
+        speechQueueEpochRef.current += 1;
+        speechQueueRef.current = Promise.resolve();
+        speechBusyRef.current = false;
+        speechResolveRef.current?.();
+        window.speechSynthesis?.cancel();
+        videoResolveRef.current?.();
+        videoRef.current?.pause();
+        if (effectTimerRef.current !== null) window.clearTimeout(effectTimerRef.current);
+        effectTimerRef.current = null;
+      },
+      pause: () => { window.speechSynthesis?.pause(); videoRef.current?.pause(); },
+      resume: () => {
       window.speechSynthesis?.resume();
       const video = videoRef.current;
       if (!video) return;
@@ -188,8 +204,9 @@ export function useClassroomPresentation(
         video.dataset.chalkboardAutoplayMuted = "true";
         void video.play().catch(() => undefined);
       });
-    },
-  }), []);
+      },
+    };
+  }, []);
 
   useEffect(() => () => { void executor.cancel?.("presentation unmounted"); }, [executor]);
 
@@ -202,12 +219,13 @@ export function useClassroomPresentation(
     setWidgetState(state.widget.state);
     setWidgetAnnotation(state.widget.annotation);
     setWidgetRevealTarget(state.widget.revealTarget);
-    setWhiteboard(state.whiteboard);
+    setLiveChalkboard(state.liveChalkboard);
   }, []);
 
   return {
     executor,
     settingsRef,
+    speechBusyRef,
     iframeRef,
     lessonViewportRef,
     highlightedElementId,
@@ -216,8 +234,8 @@ export function useClassroomPresentation(
     widgetState,
     widgetAnnotation,
     widgetRevealTarget,
-    whiteboard,
-    setWhiteboard,
+    liveChalkboard,
+    setLiveChalkboard,
     restorePresentation,
   };
 }

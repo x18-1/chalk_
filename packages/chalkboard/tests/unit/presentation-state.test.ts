@@ -20,14 +20,14 @@ describe('scene presentation projection', () => {
         annotation: null,
         revealTarget: null,
       },
-      whiteboard: {
+      liveChalkboard: {
         open: true,
         elements: [expect.objectContaining({ id: 'note', elementId: 'note-1', type: 'wb_draw_text' })],
       },
     });
   });
 
-  it('applies whiteboard clear, delete, and close semantics deterministically', () => {
+  it('applies Live Chalkboard clear, delete, and close semantics deterministically', () => {
     const actions = [
       { id: 'first', type: 'wb_draw_text', elementId: 'first', content: '旧内容', x: 10, y: 10 },
       { id: 'clear', type: 'wb_clear' },
@@ -37,7 +37,7 @@ describe('scene presentation projection', () => {
       { id: 'close', type: 'wb_close' },
     ];
 
-    expect(projectScenePresentation(actions, actions.length).whiteboard).toEqual({
+    expect(projectScenePresentation(actions, actions.length).liveChalkboard).toEqual({
       open: false,
       elements: [expect.objectContaining({ id: 'second', elementId: 'formula' })],
     });

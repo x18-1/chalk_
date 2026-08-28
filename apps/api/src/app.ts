@@ -49,6 +49,12 @@ import { registerLearningSessionRoutes } from './modules/learning-sessions/route
 import { LearningSessionService } from './modules/learning-sessions/services/learning-session.service';
 import { registerQuizAttemptRoutes } from './modules/quiz-attempts/routes';
 import { QuizAttemptService } from './modules/quiz-attempts/services/quiz-attempt.service';
+import { registerClassroomDiscussionRoutes } from './modules/classroom-discussions/routes';
+import {
+  ClassroomDiscussionService,
+} from './modules/classroom-discussions/services/classroom-discussion.service';
+import type { ClassroomDiscussionModel } from './modules/classroom-discussions/services/classroom-discussion.graph';
+import { piClassroomDiscussionModel } from './providers/llm/classroom-discussion-model';
 
 export type BuildApiOptions = {
   config?: ApiConfig;
@@ -58,6 +64,7 @@ export type BuildApiOptions = {
   classroomOutlineModel?: ClassroomGenerationModel;
   classroomMediaGenerator?: import('./modules/classroom-generation/services/classroom-generation.service').ClassroomMediaGenerator;
   classroomGenerationWorker?: ClassroomGenerationWorkerOptions;
+  classroomDiscussionModel?: ClassroomDiscussionModel;
 };
 
 export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyInstance> {
@@ -141,6 +148,12 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   );
   registerLearningSessionRoutes(app, auth, new LearningSessionService(db));
   registerQuizAttemptRoutes(app, auth, new QuizAttemptService(db));
+  const classroomDiscussions = new ClassroomDiscussionService(
+    db,
+    options.classroomDiscussionModel ?? piClassroomDiscussionModel,
+  );
+  await classroomDiscussions.recoverInterrupted();
+  registerClassroomDiscussionRoutes(app, auth, classroomDiscussions);
   const classroomGeneration = new ClassroomGenerationService(
     db,
     options.classroomOutlineModel ?? piClassroomOutlineModel,

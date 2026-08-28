@@ -27,6 +27,11 @@ export type SidebarClassroom = {
   id: string;
   title: string;
   sceneId?: string;
+  generation?: {
+    stage: 'outline' | 'scene_content' | 'scene_actions' | 'media_tasks' | 'progressive';
+    status: 'queued' | 'running' | 'completed' | 'failed' | 'aborted';
+    draftStatus: string;
+  };
 };
 
 export type ConversationGroup = "今天" | "昨天" | "过去 7 天" | "过去 30 天";
@@ -225,7 +230,7 @@ export function AppSidebar({
             onClick={() => onSelectChalkboard?.(classroom.id)}
           >
             <PanelTop size={14} />
-            <span><strong>{classroom.title}</strong><small>{classroom.sceneId ? "继续上次课堂" : "已打开课堂"}</small></span>
+            <span><strong>{classroom.title}</strong><small>{classroomStatusLabel(classroom)}</small></span>
           </Link>)}
         </nav>
       </section>}
@@ -246,4 +251,19 @@ export function AppSidebar({
     {pendingDeleteConversation && createPortal(<div className={styles.deleteConfirmBackdrop} onPointerDown={(event) => { if (event.target === event.currentTarget) setPendingDeleteId(null); }}><section data-sidebar-menu className={styles.deleteConfirm} role="dialog" aria-modal="true" aria-labelledby="delete-conversation-title" aria-describedby="delete-conversation-description"><strong id="delete-conversation-title">删除这段对话？</strong><p id="delete-conversation-description">删除后，对话记录将无法恢复。</p><div className={styles.deleteConfirmActions}><button type="button" onClick={() => setPendingDeleteId(null)}>取消</button><button className={styles.deleteConfirmDanger} type="button" onClick={() => deleteConversation(pendingDeleteConversation.id)}>删除</button></div></section></div>, document.body)}
     {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
   </>;
+}
+
+function classroomStatusLabel(classroom: SidebarClassroom) {
+  if (!classroom.generation) return classroom.sceneId ? "继续上次课堂" : "已完成课堂";
+  if (classroom.generation.status === "failed") return "生成暂停 · 点击查看";
+  if (classroom.generation.status === "aborted") return "已停止 · 点击查看";
+  if (classroom.generation.stage === "outline") {
+    return classroom.generation.status === "completed" ? "大纲等待确认" : "正在生成大纲";
+  }
+  if (classroom.generation.draftStatus === "publishing") return "正在发布课堂";
+  if (classroom.generation.draftStatus === "media_ready") return "课堂已生成 · 待发布";
+  if (classroom.generation.draftStatus === "preview_ready") {
+    return "可开始 · 其余生成中";
+  }
+  return "正在生成首幕";
 }

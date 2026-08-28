@@ -14,12 +14,13 @@ import { OutlineGenerationService } from './outline-generation.service';
 import { SceneActionsError, SceneActionsGenerationService } from './scene-actions-generation.service';
 import { SceneContentError, SceneContentGenerationService } from './scene-content-generation.service';
 import { MediaTasksError, MediaTasksGenerationService } from './media-tasks-generation.service';
+import { ProgressiveGenerationService } from './progressive-generation.service';
 
 const DEFAULT_WORKER_OPTIONS = {
   pollIntervalMs: 1_000,
   leaseDurationMs: 30_000,
   heartbeatIntervalMs: 10_000,
-  concurrency: 1,
+  concurrency: 10,
 } as const;
 
 export class ClassroomGenerationWorker {
@@ -37,6 +38,7 @@ export class ClassroomGenerationWorker {
     private readonly scenes: SceneContentGenerationService,
     private readonly actions: SceneActionsGenerationService,
     private readonly media: MediaTasksGenerationService,
+    private readonly progressive: ProgressiveGenerationService,
     options: ClassroomGenerationWorkerOptions = {},
   ) {
     this.options = {
@@ -139,8 +141,10 @@ export class ClassroomGenerationWorker {
             ? await this.actions.processClaim(context)
             : claimed.run.stage === 'media_tasks'
               ? await this.media.processClaim(context)
+            : claimed.run.stage === 'progressive'
+              ? await this.progressive.processClaim(context)
             : null;
-      if (!['outline', 'scene_content', 'scene_actions', 'media_tasks'].includes(claimed.run.stage)) {
+      if (!['outline', 'scene_content', 'scene_actions', 'media_tasks', 'progressive'].includes(claimed.run.stage)) {
         throw new Error(`Unsupported generation stage: ${claimed.run.stage}`);
       }
       if (!completed) {
@@ -163,10 +167,16 @@ export class ClassroomGenerationWorker {
       }
       const errorCode = error instanceof SceneContentError || error instanceof SceneActionsError || error instanceof MediaTasksError
         ? error.code
-        : error instanceof ApiError && error.code === 'CLASSROOM_OUTLINE_INVALID'
+        : error instanceof ApiError && [
+          'CLASSROOM_OUTLINE_INVALID',
+          'CLASSROOM_OUTLINE_TYPE_UNSUPPORTED',
+          'CLASSROOM_OUTLINE_MODEL_FAILED',
+        ].includes(error.code)
           ? error.code
           : claimed.run.stage === 'scene_actions'
             ? 'CLASSROOM_SCENE_ACTIONS_GENERATION_FAILED'
+          : claimed.run.stage === 'progressive'
+            ? 'CLASSROOM_PROGRESSIVE_GENERATION_FAILED'
           : claimed.run.stage === 'scene_content'
             ? 'CLASSROOM_SCENE_CONTENT_GENERATION_FAILED'
             : claimed.run.stage === 'media_tasks'

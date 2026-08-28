@@ -3,6 +3,7 @@ export const PROMPT_IDS = {
   CHAT_SUBAGENT: 'chat-subagent',
   CONVERSATION_TITLE: 'conversation-title',
   CLASSROOM_OUTLINE: 'classroom-outline',
+  CLASSROOM_AGENT_PROFILES: 'classroom-agent-profiles',
   CLASSROOM_SLIDE_CONTENT: 'classroom-slide-content',
   CLASSROOM_QUIZ_CONTENT: 'classroom-quiz-content',
   CLASSROOM_SIMULATION_CONTENT: 'classroom-simulation-content',
@@ -13,6 +14,8 @@ export const PROMPT_IDS = {
   CLASSROOM_SLIDE_ACTIONS: 'classroom-slide-actions',
   CLASSROOM_QUIZ_ACTIONS: 'classroom-quiz-actions',
   CLASSROOM_INTERACTIVE_ACTIONS: 'classroom-interactive-actions',
+  CLASSROOM_DISCUSSION_DIRECTOR: 'classroom-discussion-director',
+  CLASSROOM_DISCUSSION_PARTICIPANT: 'classroom-discussion-participant',
 } as const;
 
 export type PromptId = typeof PROMPT_IDS[keyof typeof PROMPT_IDS];
@@ -37,6 +40,12 @@ export type PromptVariables = {
     imageEnabled: boolean;
     videoEnabled: boolean;
     mediaEnabled: boolean;
+  };
+  [PROMPT_IDS.CLASSROOM_AGENT_PROFILES]: {
+    courseTitle: string;
+    courseDescription: string;
+    sceneOutlines: string;
+    languageDirective: string;
   };
   [PROMPT_IDS.CLASSROOM_SLIDE_CONTENT]: {
     title: string;
@@ -139,6 +148,29 @@ export type PromptVariables = {
     agents: string;
     languageDirective: string;
   };
+  [PROMPT_IDS.CLASSROOM_DISCUSSION_DIRECTOR]: {
+    agentList: string;
+    respondedList: string;
+    conversationSummary: string;
+    discussionSection: string;
+    whiteboardSection: string;
+    studentProfileSection: string;
+    rule1: string;
+    turnCountPlusOne: number;
+    whiteboardOpenText: string;
+  };
+  [PROMPT_IDS.CLASSROOM_DISCUSSION_PARTICIPANT]: {
+    agentName: string;
+    persona: string;
+    roleGuideline: string;
+    peerContext: string;
+    languageConstraint: string;
+    stateContext: string;
+    chalkboardState: string;
+    chalkboardGuidelines: string;
+    discussionContextSection: string;
+    lengthGuidelines: string;
+  };
 };
 
 type PromptDefinition<Id extends PromptId = PromptId> = {
@@ -149,6 +181,13 @@ type PromptDefinition<Id extends PromptId = PromptId> = {
     sourceRepository: string;
     sourceCommit: string;
     files: Readonly<Record<string, string>>;
+  };
+  adaptedFrom?: {
+    sourceRepository: string;
+    sourceCommit: string;
+    sourceFile: string;
+    sourceHash: string;
+    reason: string;
   };
 };
 
@@ -190,6 +229,18 @@ export const promptRegistry = {
         'system.en.md': '813240c132acfe63007ddcf3dd764b47b5ad1d7b5005d47361ede3aa42614c65',
         'user.en.md': '79fe5ce9a64dc63f174bd1c99dd3e4f1feb2a00e2797edc2a11abc5ac2d6f9ff',
       },
+    },
+  },
+  [PROMPT_IDS.CLASSROOM_AGENT_PROFILES]: {
+    id: PROMPT_IDS.CLASSROOM_AGENT_PROFILES,
+    variables: ['courseTitle', 'courseDescription', 'sceneOutlines', 'languageDirective'],
+    user: true,
+    adaptedFrom: {
+      sourceRepository: 'OpenMAIC',
+      sourceCommit: '1466a55eef9e31e229a0e2e60a0811020d7b06e2',
+      sourceFile: 'app/api/generate/agent-profiles/route.ts',
+      sourceHash: '7739cd99c5794b86f4ff9c396313088958d3edab7163cd852dbddf4919c4aa89',
+      reason: 'Chalk stores the instructional identity fields needed by its discussion runtime; provider-specific avatar, color, and voice assignment remain presentation concerns.',
     },
   },
   [PROMPT_IDS.CLASSROOM_SLIDE_CONTENT]: {
@@ -333,7 +384,7 @@ export const promptRegistry = {
       sourceRepository: 'OpenMAIC',
       sourceCommit: '1466a55eef9e31e229a0e2e60a0811020d7b06e2',
       files: {
-        'system.en.md': '836675508900ea11828d85765cf9eca3ebc3b697cf27dfe7871a3816b639c447',
+        'system.en.md': 'cd9ba73e9d081e991c73838a1afd85d665c01b13a5f11079abad3ea9569f0fc6',
         'user.en.md': '962b8fc01b310a8a7cf00165b0477708d81ab2b9c7388bc0f321eb40bcdd4dcc',
       },
     },
@@ -404,6 +455,51 @@ export const promptRegistry = {
         'system.en.md': 'aac722a48c6bdd1f099f800e465d2fd2c7d214ea81f88704ec821c852b33eb7c',
         'user.en.md': '2007962e0454b51dc95be8ccbe40a87ceb711436f00bae8dbd88cba233b0ac27',
       },
+    },
+  },
+  [PROMPT_IDS.CLASSROOM_DISCUSSION_DIRECTOR]: {
+    id: PROMPT_IDS.CLASSROOM_DISCUSSION_DIRECTOR,
+    variables: [
+      'agentList',
+      'respondedList',
+      'conversationSummary',
+      'discussionSection',
+      'whiteboardSection',
+      'studentProfileSection',
+      'rule1',
+      'turnCountPlusOne',
+      'whiteboardOpenText',
+    ],
+    user: false,
+    provenance: {
+      sourceRepository: 'OpenMAIC',
+      sourceCommit: '1466a55eef9e31e229a0e2e60a0811020d7b06e2',
+      files: {
+        'system.en.md': '3f4b581ef8f136ce1b2413a5548adb7cf852c5a9494c1b620a2e28d1e15328a0',
+      },
+    },
+  },
+  [PROMPT_IDS.CLASSROOM_DISCUSSION_PARTICIPANT]: {
+    id: PROMPT_IDS.CLASSROOM_DISCUSSION_PARTICIPANT,
+    variables: [
+      'agentName',
+      'persona',
+      'roleGuideline',
+      'peerContext',
+      'languageConstraint',
+      'stateContext',
+      'chalkboardState',
+      'chalkboardGuidelines',
+      'discussionContextSection',
+      'lengthGuidelines',
+    ],
+    user: false,
+    adaptedFrom: {
+      sourceRepository: 'OpenMAIC',
+      sourceCommit: '1466a55eef9e31e229a0e2e60a0811020d7b06e2',
+      sourceFile: 'lib/prompts/templates/agent-system/system.md',
+      sourceHash: '7da837b795d1d6bb6d3cbc029c3323ef2700384ddacf93ad8b1af4ab8e8ae63e',
+      reason: 'Chalk now exposes the same interleaved text/action envelope and wb_* capabilities, but keeps its shorter discussion role and response guidance plus strict server-side action validation.',
     },
   },
 } as const satisfies { [Id in PromptId]: PromptDefinition<Id> };

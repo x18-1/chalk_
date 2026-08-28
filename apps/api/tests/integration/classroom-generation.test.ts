@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { hash } from 'bcryptjs';
 import { inArray } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildApi } from '../../src/app';
 import { loadConfig } from '../../src/config';
@@ -31,12 +31,41 @@ describe('Classroom outline Generation Run HTTP interface', () => {
   const actionCalls = new Map<string, number>();
   const mediaCalls = new Map<string, number>();
   const videoSubmitCalls = new Map<string, number>();
+  const progressiveCallOrder: string[] = [];
+  let nextQuizContentGate: Promise<void> | null = null;
+  let concurrentOutlineGate: Promise<void> | null = null;
+  let concurrentOutlineStarts = 0;
   const storedMedia = new Map<string, { body: Buffer; contentType: string }>();
   let promotionCopyAttempts = 0;
   let failPromotionCopyAt: number | null = null;
+  let agentProfileGenerationCalls = 0;
+
+  beforeEach(() => {
+    recoverableAttempts = 0;
+    recoverableQuizAttempts = 0;
+    recoverableActionAttempts = 0;
+    recoverableInteractiveAttempts = 0;
+    truncatedInteractiveAttempts = 0;
+    recoverableMediaAttempts = 0;
+    recoverableVideoPollAttempts = 0;
+    restartAttempts = 0;
+    promotionCopyAttempts = 0;
+    failPromotionCopyAt = null;
+    agentProfileGenerationCalls = 0;
+    nextQuizContentGate = null;
+    concurrentOutlineGate = null;
+    concurrentOutlineStarts = 0;
+    sceneCalls.clear();
+    actionCalls.clear();
+    mediaCalls.clear();
+    videoSubmitCalls.clear();
+    progressiveCallOrder.length = 0;
+    storedMedia.clear();
+  });
 
   async function waitForRun(cookie: string, runId: string, status: string) {
     const deadline = Date.now() + 3_000;
+    let latest: unknown;
     while (Date.now() < deadline) {
       const response = await app.inject({
         method: 'GET',
@@ -44,14 +73,42 @@ describe('Classroom outline Generation Run HTTP interface', () => {
         headers: { cookie },
       });
       expect(response.statusCode).toBe(200);
-      if (response.json().generationRun.status === status) return response;
+      latest = response.json().generationRun;
+      if ((latest as { status?: string }).status === status) return response;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    throw new Error(`Generation Run ${runId} did not reach ${status}`);
+    throw new Error(`Generation Run ${runId} did not reach ${status}: ${JSON.stringify(latest)}`);
   }
 
   const classroomOutlineModel = {
+    async *stream(userId: string, input: { system: string; user: string; signal?: AbortSignal }) {
+      const result = await classroomOutlineModel.generate(userId, input);
+      for (let offset = 0; offset < result.text.length; offset += 13) {
+        input.signal?.throwIfAborted();
+        yield { type: 'text_delta' as const, delta: result.text.slice(offset, offset + 13) };
+      }
+      yield {
+        type: 'done' as const,
+        providerId: result.providerId,
+        modelId: result.modelId,
+        stopReason: result.stopReason,
+      };
+    },
     async generate(_userId: string, input: { system: string; user: string; signal?: AbortSignal }) {
+      if (input.system.includes('# Classroom Agent Profile Generator')) {
+        agentProfileGenerationCalls += 1;
+        return {
+          providerId: 'fixture-provider',
+          modelId: 'fixture-agent-profile-model',
+          text: JSON.stringify({
+            agents: [
+              { name: '林老师', role: 'teacher', persona: '负责准确讲解并诊断学生的理解。', priority: 10 },
+              { name: '小助教', role: 'assistant', persona: '负责用生活化类比补充关键步骤。', priority: 7 },
+              { name: '好奇同学', role: 'student', persona: '负责提出同龄学生容易遇到的追问。', priority: 5 },
+            ],
+          }),
+        };
+      }
       if (input.system.includes('# Interactive Scene Action Generator')) {
         const title = input.user.match(/Title:\s*(.+)/)?.[1]?.trim() ?? 'unknown-interactive-actions';
         const highlightTarget = title.includes('无效选择器')
@@ -74,6 +131,7 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       }
       if (input.system.includes('# Slide Action Generator')) {
         const title = input.user.match(/Title:\s*(.+)/)?.[1]?.trim() ?? 'unknown-slide-actions';
+        progressiveCallOrder.push(`actions:${title}`);
         actionCalls.set(title, (actionCalls.get(title) ?? 0) + 1);
         if (title.includes('无效动作场景')) {
           return {
@@ -103,6 +161,7 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       }
       if (input.system.includes('# Quiz Action Generator')) {
         const title = input.user.match(/Title:\s*(.+)/)?.[1]?.trim() ?? 'unknown-quiz-actions';
+        progressiveCallOrder.push(`actions:${title}`);
         actionCalls.set(title, (actionCalls.get(title) ?? 0) + 1);
         if (title.includes('可恢复动作小测')) {
           recoverableActionAttempts += 1;
@@ -117,7 +176,8 @@ describe('Classroom outline Generation Run HTTP interface', () => {
         };
       }
       if (input.system.includes('# Slide Content Generator')) {
-        const title = input.user.match(/(?:Scene Title|Title):\s*(.+)/)?.[1]?.trim() ?? 'unknown-slide';
+        const title = input.user.match(/(?:Scene Title|\*\*Title\*\*|Title):\s*(.+)/)?.[1]?.trim() ?? 'unknown-slide';
+        progressiveCallOrder.push(`content:${title}`);
         sceneCalls.set(title, (sceneCalls.get(title) ?? 0) + 1);
         const usesGeneratedImage = input.user.includes('gen_img_1');
         const usesGeneratedVideo = input.user.includes('gen_vid_1');
@@ -156,7 +216,11 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       }
       if (input.system.includes('# Quiz Content Generator')) {
         const title = input.user.match(/(?:Scene Title|Title):\s*(.+)/)?.[1]?.trim() ?? 'unknown-quiz';
+        progressiveCallOrder.push(`content:${title}`);
         sceneCalls.set(title, (sceneCalls.get(title) ?? 0) + 1);
+        const gate = nextQuizContentGate;
+        nextQuizContentGate = null;
+        if (gate) await gate;
         if (title.includes('可恢复小测')) {
           recoverableQuizAttempts += 1;
           if (recoverableQuizAttempts === 1) throw new Error('Transient quiz provider failure');
@@ -262,9 +326,13 @@ describe('Classroom outline Generation Run HTTP interface', () => {
           });
         }
       }
-      if (input.user.includes('可恢复失败')) {
+      if (input.user.includes('一堂可恢复失败测试课')) {
         recoverableAttempts += 1;
-        if (recoverableAttempts === 1) throw new Error('Secret provider detail must not escape');
+        if (recoverableAttempts <= 3) throw new Error('Secret provider detail must not escape');
+      }
+      if (input.user.includes('并发课堂')) {
+        concurrentOutlineStarts += 1;
+        if (concurrentOutlineGate) await concurrentOutlineGate;
       }
       return {
         providerId: 'fixture-provider',
@@ -272,7 +340,17 @@ describe('Classroom outline Generation Run HTTP interface', () => {
         text: JSON.stringify({
           languageDirective: '整堂课使用简体中文，术语在首次出现时补充英文。',
           courseTitle: '勾股定理入门',
-          outlines: input.user.includes('互动截断恢复') ? [
+          outlines: input.user.includes('PBL') ? [
+            {
+              id: 'scene_pbl',
+              type: 'pbl',
+              title: '不应进入 V3 的项目式学习',
+              description: '验证 V3 边界。',
+              keyPoints: ['PBL 不在范围内'],
+              order: 1,
+              pblConfig: { project: 'build a model' },
+            },
+          ] : input.user.includes('互动截断恢复') ? [
             {
               id: 'scene_truncated_game',
               type: 'interactive',
@@ -382,6 +460,14 @@ describe('Classroom outline Generation Run HTTP interface', () => {
   function responseCookie(value: string | string[] | undefined) {
     const first = Array.isArray(value) ? value[0] : value;
     return first?.split(';', 1)[0] ?? '';
+  }
+
+  function parseOutlineEvents(body: string) {
+    return body.split('\n\n').flatMap((frame) => {
+      const id = frame.match(/^id: (\d+)$/m)?.[1];
+      const data = frame.match(/^data: (.+)$/m)?.[1];
+      return id && data ? [{ id, data: JSON.parse(data) as Record<string, unknown> }] : [];
+    });
   }
 
   function buildTestApi() {
@@ -504,10 +590,28 @@ describe('Classroom outline Generation Run HTTP interface', () => {
 
     expect(created.statusCode).toBe(202);
     expect(created.json().generationRun).toMatchObject({
+      classroomId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       stage: 'outline',
       status: 'queued',
       attempt: 1,
     });
+
+    const classroomId = created.json().generationRun.classroomId as string;
+    const generatingList = await app.inject({
+      method: 'GET',
+      url: '/classrooms',
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(generatingList.statusCode).toBe(200);
+    expect(generatingList.json().classrooms).toContainEqual(expect.objectContaining({
+      id: classroomId,
+      latestArtifact: null,
+      generation: expect.objectContaining({
+        runId: created.json().generationRun.id,
+        draftId: created.json().generationRun.draftId,
+        stage: 'outline',
+      }),
+    }));
 
     const completed = await waitForRun(cookies.get('user')!, created.json().generationRun.id, 'completed');
     expect(completed.json().generationRun).toMatchObject({
@@ -527,6 +631,18 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       },
     });
 
+    const outlinedList = await app.inject({
+      method: 'GET',
+      url: '/classrooms',
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(outlinedList.json().classrooms).toContainEqual(expect.objectContaining({
+      id: classroomId,
+      title: '勾股定理入门',
+      latestArtifact: null,
+      generation: expect.objectContaining({ runId: created.json().generationRun.id }),
+    }));
+
     const runId = completed.json().generationRun.id as string;
     const retrieved = await app.inject({
       method: 'GET',
@@ -543,6 +659,520 @@ describe('Classroom outline Generation Run HTTP interface', () => {
     });
     expect(foreignRead.statusCode).toBe(404);
     expect(foreignRead.json()).toEqual({ error: 'Resource not found', code: 'NOT_FOUND' });
+  });
+
+  it('claims up to ten different classroom runs concurrently and queues the eleventh', async () => {
+    let releaseConcurrentOutlines!: () => void;
+    concurrentOutlineGate = new Promise<void>((resolve) => { releaseConcurrentOutlines = resolve; });
+    const createdRuns: string[] = [];
+    try {
+      for (let index = 1; index <= 11; index += 1) {
+        const created = await app.inject({
+          method: 'POST',
+          url: '/classroom-generation-runs',
+          headers: { cookie: cookies.get('user') },
+          payload: { requirements: `并发课堂 ${index}` },
+        });
+        expect(created.statusCode).toBe(202);
+        createdRuns.push(created.json().generationRun.id as string);
+      }
+
+      const startDeadline = Date.now() + 3_000;
+      while (concurrentOutlineStarts < 10 && Date.now() < startDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(concurrentOutlineStarts).toBe(10);
+
+      const states = await Promise.all(createdRuns.map(async (runId) => {
+        const response = await app.inject({
+          method: 'GET',
+          url: `/classroom-generation-runs/${runId}`,
+          headers: { cookie: cookies.get('user') },
+        });
+        return response.json().generationRun.status as string;
+      }));
+      expect(states.filter((status) => status === 'running')).toHaveLength(10);
+      expect(states.filter((status) => status === 'queued')).toHaveLength(1);
+    } finally {
+      releaseConcurrentOutlines();
+      concurrentOutlineGate = null;
+    }
+
+    await Promise.all(createdRuns.map((runId) => waitForRun(cookies.get('user')!, runId, 'completed')));
+    expect(concurrentOutlineStarts).toBe(11);
+  });
+
+  it('confirms an owned V3 outline as one immutable revision and rejects PBL', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classroom-generation-runs',
+      headers: { cookie: cookies.get('user') },
+      payload: { requirements: '请生成一堂渐进式大纲确认测试课。' },
+    });
+    const completed = await waitForRun(cookies.get('user')!, created.json().generationRun.id, 'completed');
+    const outlineRun = completed.json().generationRun as {
+      id: string;
+      candidateVersion: string;
+      outline: {
+        languageDirective: string;
+        courseTitle: string;
+        outlines: Array<Record<string, unknown>>;
+      };
+    };
+    const idempotencyKey = randomUUID();
+
+    const foreignConfirm = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('admin') },
+      payload: { idempotencyKey, candidateVersion: outlineRun.candidateVersion, outline: outlineRun.outline },
+    });
+    expect(foreignConfirm.statusCode).toBe(404);
+
+    const pblConfirm = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        idempotencyKey,
+        candidateVersion: outlineRun.candidateVersion,
+        outline: {
+          ...outlineRun.outline,
+          outlines: [{
+            id: 'project_1',
+            type: 'pbl',
+            title: '项目学习',
+            description: 'V3 不应接受这个场景。',
+            keyPoints: ['验证范围边界'],
+            order: 1,
+            pblConfig: { goal: 'build' },
+          }],
+        },
+      },
+    });
+    expect(pblConfirm.statusCode).toBe(422);
+    expect(pblConfirm.json()).toMatchObject({ code: 'CLASSROOM_OUTLINE_TYPE_UNSUPPORTED' });
+
+    const staleConfirm = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        idempotencyKey,
+        candidateVersion: '0'.repeat(64),
+        outline: outlineRun.outline,
+      },
+    });
+    expect(staleConfirm.statusCode).toBe(409);
+    expect(staleConfirm.json()).toMatchObject({ code: 'CLASSROOM_OUTLINE_CANDIDATE_STALE' });
+
+    const editedOutline = {
+      ...outlineRun.outline,
+      courseTitle: '确认后的勾股定理课堂',
+      outlines: outlineRun.outline.outlines.map((scene, index) => ({
+        ...scene,
+        order: index + 1,
+      })),
+    };
+    const confirmationRequest = () => app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: { idempotencyKey, candidateVersion: outlineRun.candidateVersion, outline: editedOutline },
+    });
+    const confirmationResponses = await Promise.all([confirmationRequest(), confirmationRequest()]);
+    const confirmed = confirmationResponses.find((response) => response.json().created === true)!;
+    const repeated = confirmationResponses.find((response) => response.json().created === false)!;
+    expect(confirmed.statusCode).toBe(202);
+    expect(repeated.statusCode).toBe(200);
+    expect(confirmed.json()).toMatchObject({
+      created: true,
+      outlineRevision: {
+        number: 1,
+        outline: { courseTitle: '确认后的勾股定理课堂' },
+      },
+      generationRun: {
+        draftId: completed.json().generationRun.draftId,
+        stage: 'progressive',
+        status: 'queued',
+      },
+    });
+    expect(confirmed.json().outlineRevision.id).toMatch(/^[0-9a-f-]{36}$/);
+
+    const classroomList = await app.inject({
+      method: 'GET',
+      url: '/classrooms',
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(classroomList.json().classrooms).toContainEqual(expect.objectContaining({
+      id: completed.json().generationRun.classroomId,
+      title: '确认后的勾股定理课堂',
+      latestArtifact: null,
+      generation: expect.objectContaining({
+        runId: confirmed.json().generationRun.id,
+        stage: 'progressive',
+      }),
+    }));
+
+    expect(repeated.json()).toMatchObject({
+      created: false,
+      outlineRevision: {
+        id: confirmed.json().outlineRevision.id,
+        contentHash: confirmed.json().outlineRevision.contentHash,
+      },
+      generationRun: { id: confirmed.json().generationRun.id },
+    });
+    await waitForRun(cookies.get('user')!, confirmed.json().generationRun.id, 'completed');
+    expect(agentProfileGenerationCalls).toBe(1);
+
+    const conflicting = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        idempotencyKey,
+        candidateVersion: outlineRun.candidateVersion,
+        outline: { ...editedOutline, courseTitle: '不能复用幂等键修改 revision' },
+      },
+    });
+    expect(conflicting.statusCode).toBe(409);
+    expect(conflicting.json()).toMatchObject({ code: 'CLASSROOM_OUTLINE_REVISION_CONFLICT' });
+    const afterConflictList = await app.inject({
+      method: 'GET',
+      url: '/classrooms',
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(afterConflictList.json().classrooms).toContainEqual(expect.objectContaining({
+      id: completed.json().generationRun.classroomId,
+      title: '确认后的勾股定理课堂',
+    }));
+  });
+
+  it('streams only persisted complete outline objects and resumes after Last-Event-ID', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classroom-generation-runs',
+      headers: { cookie: cookies.get('user') },
+      payload: { requirements: '用两个场景流式讲解勾股定理', context: {} },
+    });
+    expect(created.statusCode).toBe(202);
+    const runId = created.json().generationRun.id as string;
+
+    await waitForRun(cookies.get('user')!, runId, 'completed');
+    const streamed = await app.inject({
+      method: 'GET',
+      url: `/classroom-generation-runs/${runId}/outline-events`,
+      headers: { cookie: cookies.get('user'), accept: 'text/event-stream' },
+    });
+    expect(streamed.statusCode).toBe(200);
+    expect(streamed.headers['content-type']).toBe('text/event-stream; charset=utf-8');
+    const events = parseOutlineEvents(streamed.body);
+    expect(events.map((event) => event.data.type)).toEqual([
+      'languageDirective',
+      'courseTitle',
+      'outline',
+      'outline',
+      'done',
+    ]);
+    expect(events.filter((event) => event.data.type === 'outline').map((event) => event.data.data)).toMatchObject([
+      { id: 'scene_1', order: 1, type: 'slide', title: '从直角三角形出发' },
+      { id: 'scene_2', order: 2, type: 'quiz', title: '判断边长关系' },
+    ]);
+
+    const firstOutline = events.find((event) => event.data.type === 'outline')!;
+    const resumed = await app.inject({
+      method: 'GET',
+      url: `/classroom-generation-runs/${runId}/outline-events`,
+      headers: {
+        cookie: cookies.get('user'),
+        accept: 'text/event-stream',
+        'last-event-id': firstOutline.id,
+      },
+    });
+    expect(resumed.statusCode).toBe(200);
+    expect(parseOutlineEvents(resumed.body).map((event) => event.data.type)).toEqual(['outline', 'done']);
+
+    const foreign = await app.inject({
+      method: 'GET',
+      url: `/classroom-generation-runs/${runId}/outline-events`,
+      headers: { cookie: cookies.get('admin'), accept: 'text/event-stream' },
+    });
+    expect(foreign.statusCode).toBe(404);
+  });
+
+  it('never emits or persists a PBL outline in the V3 stream', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classroom-generation-runs',
+      headers: { cookie: cookies.get('user') },
+      payload: { requirements: '请生成一堂 PBL 课程', context: {} },
+    });
+    const runId = created.json().generationRun.id as string;
+    const failed = await waitForRun(cookies.get('user')!, runId, 'failed');
+    expect(failed.json().generationRun).toMatchObject({
+      outline: null,
+      error: { code: 'CLASSROOM_OUTLINE_TYPE_UNSUPPORTED' },
+    });
+
+    const streamed = await app.inject({
+      method: 'GET',
+      url: `/classroom-generation-runs/${runId}/outline-events`,
+      headers: { cookie: cookies.get('user'), accept: 'text/event-stream' },
+    });
+    const events = parseOutlineEvents(streamed.body);
+    expect(events.some((event) => event.data.type === 'outline')).toBe(false);
+    expect(events.at(-1)?.data).toEqual({
+      type: 'error',
+      error: 'Unable to generate a valid classroom outline',
+    });
+  });
+
+  it('progresses from one confirmed revision through Scene preview, remaining Scenes, and idempotent publication', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classroom-generation-runs',
+      headers: { cookie: cookies.get('user') },
+      payload: { requirements: '请生成一堂 V3 完整渐进链路测试课。' },
+    });
+    const outlineRun = await waitForRun(cookies.get('user')!, created.json().generationRun.id, 'completed');
+    const outline = outlineRun.json().generationRun.outline as {
+      languageDirective: string;
+      courseTitle: string;
+      outlines: Array<Record<string, unknown>>;
+    };
+    const editedOutline = {
+      ...outline,
+      courseTitle: 'V3 完整渐进链路',
+      outlines: outline.outlines.map((scene, index) => ({
+        ...scene,
+        title: index === 0 ? '链路第一幕' : '链路第二幕',
+      })),
+    };
+    progressiveCallOrder.length = 0;
+    let releaseQuizContent!: () => void;
+    nextQuizContentGate = new Promise<void>((resolve) => { releaseQuizContent = resolve; });
+    const confirmed = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.json().generationRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        idempotencyKey: randomUUID(),
+        candidateVersion: outlineRun.json().generationRun.candidateVersion,
+        outline: editedOutline,
+      },
+    });
+    expect(confirmed.statusCode).toBe(202);
+    const progressiveRunId = confirmed.json().generationRun.id as string;
+
+    const previewDeadline = Date.now() + 3_000;
+    let previewRun: Record<string, any> | null = null;
+    while (Date.now() < previewDeadline) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/classroom-generation-runs/${progressiveRunId}`,
+        headers: { cookie: cookies.get('user') },
+      });
+      if (response.json().generationRun.previewReady) {
+        previewRun = response.json().generationRun;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(previewRun).toMatchObject({
+      stage: 'progressive',
+      status: 'running',
+      previewReady: true,
+      publishReady: false,
+      context: {
+        agentProfiles: [
+          { id: expect.stringMatching(/^agent-/), name: '林老师', role: 'teacher', priority: 10 },
+          { id: expect.stringMatching(/^agent-/), name: '小助教', role: 'assistant', priority: 7 },
+          { id: expect.stringMatching(/^agent-/), name: '好奇同学', role: 'student', priority: 5 },
+        ],
+        agentProfileGeneration: {
+          source: 'model',
+          promptId: 'classroom-agent-profiles',
+          promptRevision: expect.stringMatching(/^[a-f0-9]{64}$/),
+          providerId: 'fixture-provider',
+          modelId: 'fixture-agent-profile-model',
+        },
+      },
+      scenes: [
+        { outlineId: 'scene_1', phase: 'completed', status: 'completed' },
+        { outlineId: 'scene_2', phase: 'content', status: expect.stringMatching(/^(pending|running)$/) },
+      ],
+    });
+
+    releaseQuizContent();
+    const completed = await waitForRun(cookies.get('user')!, progressiveRunId, 'completed');
+    expect(completed.json().generationRun).toMatchObject({
+      stage: 'progressive',
+      status: 'completed',
+      previewReady: true,
+      publishReady: true,
+      progress: { total: 2, completed: 2, failed: 0 },
+      scenes: [
+        { outlineId: 'scene_1', phase: 'completed', status: 'completed' },
+        { outlineId: 'scene_2', phase: 'completed', status: 'completed' },
+      ],
+    });
+    expect(progressiveCallOrder.filter((entry) => entry.includes('链路'))).toEqual([
+      'content:链路第一幕',
+      'actions:链路第一幕',
+      'content:链路第二幕',
+      'actions:链路第二幕',
+    ]);
+
+    const published = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${progressiveRunId}/publish`,
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(published.statusCode).toBe(201);
+    const classroom = published.json().classroom;
+    expect(classroom.id).toBe(outlineRun.json().generationRun.classroomId);
+    const artifact = await app.inject({
+      method: 'GET',
+      url: `/classrooms/${classroom.id}/artifacts/${classroom.latestArtifact.id}`,
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(artifact.statusCode).toBe(200);
+    expect(artifact.json().document.stage.agentProfiles).toMatchObject([
+      { name: '林老师', role: 'teacher' },
+      { name: '小助教', role: 'assistant' },
+      { name: '好奇同学', role: 'student' },
+    ]);
+    const repeated = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${progressiveRunId}/publish`,
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(repeated.statusCode).toBe(200);
+    expect(repeated.json().classroom.id).toBe(published.json().classroom.id);
+  });
+
+  it('runs planned media beside the remaining progressive Scene lane and gates publication', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classroom-generation-runs',
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        requirements: '请生成一堂 V3 媒体规划并行链路测试课。',
+        media: { image: { providerId: 'openai', model: 'gpt-image-1', aspectRatio: '16:9' } },
+      },
+    });
+    const outlineRun = await waitForRun(cookies.get('user')!, created.json().generationRun.id, 'completed');
+    let releaseQuizContent!: () => void;
+    nextQuizContentGate = new Promise<void>((resolve) => { releaseQuizContent = resolve; });
+    const confirmed = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.json().generationRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        idempotencyKey: randomUUID(),
+        candidateVersion: outlineRun.json().generationRun.candidateVersion,
+        outline: outlineRun.json().generationRun.outline,
+      },
+    });
+    const runId = confirmed.json().generationRun.id as string;
+
+    const mediaDeadline = Date.now() + 3_000;
+    let concurrentState: Record<string, any> | null = null;
+    while (Date.now() < mediaDeadline) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/classroom-generation-runs/${runId}`,
+        headers: { cookie: cookies.get('user') },
+      });
+      const generationRun = response.json().generationRun;
+      if (generationRun.previewReady && generationRun.progress?.media?.completed === 1) {
+        concurrentState = generationRun;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(concurrentState).toMatchObject({
+      status: 'running',
+      previewReady: true,
+      publishReady: false,
+      progress: {
+        completed: 1,
+        media: { total: 1, completed: 1, failed: 0 },
+      },
+      mediaTasks: [{ kind: 'image', status: 'completed', mediaRef: expect.stringMatching(/^media\/generated\//) }],
+    });
+
+    const earlyPublish = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${runId}/publish`,
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(earlyPublish.statusCode).toBe(409);
+    expect(earlyPublish.json()).toMatchObject({ code: 'CLASSROOM_DRAFT_NOT_READY' });
+
+    releaseQuizContent();
+    const completed = await waitForRun(cookies.get('user')!, runId, 'completed');
+    expect(completed.json().generationRun).toMatchObject({
+      publishReady: true,
+      progress: { completed: 2, media: { total: 1, completed: 1, failed: 0 } },
+    });
+    const published = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${runId}/publish`,
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(published.statusCode).toBe(201);
+  });
+
+  it('keeps completed progressive Scenes and restarts a failed Scene from content', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/classroom-generation-runs',
+      headers: { cookie: cookies.get('user') },
+      payload: { requirements: '请生成一堂 V3 动作可恢复失败测试课。' },
+    });
+    const outlineRun = await waitForRun(cookies.get('user')!, created.json().generationRun.id, 'completed');
+    const confirmed = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${outlineRun.json().generationRun.id}/outline-revisions`,
+      headers: { cookie: cookies.get('user') },
+      payload: {
+        idempotencyKey: randomUUID(),
+        candidateVersion: outlineRun.json().generationRun.candidateVersion,
+        outline: outlineRun.json().generationRun.outline,
+      },
+    });
+    const runId = confirmed.json().generationRun.id as string;
+    const failed = await waitForRun(cookies.get('user')!, runId, 'failed');
+    expect(failed.json().generationRun).toMatchObject({
+      previewReady: true,
+      progress: { total: 2, completed: 1, failed: 1 },
+      scenes: [
+        { outlineId: 'scene_1', phase: 'completed', status: 'completed', attempt: 1 },
+        { outlineId: 'scene_2', phase: 'actions', status: 'failed', attempt: 1 },
+      ],
+      error: { code: 'CLASSROOM_SCENE_ACTIONS_GENERATION_FAILED' },
+    });
+    const firstContentCalls = sceneCalls.get('从直角三角形出发');
+    const failedSceneContentCalls = sceneCalls.get('可恢复动作小测');
+
+    const retried = await app.inject({
+      method: 'POST',
+      url: `/classroom-generation-runs/${runId}/retry`,
+      headers: { cookie: cookies.get('user') },
+    });
+    expect(retried.statusCode).toBe(202);
+    const completed = await waitForRun(cookies.get('user')!, runId, 'completed');
+    expect(completed.json().generationRun).toMatchObject({
+      attempt: 2,
+      progress: { total: 2, completed: 2, failed: 0 },
+      scenes: [
+        { outlineId: 'scene_1', phase: 'completed', status: 'completed', attempt: 1 },
+        { outlineId: 'scene_2', phase: 'completed', status: 'completed', attempt: 2 },
+      ],
+    });
+    expect(sceneCalls.get('从直角三角形出发')).toBe(firstContentCalls);
+    expect(sceneCalls.get('可恢复动作小测')).toBe((failedSceneContentCalls ?? 0) + 1);
   });
 
   it('restores the latest unpublished Generation Run only for its owner', async () => {
@@ -1453,6 +2083,7 @@ describe('Classroom outline Generation Run HTTP interface', () => {
       modelId: 'gpt-image-1',
       contentType: 'image/png',
       mediaRef: expect.stringMatching(/^media\/generated\/.+\.png$/),
+      url: expect.stringMatching(/^https:\/\/storage\.test\/classroom-drafts\//),
     });
     expect(completed.json().generationRun.scenes[0].content).toMatchObject({
       canvas: { elements: expect.arrayContaining([expect.objectContaining({ src: imageTask.mediaRef })]) },

@@ -1,4 +1,6 @@
-import { and, asc, desc, eq, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import type { Database } from '../client';
 import { AuthRequiredError, OwnershipError } from '../errors';
@@ -9,6 +11,8 @@ import {
   classroomDraftScenes,
   classroomDrafts,
   classroomGenerationRuns,
+  classroomOutlineEvents,
+  classroomOutlineRevisions,
   classrooms,
 } from '../schema';
 
@@ -21,6 +25,8 @@ export function createClassroomGenerationDal(db: Database) {
     async createOutlineRun(userId: string, input: {
       runId: string;
       draftId: string;
+      classroomId: string;
+      title: string;
       requirements: string;
       context: unknown;
       promptId: string;
@@ -28,11 +34,18 @@ export function createClassroomGenerationDal(db: Database) {
     }) {
       requireUserId(userId);
       return db.transaction(async (transaction) => {
+        const classroomRows = await transaction.insert(classrooms).values({
+          id: input.classroomId,
+          userId,
+          title: input.title,
+          description: input.requirements,
+        }).returning();
         const drafts = await transaction.insert(classroomDrafts).values({
           id: input.draftId,
           userId,
           requirements: input.requirements,
           context: input.context,
+          classroomId: input.classroomId,
         }).returning();
         const runs = await transaction.insert(classroomGenerationRuns).values({
           id: input.runId,
@@ -42,7 +55,159 @@ export function createClassroomGenerationDal(db: Database) {
           promptId: input.promptId,
           promptRevision: input.promptRevision,
         }).returning();
-        return { draft: drafts[0]!, run: runs[0]! };
+        return { classroom: classroomRows[0]!, draft: drafts[0]!, run: runs[0]! };
+      });
+    },
+
+    async confirmOutlineRevision(userId: string, input: {
+      outlineRunId: string;
+      runId: string;
+      revisionId: string;
+      draftId: string;
+      idempotencyKey: string;
+      candidateVersion: string;
+      outline: unknown;
+      context: unknown;
+      contentHash: string;
+      scenes: Array<{
+        id: string;
+        outlineId: string;
+        type: string;
+        order: number;
+        outline: unknown;
+      }>;
+      mediaTasks: Array<{
+        id: string;
+        sceneId: string;
+        actionId: string | null;
+        elementId: string | null;
+        taskKey: string;
+        taskOrder: number;
+        kind: 'image' | 'video';
+        input: unknown;
+      }>;
+    }) {
+      requireUserId(userId);
+      return db.transaction(async (transaction) => {
+        const sources = await transaction.select({ id: classroomGenerationRuns.id })
+          .from(classroomGenerationRuns)
+          .where(and(
+            eq(classroomGenerationRuns.id, input.outlineRunId),
+            eq(classroomGenerationRuns.draftId, input.draftId),
+            eq(classroomGenerationRuns.userId, userId),
+            eq(classroomGenerationRuns.stage, 'outline'),
+            eq(classroomGenerationRuns.status, 'completed'),
+          ))
+          .limit(1)
+          .for('update');
+        if (!sources[0]) throw new OwnershipError('completed classroom outline run', input.outlineRunId);
+
+        const existingRows = await transaction.select()
+          .from(classroomOutlineRevisions)
+          .where(and(
+            eq(classroomOutlineRevisions.draftId, input.draftId),
+            eq(classroomOutlineRevisions.userId, userId),
+          ))
+          .orderBy(asc(classroomOutlineRevisions.number))
+          .limit(1)
+          .for('update');
+        const existing = existingRows[0];
+        if (existing) {
+          if (existing.idempotencyKey !== input.idempotencyKey || existing.contentHash !== input.contentHash) {
+            return { state: 'conflict' as const };
+          }
+          const runs = await transaction.select().from(classroomGenerationRuns).where(and(
+            eq(classroomGenerationRuns.draftId, input.draftId),
+            eq(classroomGenerationRuns.userId, userId),
+            eq(classroomGenerationRuns.outlineRevisionId, existing.id),
+            eq(classroomGenerationRuns.stage, 'progressive'),
+          )).limit(1);
+          if (!runs[0]) throw new OwnershipError('progressive classroom generation run', input.draftId);
+          return { state: 'existing' as const, revision: existing, run: runs[0] };
+        }
+
+        const candidateRows = await transaction.select({ outline: classroomDrafts.outline })
+          .from(classroomDrafts)
+          .where(and(
+            eq(classroomDrafts.id, input.draftId),
+            eq(classroomDrafts.userId, userId),
+          ))
+          .limit(1)
+          .for('update');
+        const candidate = candidateRows[0]?.outline;
+        const candidateVersion = candidate
+          ? createHash('sha256').update(JSON.stringify(candidate)).digest('hex')
+          : null;
+        if (candidateVersion !== input.candidateVersion) return { state: 'stale' as const };
+
+        const courseTitle = input.outline
+          && typeof input.outline === 'object'
+          && !Array.isArray(input.outline)
+          && typeof (input.outline as Record<string, unknown>).courseTitle === 'string'
+          ? ((input.outline as Record<string, unknown>).courseTitle as string).trim()
+          : '';
+        if (courseTitle) {
+          const ownedDrafts = await transaction.select({ classroomId: classroomDrafts.classroomId })
+            .from(classroomDrafts)
+            .where(and(
+              eq(classroomDrafts.id, input.draftId),
+              eq(classroomDrafts.userId, userId),
+            ))
+            .limit(1);
+          if (ownedDrafts[0]?.classroomId) {
+            await transaction.update(classrooms).set({
+              title: courseTitle,
+              updatedAt: new Date(),
+            }).where(and(
+              eq(classrooms.id, ownedDrafts[0].classroomId),
+              eq(classrooms.userId, userId),
+            ));
+          }
+        }
+
+        const revisions = await transaction.insert(classroomOutlineRevisions).values({
+          id: input.revisionId,
+          draftId: input.draftId,
+          userId,
+          number: 1,
+          idempotencyKey: input.idempotencyKey,
+          outline: input.outline,
+          contentHash: input.contentHash,
+        }).returning();
+        const runs = await transaction.insert(classroomGenerationRuns).values({
+          id: input.runId,
+          draftId: input.draftId,
+          userId,
+          outlineRevisionId: input.revisionId,
+          stage: 'progressive',
+          status: 'queued',
+          promptId: null,
+          promptRevision: null,
+        }).returning();
+        await transaction.insert(classroomDraftScenes).values(input.scenes.map((scene) => ({
+          ...scene,
+          draftId: input.draftId,
+          userId,
+          outlineRevisionId: input.revisionId,
+        })));
+        if (input.mediaTasks.length > 0) {
+          await transaction.insert(classroomDraftMediaTasks).values(input.mediaTasks.map((task) => ({
+            ...task,
+            runId: input.runId,
+            draftId: input.draftId,
+            userId,
+          })));
+        }
+        await transaction.update(classroomDrafts).set({
+          outline: input.outline,
+          context: input.context,
+          status: 'generating_progressive',
+          updatedAt: new Date(),
+        }).where(and(
+          eq(classroomDrafts.id, input.draftId),
+          eq(classroomDrafts.userId, userId),
+        ));
+        return { state: 'created' as const, revision: revisions[0]!, run: runs[0]! };
       });
     },
 
@@ -213,6 +378,19 @@ export function createClassroomGenerationDal(db: Database) {
       return rows[0] ?? null;
     },
 
+    async listOutlineEvents(userId: string, runId: string, afterId = 0) {
+      requireUserId(userId);
+      const run = await ownedRun(db, userId, runId);
+      if (!run || run.run.stage !== 'outline') {
+        throw new OwnershipError('classroom outline generation run', runId);
+      }
+      return db.select().from(classroomOutlineEvents).where(and(
+        eq(classroomOutlineEvents.runId, runId),
+        eq(classroomOutlineEvents.userId, userId),
+        gt(classroomOutlineEvents.id, afterId),
+      )).orderBy(asc(classroomOutlineEvents.id));
+    },
+
     async listScenes(userId: string, draftId: string) {
       requireUserId(userId);
       const ownedDrafts = await db.select({ id: classroomDrafts.id }).from(classroomDrafts).where(and(
@@ -271,14 +449,64 @@ export function createClassroomGenerationDal(db: Database) {
             ? 'generating_media'
             : runs[0].stage === 'scene_actions'
             ? 'generating_actions'
-            : runs[0].stage === 'scene_content' ? 'generating_content' : 'generating',
+            : runs[0].stage === 'scene_content'
+              ? 'generating_content'
+              : runs[0].stage === 'progressive' ? 'generating_progressive' : 'generating',
           updatedAt: new Date(),
         }).where(and(
           eq(classroomDrafts.id, input.draftId),
           eq(classroomDrafts.userId, userId),
         )).returning();
         if (!drafts[0]) throw new OwnershipError('classroom draft', input.draftId);
-        if (runs[0].stage === 'scene_content') {
+        if (runs[0].stage === 'outline') {
+          await transaction.delete(classroomOutlineEvents).where(and(
+            eq(classroomOutlineEvents.runId, input.runId),
+            eq(classroomOutlineEvents.userId, userId),
+          ));
+        } else if (runs[0].stage === 'progressive') {
+          const failedScenes = await transaction.select({
+            id: classroomDraftScenes.id,
+            status: classroomDraftScenes.status,
+            actionStatus: classroomDraftScenes.actionStatus,
+          }).from(classroomDraftScenes).where(and(
+            eq(classroomDraftScenes.draftId, input.draftId),
+            eq(classroomDraftScenes.userId, userId),
+            or(
+              eq(classroomDraftScenes.status, 'failed'),
+              eq(classroomDraftScenes.actionStatus, 'failed'),
+            ),
+          ));
+          if (failedScenes.length > 0) {
+            await transaction.update(classroomDraftScenes).set({
+              content: null,
+              actions: null,
+              status: 'pending',
+              actionStatus: 'pending',
+              errorCode: null,
+              actionErrorCode: null,
+              startedAt: null,
+              finishedAt: null,
+              actionStartedAt: null,
+              actionFinishedAt: null,
+              updatedAt: new Date(),
+            }).where(and(
+              eq(classroomDraftScenes.draftId, input.draftId),
+              eq(classroomDraftScenes.userId, userId),
+              inArray(classroomDraftScenes.id, failedScenes.map((scene) => scene.id)),
+            ));
+          }
+          await transaction.update(classroomDraftMediaTasks).set({
+            status: 'pending',
+            errorCode: null,
+            startedAt: null,
+            finishedAt: null,
+            updatedAt: new Date(),
+          }).where(and(
+            eq(classroomDraftMediaTasks.runId, input.runId),
+            eq(classroomDraftMediaTasks.userId, userId),
+            ne(classroomDraftMediaTasks.status, 'completed'),
+          ));
+        } else if (runs[0].stage === 'scene_content') {
           await transaction.update(classroomDraftScenes).set({
             status: 'pending',
             errorCode: null,
@@ -339,7 +567,9 @@ export function createClassroomGenerationDal(db: Database) {
             ? 'media_aborted'
             : runs[0].stage === 'scene_actions'
             ? 'actions_aborted'
-            : runs[0].stage === 'scene_content' ? 'content_aborted' : 'aborted',
+            : runs[0].stage === 'scene_content'
+              ? 'content_aborted'
+              : runs[0].stage === 'progressive' ? 'progressive_aborted' : 'aborted',
           updatedAt: now,
         }).where(and(
           eq(classroomDrafts.id, runs[0].draftId),
@@ -427,6 +657,9 @@ export function createClassroomGenerationDal(db: Database) {
       draftId: string;
       workerId: string;
       outline: unknown;
+      courseTitle: string;
+      eventOrder: number;
+      doneEvent: unknown;
       modelProviderId: string;
       modelId: string;
     }) {
@@ -451,6 +684,13 @@ export function createClassroomGenerationDal(db: Database) {
           isNull(classroomGenerationRuns.cancelRequestedAt),
         )).returning();
         if (!runs[0]) return null;
+        await transaction.insert(classroomOutlineEvents).values({
+          runId: input.runId,
+          userId,
+          eventOrder: input.eventOrder,
+          type: 'done',
+          data: input.doneEvent,
+        });
         const drafts = await transaction.update(classroomDrafts).set({
           outline: input.outline,
           status: 'outline_ready',
@@ -460,7 +700,168 @@ export function createClassroomGenerationDal(db: Database) {
           eq(classroomDrafts.userId, userId),
         )).returning();
         if (!drafts[0]) throw new OwnershipError('classroom draft', input.draftId);
+        if (drafts[0].classroomId) {
+          await transaction.update(classrooms).set({
+            title: input.courseTitle,
+            updatedAt: now,
+          }).where(and(
+            eq(classrooms.id, drafts[0].classroomId),
+            eq(classrooms.userId, userId),
+          ));
+        }
         return { draft: drafts[0], run: runs[0] };
+      });
+    },
+
+    async appendOutlineEvent(userId: string, input: {
+      runId: string;
+      workerId: string;
+      eventOrder: number;
+      type: string;
+      data: unknown;
+    }) {
+      requireUserId(userId);
+      return db.transaction(async (transaction) => {
+        const claims = await transaction.select({
+          id: classroomGenerationRuns.id,
+          draftId: classroomGenerationRuns.draftId,
+        })
+          .from(classroomGenerationRuns)
+          .where(and(
+            eq(classroomGenerationRuns.id, input.runId),
+            eq(classroomGenerationRuns.userId, userId),
+            eq(classroomGenerationRuns.stage, 'outline'),
+            eq(classroomGenerationRuns.status, 'running'),
+            eq(classroomGenerationRuns.leaseOwner, input.workerId),
+            isNull(classroomGenerationRuns.cancelRequestedAt),
+          ))
+          .limit(1);
+        if (!claims[0]) return null;
+        const events = await transaction.insert(classroomOutlineEvents).values({
+          runId: input.runId,
+          userId,
+          eventOrder: input.eventOrder,
+          type: input.type,
+          data: input.data,
+        }).returning();
+        const courseTitle = input.type === 'courseTitle'
+          && input.data
+          && typeof input.data === 'object'
+          && !Array.isArray(input.data)
+          && typeof (input.data as Record<string, unknown>).data === 'string'
+          ? (input.data as Record<string, unknown>).data as string
+          : null;
+        if (courseTitle) {
+          const drafts = await transaction.select({ classroomId: classroomDrafts.classroomId })
+            .from(classroomDrafts)
+            .where(and(
+              eq(classroomDrafts.id, claims[0]!.draftId),
+              eq(classroomDrafts.userId, userId),
+            ))
+            .limit(1);
+          if (drafts[0]?.classroomId) {
+            await transaction.update(classrooms).set({
+              title: courseTitle,
+              updatedAt: new Date(),
+            }).where(and(
+              eq(classrooms.id, drafts[0].classroomId),
+              eq(classrooms.userId, userId),
+            ));
+          }
+        }
+        return events[0] ?? null;
+      });
+    },
+
+    async markProgressivePreviewReady(userId: string, input: {
+      runId: string;
+      draftId: string;
+      sceneId: string;
+      workerId: string;
+    }) {
+      requireUserId(userId);
+      return db.transaction(async (transaction) => {
+        const rows = await transaction.update(classroomDrafts).set({
+          status: 'preview_ready',
+          updatedAt: new Date(),
+        }).where(and(
+          eq(classroomDrafts.id, input.draftId),
+          eq(classroomDrafts.userId, userId),
+          sql`exists (select 1 from ${classroomGenerationRuns} where ${classroomGenerationRuns.id} = ${input.runId} and ${classroomGenerationRuns.draftId} = ${input.draftId} and ${classroomGenerationRuns.userId} = ${userId} and ${classroomGenerationRuns.stage} = 'progressive' and ${classroomGenerationRuns.status} = 'running' and ${classroomGenerationRuns.leaseOwner} = ${input.workerId})`,
+          sql`exists (select 1 from ${classroomDraftScenes} where ${classroomDraftScenes.id} = ${input.sceneId} and ${classroomDraftScenes.draftId} = ${input.draftId} and ${classroomDraftScenes.userId} = ${userId} and ${classroomDraftScenes.order} = 1 and ${classroomDraftScenes.status} = 'completed' and ${classroomDraftScenes.actionStatus} = 'completed')`,
+        )).returning();
+        return rows[0] ?? null;
+      });
+    },
+
+    async updateDraftContextForClaim(userId: string, input: {
+      runId: string;
+      draftId: string;
+      workerId: string;
+      context: unknown;
+    }) {
+      requireUserId(userId);
+      const rows = await db.update(classroomDrafts).set({
+        context: input.context,
+        status: 'generating_progressive',
+        updatedAt: new Date(),
+      }).where(and(
+        eq(classroomDrafts.id, input.draftId),
+        eq(classroomDrafts.userId, userId),
+        sql`exists (select 1 from ${classroomGenerationRuns} where ${classroomGenerationRuns.id} = ${input.runId} and ${classroomGenerationRuns.draftId} = ${input.draftId} and ${classroomGenerationRuns.userId} = ${userId} and ${classroomGenerationRuns.stage} = 'progressive' and ${classroomGenerationRuns.status} = 'running' and ${classroomGenerationRuns.leaseOwner} = ${input.workerId} and ${classroomGenerationRuns.cancelRequestedAt} is null)`,
+      )).returning();
+      return rows[0] ?? null;
+    },
+
+    async completeProgressiveRun(userId: string, input: {
+      runId: string;
+      draftId: string;
+      workerId: string;
+    }) {
+      requireUserId(userId);
+      return db.transaction(async (transaction) => {
+        const unfinishedScenes = await transaction.select({ id: classroomDraftScenes.id })
+          .from(classroomDraftScenes).where(and(
+            eq(classroomDraftScenes.draftId, input.draftId),
+            eq(classroomDraftScenes.userId, userId),
+            or(
+              ne(classroomDraftScenes.status, 'completed'),
+              ne(classroomDraftScenes.actionStatus, 'completed'),
+            ),
+          )).limit(1);
+        const unfinishedMedia = await transaction.select({ id: classroomDraftMediaTasks.id })
+          .from(classroomDraftMediaTasks).where(and(
+            eq(classroomDraftMediaTasks.runId, input.runId),
+            eq(classroomDraftMediaTasks.userId, userId),
+            ne(classroomDraftMediaTasks.status, 'completed'),
+          )).limit(1);
+        if (unfinishedScenes[0] || unfinishedMedia[0]) return null;
+        const now = new Date();
+        const runs = await transaction.update(classroomGenerationRuns).set({
+          status: 'completed',
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          heartbeatAt: null,
+          finishedAt: now,
+          updatedAt: now,
+        }).where(and(
+          eq(classroomGenerationRuns.id, input.runId),
+          eq(classroomGenerationRuns.draftId, input.draftId),
+          eq(classroomGenerationRuns.userId, userId),
+          eq(classroomGenerationRuns.stage, 'progressive'),
+          eq(classroomGenerationRuns.status, 'running'),
+          eq(classroomGenerationRuns.leaseOwner, input.workerId),
+          isNull(classroomGenerationRuns.cancelRequestedAt),
+        )).returning();
+        if (!runs[0]) return null;
+        const drafts = await transaction.update(classroomDrafts).set({
+          status: 'media_ready',
+          updatedAt: now,
+        }).where(and(
+          eq(classroomDrafts.id, input.draftId),
+          eq(classroomDrafts.userId, userId),
+        )).returning();
+        return drafts[0] ? { draft: drafts[0], run: runs[0] } : null;
       });
     },
 
@@ -480,7 +881,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'scene_content'),
+            or(
+              eq(classroomGenerationRuns.stage, 'scene_content'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'running'),
             eq(classroomGenerationRuns.leaseOwner, input.workerId),
             isNull(classroomGenerationRuns.cancelRequestedAt),
@@ -651,7 +1055,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'scene_actions'),
+            or(
+              eq(classroomGenerationRuns.stage, 'scene_actions'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'running'),
             eq(classroomGenerationRuns.leaseOwner, input.workerId),
             isNull(classroomGenerationRuns.cancelRequestedAt),
@@ -698,7 +1105,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'scene_actions'),
+            or(
+              eq(classroomGenerationRuns.stage, 'scene_actions'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'running'),
             eq(classroomGenerationRuns.leaseOwner, input.workerId),
             isNull(classroomGenerationRuns.cancelRequestedAt),
@@ -739,7 +1149,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'scene_actions'),
+            or(
+              eq(classroomGenerationRuns.stage, 'scene_actions'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'running'),
             eq(classroomGenerationRuns.leaseOwner, input.workerId),
           ))
@@ -826,7 +1239,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'media_tasks'),
+            or(
+              eq(classroomGenerationRuns.stage, 'media_tasks'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'running'),
             eq(classroomGenerationRuns.leaseOwner, input.workerId),
             isNull(classroomGenerationRuns.cancelRequestedAt),
@@ -901,7 +1317,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'media_tasks'),
+            or(
+              eq(classroomGenerationRuns.stage, 'media_tasks'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'running'),
             eq(classroomGenerationRuns.leaseOwner, input.workerId),
             isNull(classroomGenerationRuns.cancelRequestedAt),
@@ -1042,7 +1461,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'media_tasks'),
+            or(
+              eq(classroomGenerationRuns.stage, 'media_tasks'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'completed'),
           ))
           .limit(1);
@@ -1066,7 +1488,7 @@ export function createClassroomGenerationDal(db: Database) {
         }).where(and(
           eq(classroomDrafts.id, input.draftId),
           eq(classroomDrafts.userId, userId),
-          isNull(classroomDrafts.classroomId),
+          sql`${classroomDrafts.classroomId} is not null`,
           isNull(classroomDrafts.artifactId),
         )).returning();
         return rows[0] ? { state: 'reserved' as const, publicationToken: token } : { state: 'busy' as const };
@@ -1083,7 +1505,7 @@ export function createClassroomGenerationDal(db: Database) {
         eq(classroomDrafts.userId, userId),
         eq(classroomDrafts.status, 'publishing'),
         eq(classroomDrafts.publicationToken, input.publicationToken),
-        isNull(classroomDrafts.classroomId),
+        sql`${classroomDrafts.classroomId} is not null`,
         isNull(classroomDrafts.artifactId),
       )).returning();
       return rows[0] ?? null;
@@ -1140,7 +1562,10 @@ export function createClassroomGenerationDal(db: Database) {
             eq(classroomGenerationRuns.id, input.runId),
             eq(classroomGenerationRuns.draftId, input.draftId),
             eq(classroomGenerationRuns.userId, userId),
-            eq(classroomGenerationRuns.stage, 'media_tasks'),
+            or(
+              eq(classroomGenerationRuns.stage, 'media_tasks'),
+              eq(classroomGenerationRuns.stage, 'progressive'),
+            ),
             eq(classroomGenerationRuns.status, 'completed'),
           ))
           .limit(1);
@@ -1177,12 +1602,18 @@ export function createClassroomGenerationDal(db: Database) {
           throw new OwnershipError('completed classroom draft', input.draftId);
         }
 
-        const classroomRows = await transaction.insert(classrooms).values({
-          id: input.classroomId,
-          userId,
+        if (draft.classroomId !== input.classroomId) {
+          throw new OwnershipError('classroom draft identity', input.classroomId);
+        }
+        const classroomRows = await transaction.update(classrooms).set({
           title: input.title,
           description: input.description,
-        }).returning();
+          updatedAt: new Date(),
+        }).where(and(
+          eq(classrooms.id, input.classroomId),
+          eq(classrooms.userId, userId),
+        )).returning();
+        if (!classroomRows[0]) throw new OwnershipError('classroom', input.classroomId);
         const artifactRows = await transaction.insert(classroomArtifacts).values({
           id: input.artifactId,
           classroomId: input.classroomId,
@@ -1213,7 +1644,7 @@ export function createClassroomGenerationDal(db: Database) {
           eq(classroomDrafts.userId, userId),
           eq(classroomDrafts.status, 'publishing'),
           eq(classroomDrafts.publicationToken, input.publicationToken),
-          isNull(classroomDrafts.classroomId),
+          eq(classroomDrafts.classroomId, input.classroomId),
           isNull(classroomDrafts.artifactId),
         )).returning({ id: classroomDrafts.id });
         if (!published[0]) throw new OwnershipError('unpublished classroom draft', input.draftId);
@@ -1343,6 +1774,8 @@ async function finishClaim(
         ? (status === 'failed' ? 'actions_failed' : 'actions_aborted')
         : runs[0].stage === 'scene_content'
           ? (status === 'failed' ? 'content_failed' : 'content_aborted')
+          : runs[0].stage === 'progressive'
+            ? (status === 'failed' ? 'progressive_failed' : 'progressive_aborted')
           : status,
       updatedAt: now,
     }).where(and(

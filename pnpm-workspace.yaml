@@ -2,6 +2,10 @@ packages:
   - 'packages/*'
   - 'apps/*'
 
+overrides:
+  '@langchain/langgraph>@langchain/langgraph-checkpoint': 1.0.0
+  '@langchain/langgraph>@langchain/langgraph-sdk': 1.7.1
+
 allowBuilds:
   '@google/genai': true
   esbuild: false

@@ -29,6 +29,8 @@
     "@fastify/cookie": "11.1.2",
     "@fastify/cors": "11.3.0",
     "@fastify/multipart": "10.1.1",
+    "@langchain/core": "1.1.31",
+    "@langchain/langgraph": "1.2.2",
     "bcryptjs": "3.0.3",
     "dotenv": "17.4.2",
     "drizzle-orm": "0.44.2",

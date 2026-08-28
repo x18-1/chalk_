@@ -1,0 +1,1 @@
+ALTER TABLE "classroom_discussion_messages" ADD COLUMN "actions" jsonb DEFAULT '[]'::jsonb NOT NULL;

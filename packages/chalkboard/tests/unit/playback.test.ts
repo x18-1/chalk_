@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { openMaicStageFixture } from '../fixtures/openmaic-stage.js';
 import { createChalkboardRuntime } from '../../src/runtime.js';
 import { ChalkboardPlaybackController, type PlaybackExecutor } from '../../src/playback.js';
+import type { StageDocument } from '../../src/schema.js';
 
 function makeExecutor(overrides: Partial<PlaybackExecutor> = {}): PlaybackExecutor {
   return {
@@ -193,6 +194,37 @@ describe('Chalkboard playback controller', () => {
     await vi.waitFor(() => expect(
       runtime.getState().sceneIndex > 0 || runtime.getState().actionIndex > cursorBeforePause,
     ).toBe(true));
+    await controller.dispose();
+  });
+
+  it('consumes an authored discussion action when opening it pauses playback', async () => {
+    const document: StageDocument = {
+      ...openMaicStageFixture,
+      scenes: [{
+        ...openMaicStageFixture.scenes[0]!,
+        actions: [
+          { id: 'discussion', type: 'discussion', topic: '为什么两边要同时变化？' },
+          { id: 'after-discussion', type: 'speech', text: '继续看下一步。' },
+        ],
+      }],
+    };
+    const runtime = createChalkboardRuntime(document);
+    let pausePlayback = async () => undefined;
+    const executor = makeExecutor({
+      pause: vi.fn(),
+      discussion: vi.fn(() => pausePlayback()),
+    });
+    const controller = new ChalkboardPlaybackController({ runtime, executor });
+    pausePlayback = () => controller.pause().then(() => undefined);
+
+    await controller.start();
+    await vi.waitFor(() => expect(runtime.getState().actionIndex).toBe(1));
+
+    expect(runtime.getState()).toMatchObject({
+      actionIndex: 1,
+      currentAction: { id: 'after-discussion' },
+      completed: false,
+    });
     await controller.dispose();
   });
 

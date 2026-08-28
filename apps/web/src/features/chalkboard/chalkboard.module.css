@@ -31,8 +31,20 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneNumber { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 600; }
 .sceneItemTitle { display: block; overflow: hidden; color: var(--chalk-ink-soft); font-size: 12px; font-weight: 600; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 .sceneItemActive .sceneItemTitle { color: var(--chalk-ink); }
+.sceneItemPending { display: flex; width: 100%; min-height: 0; padding: 7px; flex-direction: column; gap: 6px; color: var(--chalk-stone); font: inherit; text-align: left; cursor: pointer; background: transparent; border: 1px dashed var(--chalk-border); border-radius: 8px; }
+.sceneItemPending:hover { color: var(--chalk-ink); background: var(--chalk-paper); border-style: solid; border-color: var(--chalk-border); }
+.scenePendingThumbnail { position: relative; display: flex; width: 100%; min-height: 102px; align-items: center; justify-content: center; gap: 7px; color: var(--chalk-stone); flex-direction: column; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border-light); border-radius: 5px; }
+.scenePendingThumbnail > span:not(.sceneThumbnailNumber) { font-size: 10px; font-weight: 600; }
 
 .lessonSpace { display: flex; min-width: 0; min-height: 0; padding: 22px 24px 20px; flex-direction: column; background: var(--chalk-canvas); }
+.draftRuntimeStatus { display: flex; min-height: 40px; padding: 7px 10px; margin-bottom: 8px; align-items: center; justify-content: space-between; gap: 12px; color: var(--chalk-ink-soft); background: var(--chalk-paper); border: 1px solid var(--chalk-border-light); border-radius: 7px; }
+.draftRuntimeStatus > div { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.draftRuntimeStatus > div > svg { flex: none; color: var(--chalk-clay); }
+.draftRuntimeStatus span { display: flex; min-width: 0; gap: 8px; font-size: 10px; line-height: 1.5; }
+.draftRuntimeStatus strong { color: var(--chalk-ink); font-size: 11px; white-space: nowrap; }
+.draftRuntimeStatus button { display: inline-flex; min-height: 32px; padding: 0 11px; flex: none; align-items: center; gap: 6px; color: var(--chalk-paper); font-size: 11px; font-weight: 600; cursor: pointer; background: var(--chalk-ink); border: 0; border-radius: 6px; }
+.draftRuntimeStatus button:hover:not(:disabled) { background: var(--chalk-clay-hover); }
+.draftRuntimeStatus button:disabled { cursor: wait; opacity: .62; }
 .lessonMeta { display: flex; min-height: 30px; align-items: baseline; gap: 12px; }
 .lessonMeta > span { color: var(--chalk-stone); font-size: 11px; }
 .lessonMeta > span:last-child { margin-left: auto; color: var(--chalk-clay-hover); font-weight: 600; }
@@ -117,8 +129,27 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .warningSection button { display: grid; width: 22px; height: 22px; padding: 0; flex: none; color: currentColor; cursor: pointer; place-items: center; background: transparent; border: 0; border-radius: 4px; }
 .warningSection button:hover { background: #fbf0dc; }
 
-.loadingState, .errorState { display: grid; min-height: 100vh; padding: 24px; place-content: center; justify-items: center; gap: 9px; color: var(--chalk-stone); background: var(--chalk-canvas); text-align: center; }
-.loadingState svg { color: var(--chalk-clay); }
+.sceneSwitchDialog { position: fixed; z-index: 220; inset: 0; width: min(430px, calc(100vw - 32px)); padding: 22px; color: var(--chalk-ink); background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 14px; box-shadow: 0 24px 64px rgba(43, 41, 38, .24); }
+.sceneSwitchDialog::backdrop { background: rgba(43, 41, 38, .46); }
+.sceneSwitchDialogIcon { display: grid; width: 38px; height: 38px; color: var(--chalk-warning); place-items: center; background: #fbf0dc; border-radius: 10px; }
+.sceneSwitchDialogCopy { min-width: 0; margin-top: 15px; }
+.sceneSwitchDialogCopy h2 { margin: 0; overflow-wrap: anywhere; font-family: var(--chalk-display); font-size: 19px; font-weight: 600; line-height: 1.4; }
+.sceneSwitchDialogCopy p { margin: 7px 0 0; color: var(--chalk-stone); font-size: 12px; line-height: 1.7; }
+.sceneSwitchDialogActions { display: flex; margin-top: 21px; justify-content: flex-end; gap: 8px; }
+.sceneSwitchDialogActions button { display: inline-flex; min-height: 36px; padding: 0 13px; align-items: center; justify-content: center; gap: 6px; color: var(--chalk-ink-soft); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; border: 1px solid var(--chalk-border); border-radius: 6px; }
+.sceneSwitchDialogActions button:hover:not(:disabled) { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
+.sceneSwitchDialogActions button:last-child { color: var(--chalk-paper); background: var(--chalk-ink); border-color: var(--chalk-ink); }
+.sceneSwitchDialogActions button:last-child:hover:not(:disabled) { background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }
+.sceneSwitchDialogActions button:focus-visible { outline: 2px solid var(--chalk-clay); outline-offset: 2px; }
+.sceneSwitchDialogActions button:disabled { cursor: wait; opacity: .65; }
+
+.loadingWorkspace { display: grid; min-width: 0; min-height: 0; grid-area: workspace; grid-template-rows: 72px minmax(0, 1fr); background: var(--chalk-canvas); }
+.loadingWorkspaceBody { display: flex; min-width: 0; min-height: 0; padding: 24px; align-items: center; justify-content: center; gap: 11px; color: var(--chalk-clay); }
+.loadingWorkspaceBody > svg { flex: none; }
+.loadingWorkspaceBody > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.loadingWorkspaceBody strong { color: var(--chalk-ink); font-size: 13px; font-weight: 600; }
+.loadingWorkspaceBody span { color: var(--chalk-stone); font-size: 11px; line-height: 1.6; }
+.errorState { display: grid; min-height: 100vh; padding: 24px; place-content: center; justify-items: center; gap: 9px; color: var(--chalk-stone); background: var(--chalk-canvas); text-align: center; }
 .errorState svg { color: var(--chalk-danger); }
 .errorState h1 { margin: 2px 0 0; color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 22px; font-weight: 600; }
 .errorState p { max-width: 48ch; margin: 0 0 7px; color: var(--chalk-stone); font-size: 13px; }
@@ -153,14 +184,30 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .generateActionButton { display: inline-flex; min-height: 34px; padding: 0 11px; align-items: center; gap: 6px; color: var(--chalk-paper); font-size: 12px; font-weight: 600; cursor: pointer; background: var(--chalk-clay-hover); border: 0; border-radius: 6px; }
 .generateActionButton:hover { background: var(--chalk-ink); }
 .generationBackdrop { position: fixed; z-index: 200; inset: 0; display: grid; padding: 24px; overflow: auto; place-items: center; background: rgba(43, 41, 38, .42); }
-.generationPanel { width: min(760px, 100%); max-height: min(820px, calc(100dvh - 48px)); overflow: hidden; color: var(--chalk-ink); background: var(--chalk-paper); border-radius: 14px; box-shadow: 0 20px 54px rgba(43, 41, 38, .22); text-align: left; }
-.generationHeader { display: flex; min-height: 82px; padding: 16px 20px; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--chalk-border); }
+.generationPanel { display: flex; width: min(760px, 100%); height: min(760px, calc(100dvh - 48px)); min-height: 0; overflow: hidden; color: var(--chalk-ink); flex-direction: column; background: var(--chalk-paper); border-radius: 14px; box-shadow: 0 20px 54px rgba(43, 41, 38, .22); text-align: left; }
+.generationWorkspacePanel { width: 100%; height: 100%; border-radius: 0; box-shadow: none; }
+.generationWorkspace { display: grid; min-width: 0; min-height: 0; grid-area: workspace; grid-template-rows: 62px minmax(0, 1fr); background: var(--chalk-canvas); }
+.generationWorkspaceBody { min-width: 0; min-height: 0; padding: 24px; overflow: hidden; }
+.generationWorkspaceBody .generationWorkspacePanel { max-width: 880px; margin: 0 auto; border: 1px solid var(--chalk-border); border-radius: 12px; box-shadow: var(--chalk-shadow-working); }
+.generationWorkspaceBody .generationWorkspacePanel[data-generation-view="waiting"] { height: auto; max-height: 360px; }
+.pendingSceneCanvas { display: grid; width: min(560px, calc(100% - 48px)); margin: auto; grid-template-columns: 46px minmax(0, 1fr); align-items: start; gap: 16px; color: var(--chalk-ink); }
+.pendingSceneIcon { display: grid; width: 46px; height: 46px; color: var(--chalk-clay-hover); place-items: center; background: #fdf3ed; border: 1px solid #ecd3c7; border-radius: 12px; }
+.pendingSceneIcon[data-failed] { color: var(--chalk-danger); background: #fff3f1; border-color: #efd3cf; }
+.pendingSceneCanvas > div:last-child { min-width: 0; }
+.pendingSceneCanvas span { color: var(--chalk-clay-hover); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.pendingSceneCanvas h2 { margin: 4px 0 0; overflow-wrap: anywhere; font-family: var(--chalk-display); font-size: 22px; font-weight: 600; line-height: 1.35; }
+.pendingSceneCanvas p { max-width: 54ch; margin: 8px 0 0; color: var(--chalk-stone); font-size: 12px; line-height: 1.7; }
+.pendingSceneCanvas small { display: block; margin-top: 10px; color: var(--chalk-stone); font-size: 10px; overflow-wrap: anywhere; }
+.pendingSceneCanvas button { display: inline-flex; min-height: 36px; padding: 0 13px; margin-top: 16px; align-items: center; gap: 6px; color: var(--chalk-paper); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--chalk-ink); border: 0; border-radius: 6px; }
+.pendingSceneCanvas button:hover:not(:disabled) { background: var(--chalk-clay-hover); }
+.pendingSceneCanvas button:disabled { cursor: wait; opacity: .65; }
+.generationHeader { display: flex; min-height: 82px; padding: 16px 20px; flex: none; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--chalk-border); }
 .generationHeader > div { min-width: 0; }
 .generationHeader span { display: inline-flex; align-items: center; gap: 6px; color: var(--chalk-clay-hover); font-size: 11px; font-weight: 600; }
 .generationHeader h2 { margin: 3px 0 0; overflow-wrap: anywhere; font-family: var(--chalk-display); font-size: 21px; font-weight: 600; line-height: 1.35; }
 .generationHeader > button { display: grid; width: 32px; height: 32px; padding: 0; flex: none; color: var(--chalk-stone); cursor: pointer; place-items: center; background: transparent; border: 0; border-radius: 6px; }
 .generationHeader > button:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
-.generationForm { display: flex; max-height: calc(100dvh - 154px); padding: 20px; overflow-y: auto; flex-direction: column; }
+.generationForm { display: flex; min-height: 0; padding: 20px; overflow-y: auto; flex: 1; flex-direction: column; }
 .generationForm > label { margin: 18px 0 6px; color: var(--chalk-ink); font-size: 12px; font-weight: 600; }
 .generationForm > label:first-child { margin-top: 0; }
 .generationForm > label span { margin-inline-start: 4px; color: var(--chalk-stone); font-weight: 400; }
@@ -199,17 +246,17 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .generationActions .generationPrimary:hover:not(:disabled) { color: var(--chalk-paper); background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }
 .generationActions button:disabled { cursor: wait; opacity: .65; }
 .generationBusy { margin: 9px 0 0; color: var(--chalk-stone); font-size: 10px; line-height: 1.55; text-align: right; }
-.generationWaiting { display: grid; max-height: calc(100dvh - 154px); padding: 30px 20px 20px; overflow-y: auto; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 12px; }
+.generationWaiting { display: grid; min-height: 0; padding: 30px 20px 20px; overflow-y: auto; flex: 1; grid-template-columns: 28px minmax(0, 1fr); align-content: start; align-items: start; gap: 4px 12px; }
 .generationWaiting > svg { margin-top: 1px; color: var(--chalk-clay-hover); }
 .generationWaiting > div:not(.generationActions) { min-width: 0; }
 .generationWaiting strong { font-family: var(--chalk-display); font-size: 15px; }
 .generationWaiting p { margin: 5px 0 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.65; }
-.generationWaiting > .generationRequestError, .generationWaiting > .generationActions { grid-column: 1 / -1; }
-.outlinePreview { max-height: calc(100dvh - 154px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.generationWaiting > .generationRequestError, .generationWaiting > .generationActions { width: 100%; grid-column: 1 / -1; }
+.outlinePreview { display: flex; min-height: 0; overflow: hidden; flex: 1; flex-direction: column; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .outlineSummary { display: grid; padding: 16px 20px; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 18px; background: var(--chalk-paper-soft); border-bottom: 1px solid var(--chalk-border-light); }
 .outlineSummary > div { display: inline-flex; align-items: center; gap: 7px; color: var(--chalk-clay-hover); font-size: 11px; font-weight: 600; white-space: nowrap; }
 .outlineSummary p { margin: 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.65; }
-.outlineList { padding: 0 20px; margin: 0; list-style: none; }
+.outlineList { min-height: 0; padding: 0 20px; margin: 0; overflow-y: auto; flex: 1; list-style: none; scrollbar-gutter: stable; }
 .outlineList > li { display: grid; padding: 17px 0; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; border-bottom: 1px solid var(--chalk-border-light); }
 .outlineList > li > span { padding-top: 2px; color: var(--chalk-clay-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; font-weight: 600; }
 .outlineList > li > div { min-width: 0; }
@@ -230,6 +277,37 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .sceneGenerationTrack { height: 3px; margin-top: 9px; overflow: hidden; background: var(--chalk-border-light); border-radius: 999px; }
 .sceneGenerationTrack span { display: block; height: 100%; background: var(--chalk-clay-hover); border-radius: inherit; transition: width .25s ease; }
 .sceneGenerationProgress p { margin: 7px 0 0; color: var(--chalk-stone); font-size: 10px; line-height: 1.55; }
+.sceneGenerationProgress > small { display: block; margin-top: 5px; color: var(--chalk-clay-hover); font-size: 9px; font-variant-numeric: tabular-nums; }
+.outlineReviewPrompt { display: grid; padding: 14px 20px; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; color: #4e7455; background: #f0f7f0; border-top: 1px solid #dbe8dc; }
+.outlineReviewPrompt[data-streaming] { color: var(--chalk-clay-hover); background: #fff8ef; border-color: #ead8c8; }
+.outlineReviewPrompt > svg { align-self: start; margin-top: 2px; }
+.outlineReviewPrompt > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.outlineReviewPrompt strong { font-size: 11px; }
+.outlineReviewPrompt span { color: var(--chalk-ink-soft); font-size: 10px; line-height: 1.5; }
+.outlineReviewPrompt button, .outlineEditorIntro button, .outlineEditorAdd { display: inline-flex; min-height: 32px; padding: 0 10px; align-items: center; gap: 5px; color: currentColor; font-size: 10px; font-weight: 600; cursor: pointer; background: rgba(255,255,255,.6); border: 1px solid currentColor; border-radius: 6px; }
+.outlineEditor { min-height: 0; padding: 16px 20px 20px; overflow-y: auto; flex: 1; background: #fffdf9; scrollbar-gutter: stable; }
+.outlineEditorIntro { display: flex; margin-bottom: 12px; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.outlineEditorIntro > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.outlineEditorIntro strong { font-size: 12px; }
+.outlineEditorIntro span { color: var(--chalk-stone); font-size: 10px; line-height: 1.5; }
+.outlineEditor > ol { display: flex; padding: 0; margin: 0; flex-direction: column; gap: 10px; list-style: none; }
+.outlineEditor > ol > li { position: relative; display: grid; padding: 12px 42px 12px 12px; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; background: var(--chalk-paper); border: 1px solid var(--chalk-border-light); border-radius: 8px; }
+.outlineEditorOrder { display: grid; align-content: start; grid-template-columns: repeat(2, 24px); gap: 4px; color: var(--chalk-stone); }
+.outlineEditorOrder > svg { margin: 5px; }
+.outlineEditorOrder > span { padding-top: 4px; color: var(--chalk-clay-hover); font: 600 10px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.outlineEditorOrder button, .outlineEditorDelete { display: grid; width: 24px; height: 24px; padding: 0; cursor: pointer; color: var(--chalk-stone); background: transparent; border: 1px solid var(--chalk-border-light); border-radius: 5px; place-items: center; }
+.outlineEditorOrder button:disabled, .outlineEditorDelete:disabled, .outlineEditorAdd:disabled { cursor: not-allowed; opacity: .4; }
+.outlineEditorFields { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 112px; gap: 9px; }
+.outlineEditorFields label { display: flex; min-width: 0; flex-direction: column; gap: 4px; color: var(--chalk-stone); font-size: 9px; font-weight: 600; }
+.outlineEditorFields input, .outlineEditorFields select, .outlineEditorFields textarea { width: 100%; box-sizing: border-box; padding: 7px 8px; resize: vertical; color: var(--chalk-ink); font: inherit; font-size: 11px; line-height: 1.5; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 5px; }
+.outlineEditorFields :disabled { color: var(--chalk-stone); background: var(--chalk-paper-soft); }
+.outlineEditorWide { grid-column: 1 / -1; }
+.outlineEditorDelete { position: absolute; top: 12px; right: 12px; color: var(--chalk-danger); }
+.outlineEditorAdd { margin-top: 10px; color: var(--chalk-clay-hover); }
+.draftPreviewReady { display: flex; padding: 13px 20px; align-items: flex-start; gap: 9px; color: #4e7455; background: #f0f7f0; border-bottom: 1px solid #dbe8dc; }
+.draftPreviewReady > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.draftPreviewReady strong { font-size: 11px; }
+.draftPreviewReady span { color: var(--chalk-ink-soft); font-size: 10px; line-height: 1.5; }
 .outlineFooter { display: flex; padding: 14px 20px; align-items: flex-start; gap: 8px; color: var(--chalk-warning); font-size: 11px; line-height: 1.55; background: #fff8e6; }
 .outlineFooter svg { flex: none; margin-top: 1px; }
 .outlineFooter div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
@@ -243,7 +321,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .generationMediaSettings select:focus-visible { outline: 2px solid color-mix(in srgb, var(--chalk-clay-hover) 45%, transparent); outline-offset: 1px; }
 .generationMediaSettings > p { grid-column: 1 / -1; margin: 0; color: var(--chalk-warning); font-size: 10px; line-height: 1.55; }
 .outlinePreview > .generationRequestError { padding: 0 20px; }
-.outlinePreview > .generationActions { position: sticky; z-index: 2; bottom: 0; padding: 14px 20px 18px; margin-top: 0; background: var(--chalk-paper); box-shadow: 0 -10px 22px rgba(43, 41, 38, .08); }
+.outlinePreview > .generationActions { z-index: 2; padding: 14px 20px 18px; margin-top: 0; flex: none; background: var(--chalk-paper); box-shadow: 0 -10px 22px rgba(43, 41, 38, .08); }
 
 @media (max-width: 1320px) {
   .classroomBody { grid-template-columns: 172px minmax(500px, 1fr) 240px; }
@@ -298,7 +376,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .languageSwitch { display: grid; width: 31px; height: 31px; color: var(--chalk-stone); font-size: 11px; font-weight: 600; place-items: center; border: 1px solid var(--chalk-border); border-radius: 999px; }
 .topTools .iconButton { border-color: var(--chalk-border-light); }
 .topStatus { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--chalk-border-light); }
-.classroomBody { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; }
+.classroomBody { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
 .lessonSpace { padding: 18px 22px 14px; }
 .lessonMeta { min-height: 34px; }
 .lessonViewport { position: relative; padding: 10px 0 14px; }
@@ -313,13 +391,21 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .discussionMain { display: grid; min-width: 0; margin-top: 9px; grid-template-columns: 166px minmax(0, 1fr) auto; align-items: center; gap: 14px; }
 .discussionMessageCard { min-width: 0; padding: 10px 13px; background: var(--chalk-paper); border: 1px solid var(--chalk-border-light); border-radius: 9px; box-shadow: var(--chalk-shadow-working); }
 .discussionMessageCard > p { max-width: 78ch; margin: 0; overflow: hidden; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.65; text-overflow: ellipsis; white-space: nowrap; }
-.discussionPrompt { display: inline-flex; max-width: 100%; margin-top: 7px; padding: 5px 9px; align-items: center; gap: 6px; color: var(--chalk-clay-hover); font-size: 11px; background: #fdf3ed; border: 1px solid #ecd3c7; border-radius: 6px; }
+.discussionPrompt { display: inline-flex; max-width: 100%; margin-top: 7px; padding: 5px 9px; align-items: center; gap: 6px; color: var(--chalk-clay-hover); font: inherit; font-size: 11px; background: #fdf3ed; border: 1px solid #ecd3c7; border-radius: 6px; }
 .discussionPrompt span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.discussionPromptButton { font-weight: 600; cursor: pointer; }
+.discussionPromptButton:hover { color: var(--chalk-ink); border-color: var(--chalk-clay); }
 .discussionReply { display: flex; height: 30px; margin-top: 8px; align-items: center; gap: 5px; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border-light); border-radius: 6px; }
 .discussionReply input { min-width: 0; padding: 0 8px; flex: 1; color: var(--chalk-ink); font-size: 11px; background: transparent; border: 0; outline: 0; }
 .discussionReply button { display: grid; width: 28px; height: 28px; padding: 0; color: var(--chalk-stone-light); place-items: center; cursor: pointer; background: transparent; border: 0; }
 .discussionReply button:not(:disabled) { color: var(--chalk-clay); }
 .discussionReplySaved { margin: 6px 0 0; color: var(--chalk-success); font-size: 10px; }
+.discussionReplySaved { display: inline-flex; align-items: center; gap: 5px; }
+.discussionActivity { display: inline-flex; margin-top: 7px; align-items: center; gap: 5px; color: var(--chalk-stone); font-size: 10px; }
+.discussionError { display: flex; min-width: 0; margin: 4px 0 0 35px; align-items: center; justify-content: space-between; gap: 8px; color: var(--chalk-danger); font-size: 10px; }
+.discussionError span { overflow-wrap: anywhere; }
+.discussionError button { display: inline-flex; min-height: 28px; padding: 3px 7px; flex: none; align-items: center; gap: 4px; color: var(--chalk-danger); font: inherit; cursor: pointer; background: transparent; border: 1px solid #e6c5c1; border-radius: 6px; }
+.streamingCaret { display: inline-block; width: 2px; height: 1em; margin-inline-start: 3px; vertical-align: -2px; background: currentColor; animation: streamingCaret 800ms steps(1, end) infinite; }
 .voiceStatus { display: block; margin-top: 5px; color: var(--chalk-stone); font-size: 10px; }
 .warningSection { margin: 0 22px 12px; }
 .settingsWrap { position: relative; }
@@ -346,30 +432,67 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .notesList p { display: flex; margin: 0; padding: 10px 0; align-items: flex-start; gap: 7px; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.75; border-bottom: 1px solid var(--chalk-border-light); }
 .notesList .noteRead { color: var(--chalk-ink); }
 .notesEmpty { color: var(--chalk-stone) !important; }
-.chatContent { display: flex; padding: 16px 14px 14px; flex-direction: column; }
+.chatContent { display: flex; padding: 14px 12px 12px; overflow: hidden; flex-direction: column; }
 .chatIntro { padding: 5px 10px 15px; color: var(--chalk-ink-soft); border-bottom: 1px solid var(--chalk-border-light); }
+.chatIntroHeader { display: flex; align-items: center; gap: 8px; }
+.chatIntroHeader > span { display: inline-flex; align-items: center; }
+.chatIntroHeader .chatPosition { margin-left: auto; color: var(--chalk-stone); font: 600 9px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.chatIntroHeader > button { display: inline-flex; min-height: 28px; padding: 4px 8px; align-items: center; gap: 4px; color: var(--chalk-stone); font: inherit; font-size: 10px; cursor: pointer; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 6px; }
+.chatIntroHeader > button:hover:not(:disabled) { color: var(--chalk-ink); border-color: var(--chalk-stone-light); }
+.chatIntroHeader > button:disabled { cursor: wait; opacity: .55; }
 .chatIntro svg { color: var(--chalk-clay); vertical-align: -3px; }
 .chatIntro strong { margin-left: 7px; color: var(--chalk-ink); font-size: 13px; }
 .chatIntro p { margin: 7px 0 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.65; }
+.chatParticipants { display: flex; min-width: 0; padding-top: 10px; margin-top: 10px; overflow-x: auto; align-items: center; gap: 6px; color: var(--chalk-stone); border-top: 1px solid var(--chalk-border-light); scrollbar-width: thin; }
+.chatParticipants > svg { flex: none; }
+.chatParticipants > span { display: inline-flex; min-width: max-content; padding: 3px 6px 3px 3px; align-items: center; gap: 4px; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border-light); border-radius: 999px; }
+.chatParticipants i { display: grid; width: 20px; height: 20px; color: var(--chalk-paper); font-size: 9px; font-style: normal; font-weight: 700; place-items: center; background: var(--chalk-ink-soft); border-radius: 50%; }
+.chatParticipants b { color: var(--chalk-ink-soft); font-size: 9px; font-weight: 600; }
+.chatParticipants small { color: var(--chalk-stone); font-size: 8px; }
+.chatSpeechStatus { display: flex; min-height: 32px; padding: 6px 7px; margin-top: 10px; align-items: center; gap: 6px; color: var(--chalk-ink-soft); font-size: 10px; background: #fdf3ed; border-left: 2px solid var(--chalk-clay); border-radius: 2px 6px 6px 2px; }
+.chatSpeechStatus > svg { flex: none; color: var(--chalk-clay); }
+.chatSpeechStatus span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chatSpeechStatus span strong { margin: 0 3px 0 0; font-size: inherit; }
+.chatSpeechStatus small { margin-left: auto; flex: none; color: var(--chalk-stone); font-size: 9px; }
+.chatSpeechStatus button { display: grid; width: 24px; height: 24px; padding: 0; flex: none; color: var(--chalk-clay-hover); cursor: pointer; place-items: center; background: var(--chalk-paper); border: 1px solid #ecd3c7; border-radius: 50%; }
+.chatSpeechStatus button:hover { color: var(--chalk-paper); background: var(--chalk-clay); }
 .chatEmpty { padding: 12px 0; margin: 0; color: var(--chalk-stone); font-size: 12px; line-height: 1.6; }
-.chatMessageList { display: flex; padding: 12px 10px; flex: 1; flex-direction: column; gap: 10px; }
+.chatMessageList { display: flex; min-height: 0; padding: 12px 10px; overflow-y: auto; flex: 1; flex-direction: column; gap: 10px; }
 .chatMessage { display: flex; align-items: flex-start; gap: 8px; }
 .chatMessage p { margin: 0; color: var(--chalk-ink-soft); font-size: 12px; line-height: 1.7; }
 .chatPromptIcon { display: grid; width: 22px; height: 22px; flex: none; color: var(--chalk-paper); font-size: 11px; font-weight: 700; place-items: center; background: var(--chalk-ink); border-radius: 6px; }
 .chatPromptIcon { color: var(--chalk-clay-hover); background: #fdf3ed; border: 1px solid #ecd3c7; }
+.chatMessagePrompt > div { min-width: 0; }
+.chatMessagePrompt > div > small { display: block; margin-bottom: 3px; color: var(--chalk-stone); font-size: 9px; }
 .chatMessagePrompt p { color: var(--chalk-clay-hover); }
+.chatStartButton { display: inline-flex; min-height: 29px; padding: 0 9px; margin-top: 8px; align-items: center; color: var(--chalk-paper); font: inherit; font-size: 10px; font-weight: 600; cursor: pointer; background: var(--chalk-ink); border: 0; border-radius: 6px; }
+.chatStartButton:hover:not(:disabled) { background: var(--chalk-clay-hover); }
 .chatMessageStudent { justify-content: flex-end; }
 .chatMessageStudent p { padding: 7px 9px; color: var(--chalk-ink); background: #f3eee8; border-radius: 8px 8px 2px 8px; }
+.chatMessageAgent > div { min-width: 0; }
+.chatMessageAgent strong { display: flex; margin-bottom: 3px; align-items: baseline; gap: 6px; color: var(--chalk-ink); font-size: 11px; }
+.chatMessageAgent strong small, .chatMessageAgent > div > small { color: var(--chalk-stone); font-size: 9px; font-weight: 400; }
+.chatMessageAgent p { padding: 7px 9px; overflow-wrap: anywhere; background: var(--chalk-paper-soft); border-radius: 2px 8px 8px 8px; }
+.chatMessageAgent[data-message-status="interrupted"] p { color: var(--chalk-stone); border: 1px dashed var(--chalk-border); }
+.agentAvatarSmall { display: grid; width: 22px; height: 22px; flex: none; color: var(--chalk-paper); font-size: 10px; font-weight: 700; place-items: center; background: var(--chalk-clay); border-radius: 50%; }
+.chatActivity { display: inline-flex; margin: 4px 0; align-items: center; gap: 5px; color: var(--chalk-stone); font-size: 10px; }
+.chatError { display: flex; padding: 8px 10px; margin: 0 4px 8px; align-items: center; justify-content: space-between; gap: 8px; color: var(--chalk-danger); font-size: 10px; background: #fbefed; border-radius: 7px; }
+.chatError span { overflow-wrap: anywhere; }
+.chatError button { display: inline-flex; min-height: 28px; padding: 3px 7px; flex: none; align-items: center; gap: 4px; color: var(--chalk-danger); font: inherit; cursor: pointer; background: var(--chalk-paper); border: 1px solid #e6c5c1; border-radius: 6px; }
 .studentAvatarSmall { display: grid; width: 22px; height: 22px; flex: none; color: var(--chalk-ink); font-size: 10px; place-items: center; background: #e8ddd1; border-radius: 6px; }
-.chatComposer { display: flex; height: 36px; padding: 0 6px 0 10px; align-items: center; gap: 6px; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border); border-radius: 6px; }
+.chatVoiceStatus { padding: 0 4px 7px; color: var(--chalk-stone); font-size: 9px; }
+.chatComposer { display: flex; min-height: 42px; padding: 0 6px; flex: none; align-items: center; gap: 4px; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border); border-radius: 7px; }
 .chatComposer input { min-width: 0; flex: 1; color: var(--chalk-stone); font-size: 11px; background: transparent; border: 0; outline: 0; }
 .chatComposer button { display: grid; width: 26px; height: 26px; padding: 0; color: var(--chalk-stone-light); place-items: center; background: transparent; border: 0; }
 .chatComposer button:not(:disabled) { color: var(--chalk-clay); cursor: pointer; }
 .chatComposer button:not(:disabled):hover { color: var(--chalk-clay-hover); }
+.chatComposer .chatMicActive { color: var(--chalk-paper); background: var(--chalk-clay); border-radius: 50%; }
 
 /* Migrated playback chrome: mirrors OpenMAIC's toolbar order and keeps every
    control in one predictable row below the lesson stage. */
+.playbackControlGroup { display: flex; min-width: 0; align-items: center; flex-direction: column; }
 .playbackControls { display: flex; width: fit-content; min-height: 42px; padding: 5px 8px; margin: 0 auto; align-items: center; gap: 4px; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 8px; box-shadow: var(--chalk-shadow-working); }
+.playbackLockMessage { margin: 5px 0 0; color: var(--chalk-clay-hover); font-size: 9px; line-height: 1.4; }
 .volumeControl { position: relative; display: flex; align-items: center; }
 .volumeSlider { position: absolute; z-index: 20; bottom: calc(100% + 8px); left: 50%; display: none; width: 52px; padding: 8px 9px 10px; transform: translateX(-50%); align-items: center; gap: 6px; color: var(--chalk-stone); flex-direction: column; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 8px; box-shadow: var(--chalk-shadow-popover); }
 .volumeControl:hover .volumeSlider, .volumeSlider:focus-within { display: flex; }
@@ -385,6 +508,8 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .playControl:hover { background: var(--chalk-clay); border-color: var(--chalk-clay); }
 .playControl:disabled, .controlButton:disabled { color: var(--chalk-stone-light); cursor: not-allowed; background: transparent; border-color: transparent; }
 .controlButtonActive { color: var(--chalk-clay) !important; background: #fdf3ed !important; border-color: #ecd3c7 !important; }
+.chalkboardControlIcon { position: relative; display: grid; place-items: center; }
+.chalkboardControlIcon[data-has-content]::after { position: absolute; top: -3px; right: -4px; width: 5px; height: 5px; content: ""; background: var(--chalk-clay); border: 1px solid var(--chalk-paper); border-radius: 50%; }
 .canvasVideo { background: #181614; object-fit: contain; }
 .canvasTable { border-collapse: collapse; background: rgba(255, 255, 255, 0.92); color: #24201d; font-size: clamp(8px, 1.15vw, 15px); }
 .canvasTable td { border: 1px solid rgba(36, 32, 29, 0.28); padding: 0.35em 0.5em; vertical-align: middle; }
@@ -466,40 +591,62 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .noteTrailingActions { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 6px; }
 .noteRow .noteNoText { color: var(--chalk-stone); font-style: italic; }
 
-.whiteboardSurface { position: absolute; z-index: 50; inset: 14px; display: flex; width: calc(100% - 28px); height: calc(100% - 28px); box-sizing: border-box; overflow: hidden; flex-direction: column; background: rgba(255, 253, 249, .98); border: 1px solid var(--chalk-border); border-radius: 10px; box-shadow: var(--chalk-shadow-popover); }
-.whiteboardHeader { display: flex; min-height: 48px; padding: 0 14px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--chalk-border-light); }
-.whiteboardTitle { display: flex; align-items: center; gap: 8px; color: var(--chalk-ink-soft); font-size: 12px; }
-.whiteboardTitle > span:last-child { color: var(--chalk-stone); font-size: 10px; }
-.whiteboardMark { display: grid; width: 26px; height: 26px; color: var(--chalk-clay); place-items: center; background: #fdf3ed; border-radius: 6px; }
-.whiteboardActions { display: flex; align-items: center; gap: 3px; }
-.whiteboardActions button { display: grid; width: 29px; height: 29px; color: var(--chalk-stone); place-items: center; cursor: pointer; background: transparent; border: 0; border-radius: 5px; }
-.whiteboardActions button:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
-.whiteboardCanvas { position: relative; display: flex; flex: 1; align-items: center; justify-content: center; color: var(--chalk-stone); flex-direction: column; background-image: radial-gradient(var(--chalk-border-light) 1px, transparent 1px); background-size: 22px 22px; }
-.whiteboardCanvas svg { width: 100%; height: 100%; color: var(--chalk-ink); pointer-events: none; }
-.whiteboardAuthoredLayer { position: absolute; z-index: 2; inset: 0; overflow: hidden; pointer-events: none; }
-.whiteboardAuthoredElement { position: absolute; min-width: 80px; padding: 8px 10px; overflow: auto; color: var(--chalk-ink); font-size: clamp(12px, 1.5vw, 22px); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(255, 253, 249, .86); border: 1px solid var(--chalk-border-light); border-radius: 6px; }
-.whiteboardAuthoredElement[data-whiteboard-type="wb_draw_code"] { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: clamp(10px, 1.2vw, 16px); }
-.whiteboardAuthoredElement[data-whiteboard-type="wb_draw_shape"] { display: grid; place-items: center; background: #f3eee8; border-color: var(--chalk-border); }
-.whiteboardEmpty { position: absolute; z-index: 1; top: 50%; left: 50%; pointer-events: none; text-align: center; transform: translate(-50%, -50%); }
-.whiteboardCanvas span { color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 18px; }
-.whiteboardCanvas p { margin: 7px 0 0; font-size: 12px; }
+.liveChalkboardSurface { position: absolute; z-index: 50; inset: 14px; display: flex; width: calc(100% - 28px); height: calc(100% - 28px); box-sizing: border-box; overflow: hidden; flex-direction: column; background: rgba(255, 253, 249, .98); border: 1px solid var(--chalk-border); border-radius: 10px; box-shadow: var(--chalk-shadow-popover); }
+.liveChalkboardHeader { display: flex; min-height: 48px; padding: 0 14px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--chalk-border-light); }
+.liveChalkboardTitle { display: flex; align-items: center; gap: 8px; color: var(--chalk-ink-soft); font-size: 12px; }
+.liveChalkboardTitle > span:last-child { color: var(--chalk-stone); font-size: 10px; }
+.liveChalkboardMark { display: grid; width: 26px; height: 26px; color: var(--chalk-clay); place-items: center; background: #fdf3ed; border-radius: 6px; }
+.liveChalkboardActions { display: flex; align-items: center; gap: 3px; }
+.liveChalkboardActions button { display: grid; width: 29px; height: 29px; color: var(--chalk-stone); place-items: center; cursor: pointer; background: transparent; border: 0; border-radius: 5px; }
+.liveChalkboardActions button:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
+.liveChalkboardCanvas { position: relative; display: flex; flex: 1; align-items: center; justify-content: center; color: var(--chalk-stone); flex-direction: column; background-image: radial-gradient(var(--chalk-border-light) 1px, transparent 1px); background-size: 22px 22px; }
+.liveChalkboardCanvas svg { width: 100%; height: 100%; color: var(--chalk-ink); pointer-events: none; }
+.liveChalkboardAuthoredLayer { position: absolute; z-index: 2; inset: 0; overflow: hidden; pointer-events: none; }
+.liveChalkboardAuthoredElement { position: absolute; min-width: 80px; box-sizing: border-box; padding: 8px 10px; overflow: auto; color: var(--chalk-ink); font-size: clamp(12px, 1.5vw, 22px); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; background: rgba(255, 253, 249, .9); border: 1px solid var(--chalk-border-light); border-radius: 6px; animation: liveChalkboardWriteIn .24s ease-out both; }
+.liveChalkboardAuthoredElement[data-chalkboard-type="wb_draw_text"], .liveChalkboardAuthoredElement[data-chalkboard-type="wb_draw_latex"] { overflow: visible; background: rgba(255, 253, 249, .72); border-color: transparent; }
+.liveChalkboardAuthoredElement[data-chalkboard-type="wb_draw_code"] { padding: 0; overflow: hidden; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: clamp(10px, 1.2vw, 16px); background: #292826; border-color: #3b3936; }
+.liveChalkboardAuthoredElement[data-chalkboard-type="wb_draw_code"] pre { height: 100%; box-sizing: border-box; margin: 0; padding: 10px 12px; overflow: auto; color: #f7f1e8; font: inherit; white-space: pre; }
+.liveChalkboardCodeLabel { display: block; padding: 5px 10px; color: #c9beb1; font-size: 10px; line-height: 1.3; background: #211f1e; border-bottom: 1px solid #3b3936; }
+.liveChalkboardAuthoredElement[data-chalkboard-type="wb_draw_shape"] { display: grid; padding: 0; overflow: hidden; place-items: center; background: #f3eee8; border: 2px solid var(--chalk-ink-soft); }
+.liveChalkboardAuthoredElement[data-shape="circle"] { border-radius: 50%; }
+.liveChalkboardAuthoredElement[data-shape="triangle"] { background: var(--chalk-clay); border: 0; border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.liveChalkboardShapeLabel { color: var(--chalk-ink); font-size: 12px; }
+.liveChalkboardLatex { display: grid; min-height: inherit; align-items: center; overflow: visible; }
+.liveChalkboardLatex :global(.katex-display) { margin: 0; overflow: visible; }
+.liveChalkboardTable { width: 100%; height: 100%; overflow: hidden; border-collapse: collapse; background: rgba(255, 253, 249, .96); }
+.liveChalkboardTable td { padding: 5px 7px; color: var(--chalk-ink); font-size: clamp(9px, 1vw, 13px); text-align: center; border: 1px solid var(--chalk-border); }
+.liveChalkboardChart { width: 100%; height: 100%; min-height: 120px; overflow: visible; }
+.liveChalkboardChart > line { stroke: var(--chalk-border); stroke-width: 1; }
+.liveChalkboardChart text { fill: var(--chalk-stone); font-size: 9px; }
+.liveChalkboardPieWrap { display: flex; height: 100%; min-height: 120px; align-items: center; justify-content: center; gap: 12px; }
+.liveChalkboardPie { width: min(70%, 140px); aspect-ratio: 1; flex: 0 0 auto; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(43, 38, 32, .08); }
+.liveChalkboardPie[data-ring] { position: relative; }
+.liveChalkboardPie[data-ring]::after { position: absolute; inset: 28%; content: ""; background: var(--chalk-paper); border-radius: 50%; }
+.liveChalkboardLegend { display: flex; max-width: 45%; flex-direction: column; gap: 4px; color: var(--chalk-stone); font-size: 9px; }
+.liveChalkboardLegend span { display: flex; align-items: center; gap: 4px; font: inherit; }
+.liveChalkboardLegend i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 2px; }
+.liveChalkboardEmpty { position: absolute; z-index: 1; top: 50%; left: 50%; pointer-events: none; text-align: center; transform: translate(-50%, -50%); }
+.liveChalkboardEmpty span { color: var(--chalk-ink); font-family: var(--chalk-display); font-size: 18px; }
+.liveChalkboardEmpty p { margin: 7px 0 0; font-size: 12px; }
+@keyframes liveChalkboardWriteIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* Global Chalk navigation owns the first rail; the classroom workspace keeps
    its own scene rail and Notes rail as secondary navigation. */
 .page { display: grid; width: 100%; height: 100vh; min-height: 700px; grid-template-columns: 248px minmax(0, 1fr); grid-template-areas: "global workspace"; overflow: hidden; }
-.chalkboardWorkspace { display: grid; min-width: 0; min-height: 0; height: 100vh; grid-template-columns: 220px minmax(0, 1fr) 320px; grid-template-areas: "left center right"; overflow: hidden; }
+.chalkboardWorkspace { display: grid; min-width: 0; min-height: 0; height: 100vh; grid-template-columns: 220px minmax(0, 1fr) 360px; grid-template-areas: "left center right"; overflow: hidden; }
 .chalkboardWorkspace.pagePanelClosed { grid-template-columns: 220px minmax(0, 1fr) 44px; }
 
 @media (max-width: 1360px) {
-  .chalkboardWorkspace { grid-template-columns: 200px minmax(0, 1fr) 288px; }
+  .chalkboardWorkspace { grid-template-columns: 200px minmax(0, 1fr) 336px; }
   .chalkboardWorkspace.pagePanelClosed { grid-template-columns: 200px minmax(0, 1fr) 44px; }
+  .stageId { display: none; }
 }
 
 @media (max-width: 1080px) {
   .page { grid-template-columns: 212px minmax(0, 1fr); }
-  .chalkboardWorkspace { grid-template-columns: 172px minmax(0, 1fr) 260px; }
+  .chalkboardWorkspace { grid-template-columns: 172px minmax(0, 1fr) 310px; }
   .chalkboardWorkspace.pagePanelClosed { grid-template-columns: 172px minmax(0, 1fr) 44px; }
 }
 
@@ -519,7 +666,9 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
   .sceneRailBrand, .sceneRailHeader { display: none; }
   .sceneList { min-width: max-content; padding: 0; flex-direction: row; gap: 7px; }
   .sceneItem { width: 138px; height: 108px; padding: 5px; }
+  .sceneItemPending { width: 138px; height: 108px; padding: 5px; }
   .sceneThumbnail { min-height: 70px; }
+  .scenePendingThumbnail { min-height: 70px; }
   .sceneInteractiveThumbnail, .sceneInteractivePreview, .sceneQuizThumbnail { min-height: 70px; }
   .sceneItemTopline { display: none; }
   .sceneItemTitle { font-size: 11px; }
@@ -531,6 +680,8 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
   .topStatus { padding-left: 6px; margin-left: 2px; font-size: 10px; }
   .classroomBody { min-height: 0; overflow-y: auto; }
   .lessonSpace { min-height: 430px; padding: 12px 12px max(12px, env(safe-area-inset-bottom)); }
+  .draftRuntimeStatus { align-items: flex-start; flex-direction: column; }
+  .draftRuntimeStatus span { flex-direction: column; gap: 1px; }
   .lessonMeta { min-height: 42px; flex-wrap: wrap; gap: 2px 8px; }
   .lessonMeta strong { order: 3; width: 100%; font-size: 14px; white-space: normal; }
   .lessonMeta > span:last-child { margin-left: auto; }
@@ -550,26 +701,36 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
   .quizIntro h2 { font-size: 20px; }
   .notesRail:not(.notesRailClosed) { position: absolute; z-index: 70; inset: 0; width: 100%; }
   .notesRailClosed { position: absolute; z-index: 65; top: 62px; right: 0; width: 44px; height: 48px; padding-top: 8px; border-bottom: 1px solid var(--chalk-border); }
-  .whiteboardSurface { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
-  .whiteboardTitle > span:last-child { display: none; }
-  .whiteboardAuthoredElement { min-width: 56px; padding: 5px 6px; }
+  .liveChalkboardSurface { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
+  .liveChalkboardTitle > span:last-child { display: none; }
+  .liveChalkboardAuthoredElement { min-width: 56px; padding: 5px 6px; }
   .importNotice { right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
   .generationBackdrop { padding: 0; align-items: stretch; }
-  .generationPanel { width: 100%; max-height: 100dvh; min-height: 100dvh; border-radius: 0; }
+  .generationPanel { width: 100%; height: 100dvh; min-height: 100dvh; border-radius: 0; }
   .generationHeader { min-height: 70px; padding: 12px 14px; }
   .generationHeader h2 { font-size: 18px; }
-  .generationForm, .outlinePreview { max-height: calc(100dvh - 70px); padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .generationForm { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
   .outlineSummary { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .outlineList { padding-inline: 14px; }
+  .outlineReviewPrompt { grid-template-columns: 18px minmax(0, 1fr); }
+  .outlineReviewPrompt button { grid-column: 1 / -1; justify-content: center; }
+  .outlineEditor { padding-inline: 14px; }
+  .outlineEditor > ol > li { grid-template-columns: 1fr; }
+  .outlineEditorOrder { grid-template-columns: repeat(4, 24px); }
+  .outlineEditorFields { grid-template-columns: 1fr; }
+  .outlineEditorWide { grid-column: auto; }
   .generationFieldMeta { align-items: flex-start; flex-direction: column; gap: 3px; }
   .generationPlanningSettings { grid-template-columns: 1fr; }
   .generationMediaSettings { grid-template-columns: 1fr; }
   .generationActions { position: sticky; bottom: 0; padding-bottom: max(4px, env(safe-area-inset-bottom)); background: var(--chalk-paper); }
+  .sceneSwitchDialog { width: calc(100vw - 24px); padding: 18px; }
+  .sceneSwitchDialogActions { flex-direction: column-reverse; }
+  .sceneSwitchDialogActions button { width: 100%; min-height: 44px; }
 }
 
 @media (pointer: coarse) {
   .page button, .page a { min-height: 44px; }
-  .iconButton, .controlButton, .playControl, .panelToggle, .panelExpand, .inputModeButton, .discussionChatButton, .whiteboardActions button { min-width: 44px; min-height: 44px; }
+  .iconButton, .controlButton, .playControl, .panelToggle, .panelExpand, .inputModeButton, .discussionChatButton, .liveChalkboardActions button { min-width: 44px; min-height: 44px; }
   .notesTabs > button:not(.panelToggle) { min-height: 62px; }
   .chatComposer, .discussionReply { min-height: 44px; height: auto; }
 }
@@ -577,4 +738,11 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 @media (prefers-reduced-motion: reduce) {
   .canvasElementHighlighted, .canvasElementLaser { transition: none; }
   .importSpinner { animation-duration: 1.8s; }
+  .liveChalkboardAuthoredElement { animation: none; }
+  .streamingCaret { animation: none; }
+}
+
+@keyframes streamingCaret {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
 }

@@ -15,6 +15,21 @@ export type ClassroomGenerationStopReason =
   | 'deferred';
 
 export type ClassroomGenerationModel = {
+  stream?(userId: string, input: {
+    system: string;
+    user: string;
+    signal?: AbortSignal;
+    maxRetries?: number;
+    timeoutMs?: number;
+  }): AsyncIterable<
+    | { type: 'text_delta'; delta: string }
+    | {
+        type: 'done';
+        providerId: string;
+        modelId: string;
+        stopReason?: ClassroomGenerationStopReason;
+      }
+  >;
   generate(userId: string, input: {
     system: string;
     user: string;
@@ -128,5 +143,29 @@ export function generateWithAbort(
     const abort = () => reject(input.signal.reason);
     input.signal.addEventListener('abort', abort, { once: true });
     void operation.then(resolve, reject).finally(() => input.signal.removeEventListener('abort', abort));
+  });
+}
+
+export async function* streamWithAbort<T>(source: AsyncIterable<T>, signal: AbortSignal) {
+  const iterator = source[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      const result = await raceWithAbort(iterator.next(), signal);
+      if (result.done) return;
+      yield result.value;
+    }
+  } finally {
+    // Do not await return(): a provider that ignored cancellation may still
+    // have a pending next() call. The worker lease must be released promptly.
+    void iterator.return?.();
+  }
+}
+
+function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal) {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+    void operation.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
   });
 }

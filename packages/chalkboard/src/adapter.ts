@@ -19,7 +19,7 @@ export interface SceneView {
 export interface ClassroomParticipant {
   id: string;
   name: string;
-  role: 'teacher' | 'agent';
+  role: 'teacher' | 'assistant' | 'student';
   avatar?: string;
   color?: string;
   persona?: string;
@@ -42,7 +42,7 @@ export type ActionEffect =
   | { kind: 'widget_set_state'; state: Record<string, unknown>; content?: string }
   | { kind: 'widget_annotation'; target: string; content?: string }
   | { kind: 'widget_reveal'; target: string; content?: string }
-  | { kind: 'whiteboard'; action: Action };
+  | { kind: 'live_chalkboard'; action: Action };
 
 export interface ActionExecutor {
   speak(text: string): void | Promise<void>;
@@ -54,7 +54,7 @@ export interface ActionExecutor {
   widgetSetState?(input: { state: Record<string, unknown>; content?: string }): void | Promise<void>;
   widgetAnnotation?(input: { target: string; content?: string }): void | Promise<void>;
   widgetReveal?(input: { target: string; content?: string }): void | Promise<void>;
-  whiteboard?(action: Action): void | Promise<void>;
+  liveChalkboard?(action: Action): void | Promise<void>;
 }
 
 export type ActionExecutionResult =
@@ -93,11 +93,11 @@ function participantsFromClassroom(input: unknown): ClassroomParticipant[] {
         : [];
   return agents.flatMap((rawAgent, index) => {
     if (typeof rawAgent === 'string') {
-      return [{ id: rawAgent, name: rawAgent, role: 'agent' as const }];
+      return [{ id: rawAgent, name: rawAgent, role: 'student' as const }];
     }
     if (typeof rawAgent !== 'object' || rawAgent === null) return [];
     const agent = rawAgent as Record<string, unknown>;
-    const role = agent.role === 'teacher' ? 'teacher' : 'agent';
+    const role = agent.role === 'teacher' ? 'teacher' : agent.role === 'assistant' ? 'assistant' : 'student';
     return [{
       id: typeof agent.id === 'string' ? agent.id : `agent-${index + 1}`,
       name: typeof agent.name === 'string' && agent.name.trim()
@@ -173,7 +173,7 @@ export function toSceneView(scene: Scene): SceneView {
 }
 
 export function toActionEffect(action: Action): ActionEffect | null {
-  if (action.type.startsWith('wb_')) return { kind: 'whiteboard', action };
+  if (action.type.startsWith('wb_')) return { kind: 'live_chalkboard', action };
   switch (action.type) {
     case 'speech':
       return { kind: 'speech', text: action.text as string };
@@ -261,9 +261,9 @@ export async function executeAction(
       if (!executor.widgetReveal) return { ok: false, error: { code: 'UNSUPPORTED_ACTION', actionType: action.type } };
       await executor.widgetReveal(effect);
       break;
-    case 'whiteboard':
-      if (!executor.whiteboard) return { ok: false, error: { code: 'UNSUPPORTED_ACTION', actionType: action.type } };
-      await executor.whiteboard(effect.action);
+    case 'live_chalkboard':
+      if (!executor.liveChalkboard) return { ok: false, error: { code: 'UNSUPPORTED_ACTION', actionType: action.type } };
+      await executor.liveChalkboard(effect.action);
       break;
   }
   return { ok: true, effect };

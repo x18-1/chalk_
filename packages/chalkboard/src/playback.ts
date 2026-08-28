@@ -280,13 +280,30 @@ export class ChalkboardPlaybackController {
       this.actionStatus = 'running';
       this.emit();
       const result = await executeAction(action, this.executor);
-      if (this.disposed || generation !== this.generation || this.runtime.getState().mode !== 'playing') return;
+      const stateAfterAction = this.runtime.getState();
+      const consumePausedDiscussion = result.ok && action.type === 'discussion' &&
+        stateAfterAction.mode === 'paused' && stateAfterAction.currentAction?.id === action.id;
+      if (this.disposed || (generation !== this.generation && !consumePausedDiscussion)) return;
       this.activeAction = null;
       if (!result.ok) {
         this.error = { actionType: result.error.actionType };
         this.onUnsupportedAction?.(result.error.actionType);
       } else {
         this.error = null;
+      }
+      if (this.runtime.getState().mode !== 'playing') {
+        if (consumePausedDiscussion) {
+          const advanced = this.runtime.next({ advanceScene: false });
+          if (!advanced.ok) {
+            this.actionStatus = 'error';
+            this.emit();
+            return;
+          }
+          this.actionStatus = this.runtime.getState().mode === 'paused' ? 'paused' : 'idle';
+          await this.persist?.();
+          this.emit();
+        }
+        return;
       }
       const advanced = this.runtime.next({ advanceScene: this.shouldAdvanceScene() });
       if (!advanced.ok) {
