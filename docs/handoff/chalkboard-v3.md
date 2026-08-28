@@ -166,6 +166,15 @@ Discussion Session 内随消息恢复的场景覆盖层，不是学生手写画�
 - 学生自由手写白板和可收藏的独立持久白板单元仍不在当前讨论切片；
 - PBL 不属于整个 V3 范围。
 
+V3.1 工程收尾已在本分支完成本地实现与验证：Chalkboard route 已缩为只解析参数并挂载 feature workspace；课堂加载、
+runtime、Scene 导航和 Discussion bridge 分别进入独立 hook，避免 `page.tsx` 同时承担数据恢复、播放、
+导航和讨论编排。新增 Chromium hardening E2E、共享 E2E support、真实 Provider release eval 目录与质量
+CI。浏览器门禁按 2026-08-28 的产品决定只保留 Chromium，Firefox/WebKit 矩阵推迟。
+
+发布验证的命令、CI 边界、付费 eval 安全要求和仍未覆盖的非功能项见
+[Chalkboard V3 发布验证](../runbooks/chalkboard-v3-release-validation.md)。真实 Provider eval 仍未执行，
+远端 CI 也必须在工作流首次通过后才能视为 Enforced。
+
 需要启动完整环境时，按 [worktree 开发手册](../runbooks/worktree-development.md)从
 `.env.example` 创建 V3 自己的 `.env`，选择未占用端口和独立 Compose project；不得复制 V2 `.env`
 或复用其数据库、MinIO volume、session 路径和凭据。
@@ -243,6 +252,7 @@ discussion section、角色、长度与白板规则仍由 Graph 周边 TypeScrip
 
 ```bash
 pnpm --filter @chalk/api test:unit
+pnpm test:unit
 DATABASE_URL="$TEST_DATABASE_URL" NODE_ENV=test \
   pnpm --dir apps/api exec vitest run tests/integration/classroom-discussions.test.ts --maxWorkers=1
 pnpm --filter @chalk/api test:integration
@@ -250,7 +260,8 @@ pnpm --filter @chalk/api typecheck
 pnpm --filter @chalk/web typecheck
 pnpm exec eslint <本次受影响的 Web/测试路径> --max-warnings=0
 E2E_WEB_URL=http://localhost:3102 E2E_API_URL=http://localhost:3101 \
-  pnpm exec playwright test tests/e2e/chalkboard.spec.ts tests/e2e/chalkboard-navigation.spec.ts
+  pnpm test:e2e:chalkboard
+pnpm eval:chalkboard-v3 -- --dry-run
 pnpm --filter @chalk/web build
 pnpm --filter @chalk/api build
 git diff --check
@@ -261,12 +272,18 @@ git diff --check
 Agent Profiles、稳定
 Classroom 身份、生成中课堂列表，以及多 Agent SSE、停止/部分
 内容恢复/结束、Draft 目标绑定、陈旧 Round 恢复、Agent 画像进入生成与发布链路）；
-Chalkboard E2E 27/27、全仓 typecheck/lint、API/Web production build 和全量 `git diff --check` 均
+Chalkboard Chromium E2E 31/31（既有 27 条加 4 条 hardening）、全仓 typecheck/lint、
+API/Web production build 和全量 `git diff --check` 均
 通过；全部 migration 也在测试数据库顺序执行成功，并已应用到 V3 开发数据库。
 Generation E2E 覆盖稳定 Classroom URL、左侧生成状态恢复、大纲明确确认、Scene 1 自动进入 Draft
 Classroom、可点击 pending Scene 状态页、完整课堂操作、后续 Scene 逐幕追加、播放时不重放讲解、
 讨论 TTS FIFO、刷新恢复、同页发布及最终 Artifact。未用真实付费 Provider 执行 smoke，不能把 mock
 E2E 视为真实模型/媒体验证。
+
+V3.1 额外验证了 route/feature 职责拆分后的恢复链路、应用 chrome 的 axe serious/critical 门禁、200%
+字号、reduced motion 和键盘 Scene 导航。根级 `pnpm test:unit` 现已实际包含 Chalkboard package 的
+44 条单测；此前该包只有 `test` 脚本，会被 Turbo 的 `test:unit` 任务遗漏。release eval 的 dry-run 与
+TypeScript 编译已通过；真实 Provider 案例、媒体 smoke 和远端 GitHub Actions 首次运行仍未执行。
 
 ## 10. 继续工作前阅读
 

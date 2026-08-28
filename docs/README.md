@@ -48,7 +48,8 @@
 | Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和上传文本 adapter 已实现，知识库/Web adapter 待后续阶段 |
 | Tools 基础能力 | [spec/tools-foundation-spec.md](spec/tools-foundation-spec.md) | Draft；核心 runtime、统一 Read facade 和 MinIO 集成验证已实现，更多资源 adapter 待后续阶段 |
 | Tools 实施计划 | [plan/plan-tools-foundation.md](plan/plan-tools-foundation.md) | Draft；实现中 |
-| Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，CI 门禁待后续接入 |
+| Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
+| Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
 | Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Active；已打通渐进式生成与文本多 Agent 课堂讨论两个纵向切片 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
@@ -97,10 +98,10 @@ docs/
 
 以下规则已经接受，但尚未全部由工具强制：
 
-- 尚无 CI workflow、formatter 门禁和自动 package 依赖方向检查。
+- 质量 CI workflow 已定义，但当前分支尚未在远端完成首次运行；仍无 formatter 门禁和自动 package 依赖方向检查。
 - worktree 配置已经参数化，但尚无跨 worktree 端口/路径占用检测和完整应用栈编排。
 - 集成测试会校验、创建并 migrate 专用数据库，但尚不自动重建或销毁测试数据库。
-- E2E 尚不自动启动隔离的 Web/API、数据库、session 和对象存储。
+- Chromium E2E 的 CI job 已定义隔离 Web/API、数据库和对象存储启动流程，但远端运行结果尚未确认；Firefox/WebKit 矩阵暂不属于 V3 门禁。
 - 既有 API route 中仍有 schema、业务编排和 adapter 调用混在同一文件的情况。
 
 这些缺口按各 runbook 的目标状态和实际开发需要逐步收敛。

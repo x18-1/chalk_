@@ -1,0 +1,144 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+      - run: pnpm build
+      - name: Check whitespace
+        run: git diff --check
+
+  api-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: chalk
+          POSTGRES_PASSWORD: chalk
+          POSTGRES_DB: chalk_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chalk -d chalk_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://chalk:chalk@127.0.0.1:5432/chalk_ci
+      TEST_DATABASE_URL: postgresql://chalk:chalk@127.0.0.1:5432/chalk_ci_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+
+  chalkboard-browser:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: chalk
+          POSTGRES_PASSWORD: chalk
+          POSTGRES_DB: chalk_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chalk -d chalk_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://chalk:chalk@127.0.0.1:5432/chalk_ci
+      TEST_DATABASE_URL: postgresql://chalk:chalk@127.0.0.1:5432/chalk_e2e_test
+      CREDENTIAL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      DEV_ADMIN_EMAIL: admin@qq.com
+      DEV_ADMIN_PASSWORD: admin123
+      DEV_USER_EMAIL: user@qq.com
+      DEV_USER_PASSWORD: user123
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_ACCESS_KEY_ID: chalk
+      S3_SECRET_ACCESS_KEY: chalk-ci-secret
+      S3_BUCKET_UPLOADS: chalk-ci-uploads
+      S3_BUCKET_BACKUPS: chalk-ci-backups
+      S3_FORCE_PATH_STYLE: true
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:3001
+      E2E_API_URL: http://127.0.0.1:3001
+      E2E_WEB_URL: http://127.0.0.1:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start object storage
+        run: |
+          docker run --detach --name chalk-minio --publish 9000:9000 \
+            --env MINIO_ROOT_USER=chalk --env MINIO_ROOT_PASSWORD=chalk-ci-secret \
+            minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:9000/minio/health/live && break
+            sleep 1
+          done
+          docker run --rm --network host minio/mc:RELEASE.2025-07-21T05-28-08Z \
+            sh -c 'mc alias set chalk http://127.0.0.1:9000 chalk chalk-ci-secret && mc mb --ignore-existing chalk/chalk-ci-uploads chalk/chalk-ci-backups'
+      - run: pnpm --filter @chalk/api db:migrate
+      - run: pnpm chalkboard:seed
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: nohup pnpm --filter @chalk/api dev > /tmp/chalk-api.log 2>&1 &
+      - run: nohup pnpm --filter @chalk/web dev > /tmp/chalk-web.log 2>&1 &
+      - name: Wait for Chalk
+        run: |
+          for attempt in {1..90}; do
+            if curl --fail --silent http://127.0.0.1:3001/health > /dev/null && curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - run: pnpm test:e2e:chalkboard
+      - name: Upload browser artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chalkboard-browser-artifacts
+          path: |
+            test-results/
+            playwright-report/
+            /tmp/chalk-api.log
+            /tmp/chalk-web.log
