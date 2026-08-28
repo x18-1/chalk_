@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-27
+> 最后核验：2026-08-28
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -37,8 +37,9 @@
 | Chalkboard V1 Provider 适配结构 | [spec/chalkboard-v1-provider-architecture.md](spec/chalkboard-v1-provider-architecture.md) | Accepted |
 | Chalkboard V1 课堂运行时 | [spec/chalkboard-v1-runtime.md](spec/chalkboard-v1-runtime.md) | Accepted |
 | Chalkboard V1 内容生成 | [spec/chalkboard-v1-generation.md](spec/chalkboard-v1-generation.md) | Accepted |
-| Chalkboard V3 渐进式课堂生成 | [spec/chalkboard-v3-generation.md](spec/chalkboard-v3-generation.md) | Draft；不属于 V1/V2 范围 |
-| Chalkboard V3 课堂讨论候选 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Draft；不属于 V1/V2 范围 |
+| Chalkboard V3 渐进式课堂生成 | [spec/chalkboard-v3-generation.md](spec/chalkboard-v3-generation.md) | Accepted；稳定 Classroom 入口、最多 10 个课堂 Run 并发、单课堂逐 Scene、媒体门禁与显式发布；不含 PBL |
+| Chalkboard V3 课堂讨论 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Accepted；V3 第二个纵向切片 |
+| 课堂讨论 LangGraph 决策 | [adr/0001-langgraph-for-classroom-discussion.md](adr/0001-langgraph-for-classroom-discussion.md) | Accepted |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
@@ -49,10 +50,11 @@
 | Tools 实施计划 | [plan/plan-tools-foundation.md](plan/plan-tools-foundation.md) | Draft；实现中 |
 | Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，CI 门禁待后续接入 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
+| Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Active；已打通渐进式生成与文本多 Agent 课堂讨论两个纵向切片 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
-| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；实现与自动门禁完成，等待人工验收后提交 |
+| Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；已通过 GitHub PR #6 合并到 `main` |
 
 当规则冲突时，优先级为：
 

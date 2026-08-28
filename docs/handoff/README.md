@@ -38,10 +38,11 @@
 
 当前活跃记录：
 
-- [chalkboard-v2.md](chalkboard-v2.md) — 后端持久化、AI 生成和真实学习状态闭环
+- [chalkboard-v3.md](chalkboard-v3.md) — 渐进式课堂生成、多 Agent 讨论与 AI Live Chalkboard 分支现场
 
 历史记录：
 
+- [chalkboard-v2.md](chalkboard-v2.md) — V2 后端持久化、AI 生成和真实学习状态闭环最终现场
 - [chalkboard-v1.md](chalkboard-v1.md) — V1 前端迁移最终现场
 
 旧迁移分支的历史快照仍见仓库根目录 `CHALKBOARD_OPENMAIC_HANDOFF.md`，仅作为参考实现索引，不作为新分支的实施规范。

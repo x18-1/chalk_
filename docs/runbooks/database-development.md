@@ -79,3 +79,33 @@ E2E 使用独立 `_e2e` 数据库目前还没有统一的创建和 migration 流
 ```
 
 不同 migration 历史的分支不要共用数据库。合并前如果分支之间都新增了 migration，先基于最新主分支重新生成或协调 migration，再运行测试。
+
+## 6. Chalkboard V3 数据回填审计
+
+`0030_wide_the_professor.sql` 只处理同时满足以下条件的历史 Draft：
+
+- `classroom_id IS NULL`；
+- `artifact_id IS NULL`；
+- `published_at IS NULL`。
+
+它先以 Draft 自身 `id` 创建稳定的 Classroom 入口，再把同一批 Draft 的 `classroom_id` 指向该
+Classroom。`INSERT ... ON CONFLICT (id) DO NOTHING` 和带相同谓词的 `UPDATE` 使迁移可重复检查；它
+不会改动已经发布的 Draft，也不会接管已有 `classroom_id` 的记录。
+
+应用到含历史数据的环境前，应在维护窗口记录受影响 ID 和数量，并保留数据库快照：
+
+```sql
+SELECT id, user_id
+FROM classroom_drafts
+WHERE classroom_id IS NULL AND artifact_id IS NULL AND published_at IS NULL
+ORDER BY id;
+```
+
+应用后应确认上述查询返回 0，并确认记录的每个 Draft 都存在同 owner、同 ID 的 Classroom。若迁移
+中断或核验失败，优先从迁移前快照恢复；不要在已有后续课堂写入后批量反向删除。只有能够证明对应
+Classroom 仍未产生 Artifact、Learning Session 或其他引用时，才可按迁移前记录的精确 ID 设计新的
+修复 migration，先清除 Draft 引用，再删除这些迁移创建且未被使用的 Classroom。
+
+`0032_abnormal_leo.sql` 只为 Discussion Round 增加实例租约、心跳和停止请求列，不回写业务内容。
+历史 Round 的 `heartbeat_at` 使用迁移时默认值，因此不会在部署瞬间被恢复任务误判为陈旧；仍处于
+`running` 的孤儿 Round 会在心跳宽限期后由恢复任务收口。

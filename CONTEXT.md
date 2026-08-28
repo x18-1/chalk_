@@ -64,14 +64,25 @@ _避免使用_：Quiz 本身、浏览器答案状态、课堂完成状态。
 Classroom Artifact 中预先编排的教师提问与播放暂停点；它不是实时对话，也不产生 Discussion Transcript。
 _避免使用_：课堂对话、Discussion Transcript、课堂 Chat。
 
+## Discussion Session
+
+学生在某个确定课堂运行上下文和 Scene 中开展的一条可恢复讨论支线，承载参与者、进入位置、状态与按序发言。
+正式课堂的运行上下文是 Learning Session，草稿课堂的运行上下文是 Generation Run。
+_避免使用_：Discussion Action、Chalk 通用 Chat、课堂主时间线。
+
 ## Discussion Transcript
 
-未来课堂实时讨论中按顺序产生的多轮发言与事件记录；它是 Chalkboard V3 候选概念，不属于 V1/V2。
-_避免使用_：Discussion Action、学生的单次课堂回答、课堂 Chat。
+Discussion Session 中按顺序产生的学生、课堂 Agent 发言与教学事件记录。
+_避免使用_：Discussion Action、学生的单次课堂回答、Chalk 通用 Chat。
+
+## Discussion Round
+
+由一次学生发言或 authored Discussion Action 触发、直到系统再次等待学生输入或结束讨论的一组连续 Agent 发言。
+_避免使用_：Discussion Session、单条 Agent 消息、整节课堂。
 
 ## Whiteboard Action
 
-由课堂脚本中的教师角色或未来实时讨论 Agent 产生、用于改变教师白板展示的 `wb_*` Action。
+由课堂脚本中的教师角色或实时讨论 Agent 产生、用于改变教师白板展示的 `wb_*` Action。
 _避免使用_：学生手写白板、Whiteboard Snapshot、学生笔记。
 
 ## Generation Run

@@ -17,7 +17,7 @@
 | 层 | 选择 | 说明 |
 |---|---|---|
 | 语言 | **TypeScript 全栈** | DSL 校验器需同时跑在浏览器、agent 侧、服务端，一份代码三处共用 |
-| Agent 运行时 | **pi-agent-core** | 见第 3 节 |
+| Agent 运行时 | **pi-agent-core**；课堂多 Agent 讨论使用 **LangGraph.js** | 见第 3 节与 [ADR 0001](../adr/0001-langgraph-for-classroom-discussion.md) |
 | 前端 | Next.js（App Router）+ React | 只负责页面、浏览器状态和 HTTP/SSE 客户端，不承载业务 API |
 | 后端 API | Fastify + TypeScript | 独立进程和部署单元；认证、业务 API、Agent 装配、SSE、上传和数据库访问集中在此 |
 | 客户端状态 | Zustand | |
@@ -53,12 +53,11 @@ LLM tool arguments
 
 | | 原因 |
 |---|---|
-| LangGraph | OpenMAIC 的 director graph 单次最多执行一轮 `director → agent`，多轮靠客户端连续请求驱动。这点事不值一个框架，pi 的 agent loop 更直接 |
 | fork OpenMAIC | 核心对象不同（它以 `Stage` 为中心，我们以学习者与证据为中心）；`SceneType` / `Action` 是闭合联合类型且有编译期穷举检查；Beat 粒度比 Scene 细，DSL 重写不可避免。302k 行里 PPTX/MP4 导出、PBL v2、importer、i18n、Partners 都不需要 |
 | GeoGebra | `evalCommand()` 只返回成功/失败，无结构化错误；宽松解释器可能把错误表达式解释成另一种合法对象 |
 | Python 做主后端 | 跨语言边界会切在最热的调用路径上（checkpoint 判定 → 讨论室 agent → 生成 → 写证据）；DSL 校验器会被迫写两遍（zod + Pydantic）且必须永远等价。**已决定：后端全 TS，后续如需再调整** |
 
-## 3. Agent 运行时：pi-agent
+## 3. Agent 运行时：pi-agent 与课堂讨论 LangGraph
 
 `@earendil-works/pi-agent-core` `0.84.1`（2026-08-07），仓库 `github.com/earendil-works/pi`。同版本号下成套：`pi-ai`（统一 LLM 层，内置 OpenAI/Anthropic/Google/Mistral/Bedrock）、`pi-telemetry`、`pi-coding-agent`、`pi-tui`、`pi-protocol`、`pi-client`、`pi-storage-sqlite-node`、`gondolin`（Alpine 沙箱）。
 
@@ -75,6 +74,18 @@ LLM tool arguments
 | 上下文管理 | 自动 compaction（`shouldCompact` / `findCutPoint` / `estimateContextTokens`）、session 管理与搜索、branch summarization |
 
 模型层可绕开：注入自己的 `StreamFn`，pi 只需要一个 metadata 占位模型对象，多供应商路由仍由我们自己控制。
+
+### 课堂多 Agent 讨论例外
+
+Chalkboard 的在线多角色讨论使用锁定版本的 TypeScript LangGraph，把 Director 选择、参与 Agent
+发言、等待学生和结束条件表达成显式状态图。该例外只属于课堂讨论模块：通用 Chat、Tools、Skills、
+审批和子 Agent 仍由 `pi-agent-core` 承担。LangGraph 节点不直接装配 OpenAI、Anthropic 等
+LangChain Provider；它们通过一个薄的 Chalk adapter 复用 `@earendil-works/pi-ai` 的用户模型目录、
+凭据和模型选择。PostgreSQL 中 owner-scoped Discussion Session/Transcript 是恢复权威，LangGraph
+state 和浏览器状态都不是。决策背景见 [ADR 0001](../adr/0001-langgraph-for-classroom-discussion.md)。
+
+当前锁定版本为 `@langchain/core` `1.1.31`、`@langchain/langgraph` `1.2.2`，并通过 workspace
+override 锁定 LangGraph 的 checkpoint/sdk 传递依赖组合；版本原因和升级验证门禁记录在 ADR 0001。
 
 ### 需要自己补
 

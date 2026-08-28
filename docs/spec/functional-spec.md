@@ -126,9 +126,9 @@ Chat 与 Chalkboard 的区别不在视觉能力（两者相同），而在**系�
 
 ### 4.4 讨论室
 
-> 阶段说明：本节与 4.5 多角色属于 Chalkboard V3 候选能力，当前仍是 Draft；
-> 不属于 Chalkboard V1/V2 实施或完成门禁，详见
-> [Chalkboard V3 课堂讨论候选规格](chalkboard-v3-discussion.md)。
+> 阶段说明：Chalkboard V3 已接受并实现本节的多角色讨论与 AI Live Chalkboard；checkpoint 自动
+> 转入讨论、学生自由手写白板和课后问队列仍是后续能力，详见
+> [Chalkboard V3 课堂讨论规格](chalkboard-v3-discussion.md)。
 
 课堂右侧常驻一个多角色对话区，学生可随时插话。这是课堂里所有非线性交互的统一出口。
 
@@ -257,7 +257,9 @@ Chat 与 Chalkboard 的区别不在视觉能力（两者相同），而在**系�
 
 对比：OpenMAIC 讨论中的白板是由 AI/参与 Agent 产生 `wb_*` Action 的当前场景覆盖层，
 `wb_clear` / `wb_close` 之后即消失，不进 `stage.scenes`，无独立 id，事后无法回看。它不是学生自由手写画布。
-V3 候选方向是保留同样的即兴 Agent 白板，但是否产生可回看的持久单元仍待产品评审。
+V3 当前已经迁移这类即兴 Agent 覆盖层，并把 Action ledger 持久化在 Discussion Message 中以支持同一
+Discussion Session 刷新恢复；它仍不是本节定义的独立持久展示单元。是否把其提升为可收藏、可进入
+错题本或作为学习证据的独立单元，留待后续产品评审。
 
 ### 6.5 展示内容的可交互性
 
