@@ -42,6 +42,7 @@ export function createMcpServersDal(db: Database) {
       args?: unknown;
       url?: string | null;
       envEnc?: string;
+      headersEnc?: string;
       enabled?: boolean;
     }) {
       if (!userId) throw new AuthRequiredError();
@@ -64,6 +65,7 @@ export function createMcpServersDal(db: Database) {
       args?: unknown;
       url?: string | null;
       envEnc?: string | null;
+      headersEnc?: string | null;
       enabled?: boolean;
     }) {
       if (!userId) throw new AuthRequiredError();

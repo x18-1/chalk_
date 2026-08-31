@@ -9,7 +9,7 @@ import type {
   ResourceReadAdapter,
   ResourceReadRequest,
   ResourceReadResult,
-} from './read-resource';
+} from '../read/read-resource';
 
 const MAX_REMOTE_RESOURCE_BYTES = 2 * 1024 * 1024;
 type McpReadResourceResult = Awaited<ReturnType<McpManager['readResource']>>;

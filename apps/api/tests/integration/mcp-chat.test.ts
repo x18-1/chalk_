@@ -139,7 +139,10 @@ function createFixtureProviderServer() {
   });
 }
 
-async function consumeSse(response: Response) {
+async function consumeSse(
+  response: Response,
+  onEvent?: (type: string, data: Record<string, unknown>) => void,
+) {
   if (!response.body) throw new Error('Missing SSE response body');
   const events: Array<{ type: string; data: Record<string, unknown> }> = [];
   const reader = response.body.getReader();
@@ -148,7 +151,10 @@ async function consumeSse(response: Response) {
   const consume = (chunk: string) => {
     const match = chunk.match(/^event: ([^\n]+)\ndata: ([\s\S]+)$/);
     if (!match) return;
-    events.push({ type: match[1]!, data: JSON.parse(match[2]!) as Record<string, unknown> });
+    const type = match[1]!;
+    const data = JSON.parse(match[2]!) as Record<string, unknown>;
+    events.push({ type, data });
+    onEvent?.(type, data);
   };
   while (true) {
     const result = await reader.read();
@@ -162,7 +168,11 @@ async function consumeSse(response: Response) {
   return events;
 }
 
-async function streamConversation(conversationId: string, message: string) {
+async function streamConversation(
+  conversationId: string,
+  message: string,
+  onEvent?: (type: string, data: Record<string, unknown>) => void,
+) {
   const response = await fetch(`${apiBaseUrl}/chat/${conversationId}/stream`, {
     method: 'POST',
     headers: {
@@ -180,7 +190,7 @@ async function streamConversation(conversationId: string, message: string) {
     }),
   });
   expect(response.status).toBe(200);
-  return consumeSse(response);
+  return consumeSse(response, onEvent);
 }
 
 describe('MCP through the API composition root', () => {
@@ -315,8 +325,25 @@ describe('MCP through the API composition root', () => {
     expect(conversationResponse.statusCode).toBe(201);
     const conversationId = conversationResponse.json().conversation.id as string;
 
-    const events = await streamConversation(conversationId, '请调用 MCP 计算 8 加 13');
+    let approvalResponse: Promise<Response> | undefined;
+    const events = await streamConversation(conversationId, '请调用 MCP 计算 8 加 13', (type, data) => {
+      if (type !== 'tool_pending') return;
+      approvalResponse = fetch(`${apiBaseUrl}/chat/${conversationId}/approve`, {
+        method: 'POST',
+        headers: { cookie, 'content-type': 'application/json' },
+        body: JSON.stringify({ toolCallId: data.toolCallId, approved: true }),
+      });
+    });
+    expect(approvalResponse).toBeDefined();
+    expect((await approvalResponse!).status).toBe(200);
     expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'tool_pending',
+        data: expect.objectContaining({
+          toolCallId: 'mcp-proxy-call',
+          toolName: proxyToolName,
+        }),
+      }),
       expect.objectContaining({
         type: 'tool_started',
         data: expect.objectContaining({

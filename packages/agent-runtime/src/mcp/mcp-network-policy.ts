@@ -98,8 +98,11 @@ export function isPrivateNetworkAddress(hostname: string) {
 }
 
 export async function assertSafeMcpHttpUrl(url: URL) {
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("MCP URL must use HTTP or HTTPS");
+  if (url.protocol !== "https:") {
+    throw new Error("MCP URL must use HTTPS");
+  }
+  if (url.username || url.password) {
+    throw new Error("MCP URL must not contain credentials");
   }
   const hostname = normalizeHostname(url.hostname);
   if (!hostname || isPrivateNetworkAddress(hostname)) {
@@ -120,10 +123,25 @@ export async function assertSafeMcpHttpUrl(url: URL) {
 
 export function createSafeMcpFetch(): FetchLike {
   return async (input, init) => {
-    const target = input instanceof Request
+    let target = input instanceof Request
       ? new URL(input.url)
       : new URL(input instanceof URL ? input.href : input);
-    await assertSafeMcpHttpUrl(target);
-    return fetch(input, { ...init, redirect: "manual" });
+    // Follow only a small, explicitly checked redirect chain. This prevents a
+    // public MCP endpoint from redirecting the process into localhost/private
+    // address space while retaining normal HTTP endpoint compatibility.
+    for (let hop = 0; hop <= 3; hop += 1) {
+      await assertSafeMcpHttpUrl(target);
+      const response = await fetch(target, { ...init, redirect: "manual" });
+      if (response.status < 300 || response.status >= 400) return response;
+      const location = response.headers.get("location");
+      if (!location) return response;
+      if (hop === 3) throw new Error("MCP URL redirect chain exceeded the limit");
+      const redirected = new URL(location, target);
+      if (redirected.origin !== target.origin) {
+        throw new Error("MCP URL must not redirect to a different origin");
+      }
+      target = redirected;
+    }
+    throw new Error("MCP URL redirect failed");
   };
 }

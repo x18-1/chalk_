@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createMcpResourceAdapter } from '../../src/agent/tools/read/mcp-resource-reader';
+import { createMcpResourceAdapter } from '../../../src/agent/tools/mcp-tool/resource-reader';
 
 describe('MCP ResourceReadAdapter', () => {
   it('reads text resources using <server-id>/<resource-uri> references', async () => {
