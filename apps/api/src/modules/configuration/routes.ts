@@ -12,11 +12,16 @@ import {
   providerParamsSchema,
   providerTestSchema,
   skillSettingSchema,
+  skillNameParamsSchema,
   toolSettingSchema,
+  userSkillCreateSchema,
+  userSkillUpdateSchema,
+  userSkillParamsSchema,
 } from './schemas';
 import type { ProviderConfigurationService } from './services/provider-configuration.service';
 import type { RuntimeConfigurationService } from './services/runtime-configuration.service';
 import type { CapabilityConfigurationService } from './services/capability-configuration.service';
+import type { SkillStoreService } from './services/skill-store.service';
 
 export function registerConfigurationRoutes(
   app: FastifyInstance,
@@ -24,6 +29,7 @@ export function registerConfigurationRoutes(
   providers: ProviderConfigurationService,
   runtime: RuntimeConfigurationService,
   capabilities: CapabilityConfigurationService,
+  skillStore?: SkillStoreService,
 ) {
   app.get('/providers', async (request) => {
     const user = await auth.requireUser(request);
@@ -122,6 +128,12 @@ export function registerConfigurationRoutes(
     return runtime.listSkills(user.id);
   });
 
+  app.get('/skills/:name', async (request) => {
+    const user = await auth.requireUser(request);
+    const { name } = skillNameParamsSchema.parse(request.params);
+    return runtime.getSkill(user.id, name);
+  });
+
   app.patch('/skills', async (request) => {
     const user = await auth.requireUser(request);
     return runtime.setSkill(user.id, skillSettingSchema.parse(request.body));
@@ -136,4 +148,32 @@ export function registerConfigurationRoutes(
     const user = await auth.requireUser(request);
     return runtime.setTool(user.id, toolSettingSchema.parse(request.body));
   });
+
+  if (skillStore) {
+    app.get('/user-skills', async (request) => {
+      const user = await auth.requireUser(request);
+      return skillStore.list(user.id);
+    });
+    app.post('/user-skills', async (request, reply) => {
+      const user = await auth.requireUser(request);
+      const skill = await skillStore.create(user.id, userSkillCreateSchema.parse(request.body));
+      return reply.code(201).send({ skill });
+    });
+    app.get('/user-skills/:id', async (request) => {
+      const user = await auth.requireUser(request);
+      const { id } = userSkillParamsSchema.parse(request.params);
+      return skillStore.get(user.id, id);
+    });
+    app.patch('/user-skills/:id', async (request) => {
+      const user = await auth.requireUser(request);
+      const { id } = userSkillParamsSchema.parse(request.params);
+      return { skill: await skillStore.update(user.id, id, userSkillUpdateSchema.parse(request.body)) };
+    });
+    app.delete('/user-skills/:id', async (request) => {
+      const user = await auth.requireUser(request);
+      const { id } = userSkillParamsSchema.parse(request.params);
+      await skillStore.delete(user.id, id);
+      return { ok: true };
+    });
+  }
 }
