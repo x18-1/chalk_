@@ -22,6 +22,7 @@ export {
   type Model,
   type Provider,
   type Skill,
+  type SkillDetails,
   type Tool,
   type VideoCapabilitySelection,
 } from './settings';

@@ -22,8 +22,10 @@ export type CustomModel = {
   maxTokens: number;
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
 };
-export type Skill = { name: string; description: string; enabled: boolean; source: { id: string; label: string; trusted: boolean }; disableModelInvocation: boolean };
-export type McpServer = { id: string; name: string; transport: 'stdio' | 'sse' | 'http'; command: string | null; args: unknown; url: string | null; enabled: boolean; configuredEnv: boolean };
+export type Skill = { name: string; description: string; enabled: boolean; source: { id: string; label: string; trusted: boolean; scope?: 'builtin' | 'user' }; disableModelInvocation: boolean; userSkillId?: string; version?: string; contentHash?: string; references?: string[] };
+export type SkillDetails = Skill & { content: string; references: Record<string, string> };
+export type UserSkill = { id: string; name: string; description: string; version: string; contentHash: string; enabled: boolean; references: string[] };
+export type McpServer = { id: string; name: string; transport: 'http'; url: string; enabled: boolean; configuredBearer: boolean };
 export type Tool = {
   name: string;
   label: string;
@@ -140,6 +142,10 @@ export const settingsApi = {
     return apiJson('/skills', { method: 'PATCH', body: JSON.stringify({ skillName, enabled }) });
   },
 
+  getSkill(name: string) {
+    return apiJson<{ skill: SkillDetails }>(`/skills/${encodeURIComponent(name)}`);
+  },
+
   saveMcp(input: Record<string, unknown>, id?: string) {
     return apiJson<{ server: McpServer }>(id ? `/mcp/${encodeURIComponent(id)}` : '/mcp', { method: id ? 'PATCH' : 'POST', body: JSON.stringify(input) });
   },
@@ -158,5 +164,21 @@ export const settingsApi = {
 
   updateTool(toolName: string, input: { enabled: boolean; approval: Tool['approval'] }) {
     return apiJson('/tools', { method: 'PATCH', body: JSON.stringify({ toolName, ...input }) });
+  },
+
+  createUserSkill(input: { name: string; description: string; content: string; references?: Record<string, string>; version?: string; enabled?: boolean }) {
+    return apiJson<{ skill: UserSkill }>('/user-skills', { method: 'POST', body: JSON.stringify(input) });
+  },
+
+  getUserSkill(id: string) {
+    return apiJson<{ skill: UserSkill & { content: string; references: Record<string, string> } }>(`/user-skills/${encodeURIComponent(id)}`);
+  },
+
+  updateUserSkill(id: string, input: Partial<{ name: string; description: string; content: string; references: Record<string, string>; version: string; enabled: boolean }>) {
+    return apiJson<{ skill: UserSkill }>(`/user-skills/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
+  },
+
+  deleteUserSkill(id: string) {
+    return apiJson(`/user-skills/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };
