@@ -42,6 +42,9 @@ export {
 } from "./tools/tool-registry";
 export {
   SkillRegistry,
+  SkillRegistryError,
+  type VirtualSkill,
+  type SkillRegistryErrorCode,
   type SkillRegistrySnapshot,
   type SkillSource,
   type SkillSummary,
@@ -60,6 +63,10 @@ export {
 export {
   ForegroundSubagentExecutor,
   createSubagentTool,
+  SUBAGENT_MAX_RESULT_CHARACTERS,
+  SUBAGENT_TIMEOUT_MS,
+  SUBAGENT_TOOL_NAME,
+  SUBAGENT_TOOL_SUMMARY,
   type CreateSubagentRuntime,
   type ForegroundSubagentExecutorOptions,
   type SubagentAuditPort,
