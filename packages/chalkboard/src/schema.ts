@@ -145,7 +145,27 @@ export const ActionSchema = z
     }
   });
 
-const ContentSchema = z.object({ type: z.string() }).passthrough();
+export const SceneContentSchema = z
+  .object({ type: z.enum(['slide', 'quiz', 'interactive', 'pbl']) })
+  .passthrough()
+  .superRefine((content, ctx) => {
+    if (content.type === 'slide' && (typeof content.canvas !== 'object' || content.canvas === null || Array.isArray(content.canvas))) {
+      ctx.addIssue({ code: 'custom', path: ['canvas'], message: 'slide content requires an object `canvas`' });
+    }
+    if (content.type === 'quiz' && !Array.isArray(content.questions)) {
+      ctx.addIssue({ code: 'custom', path: ['questions'], message: 'quiz content requires a `questions` array' });
+    }
+    if (
+      content.type === 'interactive'
+      && typeof content.url !== 'string'
+      && typeof content.html !== 'string'
+    ) {
+      ctx.addIssue({ code: 'custom', path: ['url'], message: 'interactive content requires a string `url` or `html`' });
+    }
+    if (content.type === 'pbl' && (typeof content.projectConfig !== 'object' || content.projectConfig === null || Array.isArray(content.projectConfig))) {
+      ctx.addIssue({ code: 'custom', path: ['projectConfig'], message: 'pbl content requires an object `projectConfig`' });
+    }
+  });
 
 export const SceneSchema = z
   .object({
@@ -154,7 +174,7 @@ export const SceneSchema = z
     type: z.enum(['slide', 'quiz', 'interactive', 'pbl']),
     title: z.string(),
     order: z.number().int().nonnegative(),
-    content: ContentSchema,
+    content: SceneContentSchema,
     actions: z.array(ActionSchema).optional(),
   })
   .passthrough()
@@ -162,19 +182,6 @@ export const SceneSchema = z
     if (scene.content.type !== scene.type) {
       ctx.addIssue({ code: 'custom', path: ['content', 'type'], message: 'content type must match scene type' });
       return;
-    }
-    const content = scene.content;
-    if (scene.type === 'slide' && (typeof content.canvas !== 'object' || content.canvas === null || Array.isArray(content.canvas))) {
-      ctx.addIssue({ code: 'custom', path: ['content', 'canvas'], message: 'slide content requires an object `canvas`' });
-    }
-    if (scene.type === 'quiz' && !Array.isArray(content.questions)) {
-      ctx.addIssue({ code: 'custom', path: ['content', 'questions'], message: 'quiz content requires a `questions` array' });
-    }
-    if (scene.type === 'interactive' && typeof content.url !== 'string') {
-      ctx.addIssue({ code: 'custom', path: ['content', 'url'], message: 'interactive content requires a string `url`' });
-    }
-    if (scene.type === 'pbl' && (typeof content.projectConfig !== 'object' || content.projectConfig === null || Array.isArray(content.projectConfig))) {
-      ctx.addIssue({ code: 'custom', path: ['content', 'projectConfig'], message: 'pbl content requires an object `projectConfig`' });
     }
   });
 

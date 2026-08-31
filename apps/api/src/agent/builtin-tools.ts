@@ -9,6 +9,7 @@ import {
   type SearchProvider,
 } from './tools/search';
 import { createReadResourceTool, type ResourceReader } from './tools/read/read-resource';
+import { createRenderChalkboardTool } from './tools/render-chalkboard/tool';
 
 export type BuiltinToolDependencies = {
   conversationTitleUpdater: ConversationTitleUpdater;
@@ -19,7 +20,10 @@ export type BuiltinToolDependencies = {
 };
 
 export function createBuiltinToolRegistry(dependencies: BuiltinToolDependencies) {
-  const tools: RuntimeTool[] = [createRenameConversationTool(dependencies.conversationTitleUpdater)];
+  const tools: RuntimeTool[] = [
+    createRenderChalkboardTool(),
+    createRenameConversationTool(dependencies.conversationTitleUpdater),
+  ];
   if (dependencies.searchProvider) tools.unshift(createSearchTool(dependencies.searchProvider));
   if (dependencies.readResourceReader && dependencies.readCursorSecret) {
     tools.unshift(createReadResourceTool(dependencies.readResourceReader, dependencies.readCursorSecret));

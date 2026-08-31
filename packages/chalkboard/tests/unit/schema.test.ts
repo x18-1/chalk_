@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { openMaicStageFixture } from '../fixtures/openmaic-stage.js';
-import { StageSchema, parseStageDocument } from '../../src/schema.js';
+import { SceneContentSchema, StageSchema, parseStageDocument } from '../../src/schema.js';
 
 describe('OpenMAIC Stage schema', () => {
   it('parses the fixed Stage -> Scene -> Action fixture', () => {
@@ -43,5 +43,15 @@ describe('OpenMAIC Stage schema', () => {
     const paths = result.error.issues.map((issue) => issue.path.join('/'));
     expect(paths).toContain('scenes/0/stageId');
     expect(paths).toContain('scenes/0/actions/0/type');
+  });
+
+  it('accepts self-contained interactive HTML through the canonical Scene content contract', () => {
+    expect(SceneContentSchema.parse({
+      type: 'interactive',
+      html: '<canvas id="lesson"></canvas>',
+    })).toMatchObject({ type: 'interactive' });
+
+    expect(SceneContentSchema.safeParse({ type: 'interactive' }).success).toBe(false);
+    expect(SceneContentSchema.safeParse({ type: 'quiz', questions: 'not-an-array' }).success).toBe(false);
   });
 });
