@@ -8,6 +8,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -38,6 +39,8 @@ import { AppSidebar, defaultSidebarConversations } from "../../components/app-si
 import { SettingsDialog } from "../../components/settings-dialog";
 import { ApiRequestError, chatApi, mediaApi, settingsApi, uploadsApi, type CapabilitySettings, type MediaCapability, type MediaProvider, type MediaProviders, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
+import type { SceneView } from "@chalk/chalkboard";
+import { InlineChalkboard } from "../../features/chat/components/inline-chalkboard";
 import styles from "./chat.module.css";
 
 type Role = "student" | "tutor";
@@ -49,6 +52,7 @@ type MessageTool = {
   label: string;
   state: ToolState;
   result?: string;
+  chalkboard?: SceneView;
 };
 
 type Message = {
@@ -101,6 +105,12 @@ function toolCalls(content: unknown): MessageTool[] {
 function toolLabel(name: string) {
   const labels: Record<string, string> = {
     run_subagent: "专项分析",
+    render_chalkboard: "Chalkboard Scene",
+    search_learning_resources: "搜索学习资料",
+    read_resource: "读取资源",
+    read_uploaded_file: "读取附件",
+    read_skill: "Read Skill",
+    rename_current_conversation: "更新会话标题",
   };
   if (labels[name]) return labels[name];
   if (name.startsWith("mcp__")) {
@@ -113,6 +123,23 @@ function toolLabel(name: string) {
 function toolResultText(content: unknown) {
   const text = messageText(content).trim();
   return text.length > 360 ? `${text.slice(0, 357)}...` : text;
+}
+
+function chalkboardDetails(value: unknown): SceneView | undefined {
+  const details = objectValue(value);
+  if (details?.type !== "scene") return undefined;
+  const scene = objectValue(details.scene);
+  if (!scene || typeof scene.id !== "string" || typeof scene.title !== "string" || typeof scene.type !== "string") return undefined;
+  const content = objectValue(scene.content);
+  if (!content || content.type !== scene.type) return undefined;
+  return {
+    id: scene.id,
+    title: scene.title,
+    order: typeof scene.order === "number" ? scene.order : 0,
+    type: scene.type as SceneView["type"],
+    actionCount: 0,
+    content,
+  };
 }
 
 function isStudentRejectedTool(content: unknown) {
@@ -191,15 +218,16 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
         parsed.push(currentTutor);
       }
       const toolName = typeof raw.toolName === "string" ? raw.toolName : "tool";
-      currentTutor.tools = mergeTools(currentTutor.tools, [{
+        currentTutor.tools = mergeTools(currentTutor.tools, [{
         toolCallId: raw.toolCallId,
         toolName,
         label: toolLabel(toolName),
         state: isStudentRejectedTool(raw.content)
           ? "rejected"
           : raw.isError === true ? "error" : "complete",
-        result: toolResultText(raw.content),
-      }]);
+          result: raw.isError === true ? undefined : toolResultText(raw.content),
+          chalkboard: chalkboardDetails(raw.details),
+        }]);
     }
   });
   return parsed;
@@ -229,8 +257,8 @@ function classifyFailure(error: unknown, fallback: FailureKind = "network"): Cha
           : fallback);
   const copy: Record<FailureKind, Omit<ChatFailure, "kind">> = {
     provider: { title: "模型服务未完成回答", detail: `${message}。检查模型凭据或切换模型后再试。`, action: "settings" },
-    tool: { title: "工具调用没有完成", detail: `${message}。你可以调整问题后重新发送。`, action: "retry" },
-    mcp: { title: "MCP 服务暂时不可用", detail: `${message}。检查 MCP 连接后再试。`, action: "settings" },
+    tool: { title: "这一步暂时没有完成", detail: "可以稍后重试，或换一种方式描述你的问题。", action: "retry" },
+    mcp: { title: "这一步暂时没有完成", detail: "相关服务没有及时响应，可以稍后重试。", action: "retry" },
     approval: { title: "工具审批没有生效", detail: `${message}。审批可能已超时或被处理，请重新发起这一步。`, action: "retry" },
     network: { title: "连接已中断", detail: `${message}。确认网络恢复后重新发送。`, action: "retry" },
   };
@@ -330,11 +358,14 @@ function MediaProviderChoice({
 }
 
 const initialConversations: typeof defaultSidebarConversations = [];
+const emptyConversationMessages: Message[] = [];
 
 export default function ChatPage() {
   const [conversations, setConversations] = useState(initialConversations);
   const [selectedId, setSelectedId] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesByConversation, setMessagesByConversation] = useState<Record<string, Message[]>>({});
+  const [runningConversationIds, setRunningConversationIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [conversationFailures, setConversationFailures] = useState<Record<string, ChatFailure | undefined>>({});
   const [draft, setDraft] = useState("");
   const [selectedModel, setSelectedModel] = useState<ModelSelection | null>(null);
   const [modelOptions, setModelOptions] = useState<Model[]>([]);
@@ -347,7 +378,6 @@ export default function ChatPage() {
   const [mediaCapability, setMediaCapability] = useState<MediaCapability>("tts");
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
@@ -355,13 +385,14 @@ export default function ChatPage() {
   const [isDraftConversation, setIsDraftConversation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const rejectedToolCallsRef = useRef(new Set<string>());
+  const runControllersRef = useRef(new Map<string, AbortController>());
+  const rejectedToolCallsRef = useRef(new Map<string, Set<string>>());
   const modelPickerRef = useRef<HTMLDivElement>(null);
   const mediaPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => {
-    abortControllerRef.current?.abort();
+    for (const controller of runControllersRef.current.values()) controller.abort();
+    runControllersRef.current.clear();
   }, []);
 
   useEffect(() => {
@@ -431,6 +462,10 @@ export default function ChatPage() {
     };
   }, [showMediaMenu, showModelMenu]);
 
+  const messages = selectedId ? messagesByConversation[selectedId] ?? emptyConversationMessages : emptyConversationMessages;
+  const isStreaming = Boolean(selectedId && runningConversationIds.has(selectedId));
+  const visibleFailure = (selectedId ? conversationFailures[selectedId] : undefined) ?? failure;
+
   useEffect(() => {
     const viewport = messageViewportRef.current;
     if (!viewport) return;
@@ -467,10 +502,7 @@ export default function ChatPage() {
       .flatMap(([capability, providers]) => providers.filter((provider) => provider.configured && provider.models.length).map((provider) => ({ capability, provider })));
   }, [mediaProviders]);
   const visibleMediaProviders = configuredMediaProviders.filter((item) => item.capability === mediaCapability);
-  function resetTransientConversationState() {
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    setIsStreaming(false);
+  function resetComposerState() {
     setAttachedFile(null);
     setShowModelMenu(false);
     setDraft("");
@@ -478,20 +510,45 @@ export default function ChatPage() {
     setFailure(null);
   }
 
+  function updateConversationMessages(id: string, update: (messages: Message[]) => Message[]) {
+    setMessagesByConversation((current) => ({
+      ...current,
+      [id]: update(current[id] ?? []),
+    }));
+  }
+
+  function setConversationRunning(id: string, running: boolean) {
+    setRunningConversationIds((current) => {
+      const next = new Set(current);
+      if (running) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function setConversationFailure(id: string, nextFailure: ChatFailure | undefined) {
+    setConversationFailures((current) => ({ ...current, [id]: nextFailure }));
+  }
+
   async function loadConversationMessages(id: string) {
     const data = await chatApi.messages(id);
-    setMessages(historyMessages(id, data.messages));
+    if (runControllersRef.current.has(id)) return;
+    setMessagesByConversation((current) => ({
+      ...current,
+      [id]: historyMessages(id, data.messages),
+    }));
   }
 
   async function selectConversation(id: string) {
-    resetTransientConversationState();
+    resetComposerState();
     setIsDraftConversation(false);
     setSelectedId(id);
-    setMessages([]);
+    window.history.replaceState(window.history.state, "", `/chat?conversation=${id}`);
+    if (messagesByConversation[id] !== undefined || runControllersRef.current.has(id)) return;
     try {
       await loadConversationMessages(id);
     } catch (loadError) {
-      setFailure({
+      setConversationFailure(id, {
         kind: "network",
         title: "对话记录没有加载完成",
         detail: `${loadError instanceof Error ? loadError.message : "加载对话失败"}。检查连接后重新加载这段对话。`,
@@ -501,14 +558,14 @@ export default function ChatPage() {
   }
 
   async function startConversation() {
-    resetTransientConversationState();
+    resetComposerState();
     try {
       const data = await chatApi.create();
       const next = { id: data.conversation.id, title: formatConversationTitle(data.conversation), group: conversationGroup(data.conversation.updatedAt) };
       setConversations((current) => [next, ...current]);
       setIsDraftConversation(false);
       setSelectedId(next.id);
-      setMessages([]);
+      setMessagesByConversation((current) => ({ ...current, [next.id]: [] }));
       window.history.replaceState(null, "", `/chat?conversation=${next.id}`);
       return next.id;
     } catch (createError) {
@@ -530,21 +587,21 @@ export default function ChatPage() {
   }
 
   function prepareNewConversation() {
-    resetTransientConversationState();
+    resetComposerState();
     setIsDraftConversation(true);
     setSelectedId("");
-    setMessages([]);
     if (window.location.pathname !== "/chat" || window.location.search !== "?new=1") {
       window.history.replaceState(window.history.state, "", "/chat?new=1");
     }
   }
 
   function stopStreaming() {
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    if (selectedId) void chatApi.abort(selectedId).catch(() => undefined);
-    setIsStreaming(false);
-    setMessages((current) => current.map((message, index) => index === current.length - 1 && message.role === "tutor"
+    if (!selectedId) return;
+    runControllersRef.current.get(selectedId)?.abort();
+    runControllersRef.current.delete(selectedId);
+    void chatApi.abort(selectedId).catch(() => undefined);
+    setConversationRunning(selectedId, false);
+    updateConversationMessages(selectedId, (current) => current.map((message, index) => index === current.length - 1 && message.role === "tutor"
       ? {
           ...message,
           runStatus: "aborted",
@@ -556,7 +613,7 @@ export default function ChatPage() {
   async function sendMessage(event?: React.FormEvent, retryText?: string) {
     event?.preventDefault();
     const text = (retryText ?? draft).trim();
-    if (!text || isStreaming) return;
+    if (!text) return;
     if (attachedFile?.status === "uploading") {
       setNotice("附件仍在上传，请稍候");
       return;
@@ -564,20 +621,22 @@ export default function ChatPage() {
     let conversationId = selectedId;
     if (!conversationId) conversationId = (await startConversation()) ?? "";
     if (!conversationId) return;
+    if (runControllersRef.current.has(conversationId)) return;
     setConversations((current) => current.map((conversation) => conversation.id === conversationId
       ? { ...conversation, title: temporaryConversationTitle(text) || conversation.title }
       : conversation));
     setNotice(null);
     setFailure(null);
+    setConversationFailure(conversationId, undefined);
     const now = new Date();
     const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
     const studentMessage: Message = { id: `student-${Date.now()}`, role: "student", text, time, attachment: attachedFile?.name };
-    setMessages((current) => [...current, studentMessage]);
+    updateConversationMessages(conversationId, (current) => [...current, studentMessage]);
     setDraft("");
     setAttachedFile(null);
-    setIsStreaming(true);
+    setConversationRunning(conversationId, true);
     const tutorId = `tutor-${Date.now()}`;
-    setMessages((current) => [...current, {
+    updateConversationMessages(conversationId, (current) => [...current, {
       id: tutorId,
       role: "tutor",
       text: "",
@@ -585,35 +644,37 @@ export default function ChatPage() {
       tools: [],
     }]);
     const controller = new AbortController();
-    abortControllerRef.current = controller;
+    runControllersRef.current.set(conversationId, controller);
     try {
       await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
-        if (type === "text_delta") setMessages((current) => current.map((message) => message.id === tutorId ? {
+        if (type === "text_delta") updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
           ...message,
           text: `${message.text}${String(data.delta ?? "")}`,
           thinking: undefined,
         } : message));
-        if (type === "thinking_delta") setMessages((current) => current.map((message) => message.id === tutorId && !message.text
+        if (type === "thinking_delta") updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId && !message.text
           ? { ...message, thinking: "running" }
           : message));
         if (type === "tool_started" || type === "tool_pending") {
           const toolCallId = String(data.toolCallId ?? "");
           const toolName = String(data.toolName ?? "tool");
-          setMessages((current) => current.map((message) => message.id === tutorId ? {
-            ...message,
-            tools: mergeTools(message.tools, [{
-              toolCallId,
-              toolName,
-              label: type === "tool_pending" ? String(data.label ?? toolLabel(toolName)) : toolLabel(toolName),
-              state: type === "tool_pending" ? "approval" : "running",
-            }]),
-          } : message));
+          flushSync(() => {
+            updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
+              ...message,
+              tools: mergeTools(message.tools, [{
+                toolCallId,
+                toolName,
+                label: type === "tool_pending" ? String(data.label ?? toolLabel(toolName)) : toolLabel(toolName),
+                state: type === "tool_pending" ? "approval" : "running",
+              }]),
+            } : message));
+          });
         }
         if (type === "tool_updated") {
           const update = data.update;
           if (update && typeof update === "object" && "details" in update && update.details && typeof update.details === "object" && "type" in update.details && update.details.type === "subagent_running") {
             const toolCallId = String(data.toolCallId ?? "");
-            setMessages((current) => current.map((message) => message.id === tutorId ? {
+            updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
               ...message,
               tools: (message.tools ?? []).map((tool) => tool.toolCallId === toolCallId ? { ...tool, state: "running" } : tool),
             } : message));
@@ -624,33 +685,24 @@ export default function ChatPage() {
           const toolName = String(data.toolName ?? "tool");
           const result = objectValue(data.result);
           const resultText = toolResultText(result?.content);
-          const rejected = rejectedToolCallsRef.current.has(toolCallId)
+          const rejected = rejectedToolCallsRef.current.get(conversationId)?.has(toolCallId) === true
             || isStudentRejectedTool(result?.content);
-          setMessages((current) => current.map((message) => message.id === tutorId ? {
+          updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
             ...message,
             tools: mergeTools(message.tools, [{
               toolCallId,
               toolName,
               label: message.tools?.find((tool) => tool.toolCallId === toolCallId)?.label ?? toolLabel(toolName),
               state: rejected ? "rejected" : data.isError ? "error" : "complete",
-              result: resultText,
+              result: data.isError || rejected ? undefined : resultText,
+              chalkboard: chalkboardDetails(result?.details),
             }]),
           } : message));
-          rejectedToolCallsRef.current.delete(toolCallId);
-          if (rejected) return;
-          if (data.isError) {
-            const kind = toolName.startsWith("mcp__") ? "mcp" : "tool";
-            setFailure({
-              kind,
-              title: kind === "mcp" ? "MCP 工具没有完成" : "工具调用没有完成",
-              detail: `${toolResultText(result?.content) || "工具返回了错误结果"}。调整问题或检查工具配置后重试。`,
-              action: kind === "mcp" ? "settings" : "retry",
-            });
-          }
+          rejectedToolCallsRef.current.get(conversationId)?.delete(toolCallId);
         }
         if (type === "message_completed" && data.message?.role === "assistant") {
           const completedMessage = data.message;
-          setMessages((current) => current.map((message) => message.id === tutorId ? {
+          updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
             ...message,
             text: messageText(completedMessage.content) || message.text,
             thinking: undefined,
@@ -661,17 +713,19 @@ export default function ChatPage() {
           } : message));
         }
         if (type === "error") {
-          setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: "failed" } : message));
-          setFailure(classifyFailure(data, "provider"));
+          updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: "failed" } : message));
+          setConversationFailure(conversationId, classifyFailure(data, "provider"));
         }
       }, controller.signal);
     } catch (streamError) {
-      setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: controller.signal.aborted ? "aborted" : "failed" } : message));
-      if (!controller.signal.aborted) setFailure(classifyFailure(streamError));
+      updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: controller.signal.aborted ? "aborted" : "failed" } : message));
+      if (!controller.signal.aborted) setConversationFailure(conversationId, classifyFailure(streamError));
     } finally {
-      abortControllerRef.current = null;
-      setIsStreaming(false);
-      setMessages((current) => current.map((message) => message.id === tutorId ? { ...message, thinking: undefined } : message));
+      if (runControllersRef.current.get(conversationId) === controller) {
+        runControllersRef.current.delete(conversationId);
+        setConversationRunning(conversationId, false);
+      }
+      updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? { ...message, thinking: undefined } : message));
       void syncConversationTitle(conversationId).catch(() => undefined);
     }
   }
@@ -700,17 +754,23 @@ export default function ChatPage() {
 
   async function decideTool(toolCallId: string, approved: boolean) {
     if (!selectedId || !toolCallId) return;
+    const conversationId = selectedId;
     setFailure(null);
-    if (!approved) rejectedToolCallsRef.current.add(toolCallId);
-    setMessages((current) => current.map((message) => ({
+    setConversationFailure(conversationId, undefined);
+    if (!approved) {
+      const rejected = rejectedToolCallsRef.current.get(conversationId) ?? new Set<string>();
+      rejected.add(toolCallId);
+      rejectedToolCallsRef.current.set(conversationId, rejected);
+    }
+    updateConversationMessages(conversationId, (current) => current.map((message) => ({
       ...message,
       tools: message.tools?.map((tool) => tool.toolCallId === toolCallId
         ? { ...tool, state: approved ? "running" : "rejected" }
         : tool),
     })));
     try {
-      await chatApi.approve(selectedId, toolCallId, approved);
-      setMessages((current) => current.map((message) => ({
+      await chatApi.approve(conversationId, toolCallId, approved);
+      updateConversationMessages(conversationId, (current) => current.map((message) => ({
         ...message,
         tools: message.tools?.map((tool) => {
           if (tool.toolCallId !== toolCallId) return tool;
@@ -721,14 +781,14 @@ export default function ChatPage() {
       })));
       setNotice(approved ? "已允许这次工具调用" : "已拒绝这次工具调用");
     } catch (approvalError) {
-      rejectedToolCallsRef.current.delete(toolCallId);
-      setMessages((current) => current.map((message) => ({
+      rejectedToolCallsRef.current.get(conversationId)?.delete(toolCallId);
+      updateConversationMessages(conversationId, (current) => current.map((message) => ({
         ...message,
         tools: message.tools?.map((tool) => tool.toolCallId === toolCallId
           ? { ...tool, state: "error" }
           : tool),
       })));
-      setFailure(classifyFailure(approvalError, "approval"));
+      setConversationFailure(conversationId, classifyFailure(approvalError, "approval"));
     }
   }
 
@@ -751,14 +811,27 @@ export default function ChatPage() {
   }
 
   function deleteConversation(id: string) {
+    runControllersRef.current.get(id)?.abort();
+    runControllersRef.current.delete(id);
+    setConversationRunning(id, false);
     void chatApi.delete(id).then(() => {
       const remaining = conversations.filter((conversation) => conversation.id !== id);
       setConversations(remaining);
+      setMessagesByConversation((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      setConversationFailures((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      rejectedToolCallsRef.current.delete(id);
       if (selectedId === id) {
         const next = remaining[0];
         setSelectedId(next?.id ?? "");
-        setMessages([]);
-        if (next) void loadConversationMessages(next.id);
+        if (next && messagesByConversation[next.id] === undefined) void loadConversationMessages(next.id);
       }
     }).catch((deleteError) => setNotice(deleteError instanceof Error ? deleteError.message : "删除失败"));
   }
@@ -856,25 +929,27 @@ export default function ChatPage() {
   }
 
   async function recoverFailure() {
-    if (!failure) return;
-    if (failure.action === "settings") {
+    if (!visibleFailure) return;
+    if (visibleFailure.action === "settings") {
       setFailure(null);
+      if (selectedId) setConversationFailure(selectedId, undefined);
       setSettingsOpen(true);
       return;
     }
-    if (failure.action === "reload") {
+    if (visibleFailure.action === "reload") {
       if (selectedId) await selectConversation(selectedId);
       else window.location.reload();
       return;
     }
     const retryMessage = [...messages].reverse().find((message) => message.role === "student");
     setFailure(null);
+    if (selectedId) setConversationFailure(selectedId, undefined);
     if (retryMessage) await sendMessage(undefined, retryMessage.text);
   }
 
   return (
     <main className={`${styles.workspace} ${contextCollapsed ? styles.contextCollapsed : ""}`}>
-      <AppSidebar historyMode="chat" activeSection={isDraftConversation ? "new" : undefined} conversations={conversations} selectedConversationId={selectedId} onNewConversation={prepareNewConversation} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
+      <AppSidebar historyMode="chat" activeSection={isDraftConversation ? "new" : undefined} conversations={conversations} selectedConversationId={selectedId} runningConversationIds={runningConversationIds} onNewConversation={prepareNewConversation} onSelectConversation={(id) => { void selectConversation(id); }} onRenameConversation={renameConversation} onDeleteConversation={deleteConversation} />
 
       <section className={styles.chatSurface} aria-label="数学对话">
         <header className={styles.chatHeader}>
@@ -895,14 +970,14 @@ export default function ChatPage() {
         </div>
 
         <div className={styles.composerDock}>
-          {failure && <div className={`${styles.failureBanner} ${styles[`failure_${failure.kind}`]}`} role="alert">
+          {visibleFailure && <div className={`${styles.failureBanner} ${styles[`failure_${visibleFailure.kind}`]}`} role="alert">
             <AlertCircle size={17} />
-            <div><strong>{failure.title}</strong><p>{failure.detail}</p></div>
+            <div><strong>{visibleFailure.title}</strong><p>{visibleFailure.detail}</p></div>
             <button className={styles.failureAction} type="button" onClick={() => void recoverFailure()}>
-              {failure.action === "settings" ? <Settings2 size={14} /> : <RefreshCw size={14} />}
-              {failure.action === "settings" ? "打开设置" : failure.action === "reload" ? "重新加载" : "重试"}
+              {visibleFailure.action === "settings" ? <Settings2 size={14} /> : <RefreshCw size={14} />}
+              {visibleFailure.action === "settings" ? "打开设置" : visibleFailure.action === "reload" ? "重新加载" : "重试"}
             </button>
-            <button className={styles.failureDismiss} type="button" aria-label="关闭错误提示" onClick={() => setFailure(null)}><X size={14} /></button>
+            <button className={styles.failureDismiss} type="button" aria-label="关闭错误提示" onClick={() => { setFailure(null); if (selectedId) setConversationFailure(selectedId, undefined); }}><X size={14} /></button>
           </div>}
           {notice && <div className={styles.notice} role="status"><span>{notice}</span><button type="button" aria-label="关闭提示" onClick={() => setNotice(null)}><X size={14} /></button></div>}
           {attachedFile && <div className={styles.attachmentChip}><FileText size={14} /><span>{attachedFile.name}{attachedFile.status === "uploading" ? " · 上传中" : ""}</span><button type="button" aria-label="移除附件" onClick={() => setAttachedFile(null)}><X size={13} /></button></div>}
@@ -979,6 +1054,7 @@ function MessageBubble({
       onApprove={() => onDecideTool(tool.toolCallId, true)}
       onDeny={() => onDecideTool(tool.toolCallId, false)}
     />)}</div>}
+    {message.tools?.map((tool) => tool.chalkboard ? <InlineChalkboard key={`${tool.toolCallId}-chalkboard`} scene={tool.chalkboard} /> : null)}
     {message.text && <div className={styles.tutorCopy}><ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath]}
       rehypePlugins={[rehypeKatex]}
@@ -990,7 +1066,15 @@ function MessageBubble({
 }
 
 function ToolActivity({ tool, onApprove, onDeny }: { tool: MessageTool; onApprove: () => void; onDeny: () => void }) {
-  const detail = tool.state === "approval" ? "这一步需要你的确认。" : tool.state === "error" ? "这次工具调用没有完成。" : tool.state === "rejected" ? "你已拒绝这次工具调用。" : tool.state === "running" ? "正在处理当前学习任务。" : "工具调用已完成。";
+  const detail = tool.state === "approval"
+    ? "等待你的确认。"
+    : tool.state === "error"
+      ? "这一步暂时没有完成。"
+      : tool.state === "rejected"
+        ? "这一步已跳过。"
+        : tool.state === "running"
+          ? `正在调用 ${tool.label}…`
+          : `${tool.label}已完成。`;
   return <div className={`${styles.toolActivity} ${styles[`tool_${tool.state}`]}`}>
     <div className={styles.toolIcon}>{tool.state === "running" ? <LoaderCircle size={15} className={styles.spin} /> : tool.state === "error" || tool.state === "rejected" ? <X size={15} /> : tool.state === "complete" ? <Check size={15} /> : <Activity size={15} />}</div>
     <div className={styles.toolCopy}>
