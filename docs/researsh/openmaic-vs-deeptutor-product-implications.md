@@ -11,7 +11,7 @@
 
 - [OpenMAIC 项目分析](openmaic-project-analysis.md)
 - [DeepTutor 项目分析](deeptutor-project-analysis.md)
-- [Manim Web 几何 Agent 讨论总结](../agent/mathagent/manim-web-geometry-agent-summary.md)
+- 几何 Agent 讨论已迁移到当前分支的 Chat Inline Blackboard 与 Agent 平台 spec；本比较文不再引用已删除的实验快照。
 
 本文讨论的是产品结构和能力边界，不是选型结论，也不代表已经确定新产品的目标用户。
 

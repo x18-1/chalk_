@@ -30,6 +30,8 @@ Chalk 当前已经支持内置工具、MCP 工具和 Subagent 工具，但工具
 - 参数字段级脱敏；
 - 工具 marketplace、安装签名或远程供应链验证；
 - 多实例工具执行队列；
+- 跨进程 exactly-once、可恢复 Tool 调用或通用持久化 Job；
+- Run 内动态 Tool 加载、复杂批次调度或独立 output schema；
 - 复杂配额、计费和成本预算；
 - 课程图、题库、画像、判题等业务工具；
 - Skills 和 MCP 的新能力。
@@ -63,13 +65,17 @@ Chalk 当前已经支持内置工具、MCP 工具和 Subagent 工具，但工具
 
 - 学习资源搜索只有在注入真实 `SearchProvider` 时才可用；没有真实 Provider 时不能向学生返回伪造的学习资源。
 - 会话重命名属于修改用户数据的工具，必须遵守平台强制审批和 conversation owner 校验。
-- `run_subagent` 第一阶段作为内部能力保留：主 runtime 可装配但 `defaultEnabled: false`，不进入公开 `/tools` 设置清单，也不能通过普通用户设置启用。未来对主 Agent 公开时，必须同时进入工具清单和设置页。
+- `run_subagent` 进入 `/tools` 和设置页，但 `defaultEnabled: false`；owner 可手动开启，
+  平台强制的逐次审批不可被用户设置关闭。
 - `read_resource` 是 Agent 唯一的公共 Read 工具；第一阶段只注册 `upload` adapter，读取当前会话、当前用户已确认归属的文本上传文件；通过 MinIO/S3 Range 分段读取，并返回签名 continuation cursor。PDF、图片、知识库和 Web 正文通过独立 adapter 接入，不新增 `read_xxx` 工具，也不在本工具中猜测解码方式。
 - Read 的 `maxBytes` 为单次 Range 的硬上限；若完整行跨越 Range 边界且本页没有任何可消费的完整行，必须返回 `read_line_too_large`，不得生成 `nextByte` 不变的 continuation cursor。
 
 ## 5. 运行时契约
 
 每个 Tool 在注册时声明：稳定名称、用途、来源、副作用、审批底线、超时预算、结果预算和执行模式。ToolRegistry 负责把声明解析成当前用户的有效策略，再生成 Pi `AgentTool`。
+
+执行模式省略时默认 `sequential`。只有明确安全、相互独立的只读 Tool 才显式声明 `parallel`；
+第一阶段不在 Registry 中增加更复杂的调度语义。
 
 执行顺序固定为：定义校验、可见性筛选、参数校验、取消检查、审批、带预算执行、结果归一化、事件和 telemetry。
 
@@ -86,7 +92,8 @@ Chalk 当前已经支持内置工具、MCP 工具和 Subagent 工具，但工具
 - 无审批 port 时副作用 Tool 不执行；
 - 错误类别不依赖错误 message 文本；
 - 真实 SearchProvider 缺失时不注册静态假搜索；
-- `/tools` 返回的清单与 Agent 实际注入的公开工具一致；内部 `run_subagent` 在公开设置清单之外并保持默认关闭。
+- `/tools` 返回的清单与 Agent 实际注入的公开工具一致；`run_subagent` 在清单中默认
+  关闭，手动开启后下一个 runtime 生效。
 
 ### 暂不作为门禁
 
@@ -102,5 +109,5 @@ Chalk 当前已经支持内置工具、MCP 工具和 Subagent 工具，但工具
 1. 是否将当前已实现的 30 秒默认工具超时、120 秒硬上限固化为 Accepted；
 2. 是否将当前已实现的 12,000 字符默认结果预算、32,000 字符硬上限固化为 Accepted；
 3. 是否将 `write`、`process`、`paid` 的审批底线扩展到所有未来工具；
-4. 是否公开 `run_subagent` 并为其建立设置页配置；
+4. `run_subagent` 已确认进入设置页，但保持默认关闭和强制审批；
 5. 是否在下一阶段为分页工具抽象通用 continuation 契约。
