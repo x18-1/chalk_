@@ -24,10 +24,7 @@ export type PromptVariables = {
   [PROMPT_IDS.CHAT_MAIN]: {
     skillsPrompt: string;
   };
-  [PROMPT_IDS.CHAT_SUBAGENT]: {
-    focusLine: string;
-    parentSessionId: string;
-  };
+  [PROMPT_IDS.CHAT_SUBAGENT]: Record<string, never>;
   [PROMPT_IDS.CONVERSATION_TITLE]: Record<string, never>;
   [PROMPT_IDS.CLASSROOM_OUTLINE]: {
     requirement: string;
@@ -175,7 +172,7 @@ export type PromptVariables = {
 
 type PromptDefinition<Id extends PromptId = PromptId> = {
   id: Id;
-  variables: readonly (keyof PromptVariables[Id] & string)[];
+  variables: readonly (keyof PromptVariables[Extract<Id, keyof PromptVariables>] & string)[];
   user: boolean;
   provenance?: {
     sourceRepository: string;
@@ -199,7 +196,7 @@ export const promptRegistry = {
   },
   [PROMPT_IDS.CHAT_SUBAGENT]: {
     id: PROMPT_IDS.CHAT_SUBAGENT,
-    variables: ['focusLine', 'parentSessionId'],
+    variables: [],
     user: false,
   },
   [PROMPT_IDS.CONVERSATION_TITLE]: {

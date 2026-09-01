@@ -16,6 +16,7 @@ type McpServerRow = {
   url: string | null;
   enabled: boolean;
   envEnc: string | null;
+  headersEnc: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -30,6 +31,7 @@ function publicServer(row: McpServerRow) {
     url: row.url,
     enabled: row.enabled,
     configuredEnv: Boolean(row.envEnc),
+    configuredBearer: Boolean(row.headersEnc),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -48,6 +50,9 @@ function runtimeConfig(row: McpServerRow): McpServerConfig {
     ...(row.envEnc
       ? { env: JSON.parse(decrypt(row.envEnc)) as Record<string, string> }
       : {}),
+    ...(row.headersEnc
+      ? { headers: JSON.parse(decrypt(row.headersEnc)) as Record<string, string> }
+      : {}),
     enabled: row.enabled,
   };
 }
@@ -59,11 +64,11 @@ export class McpServerService {
     this.servers = createMcpServersDal(db);
   }
 
-  async list(userId: string, includeStdio = true) {
+  async list(userId: string, includePrivilegedTransports = true) {
     const rows = await this.servers.list(userId);
     return {
       servers: rows
-        .filter((row) => includeStdio || row.transport !== 'stdio')
+        .filter((row) => includePrivilegedTransports || row.transport === 'http')
         .map(publicServer),
     };
   }
@@ -77,6 +82,7 @@ export class McpServerService {
       url: input.url,
       enabled: input.enabled,
       ...(input.env ? { envEnc: encrypt(JSON.stringify(input.env)) } : {}),
+      ...(input.bearerToken ? { headersEnc: encrypt(JSON.stringify({ Authorization: `Bearer ${input.bearerToken}` })) } : {}),
     });
     await closeUserRuntimes(userId);
     return publicServer(row);
@@ -103,11 +109,14 @@ export class McpServerService {
     if (effectiveTransport !== 'stdio' && !effectiveUrl) {
       throw new ApiError(400, 'HTTP MCP requires url', 'MCP_URL_REQUIRED');
     }
-    const { env, ...data } = input;
+    const { env, bearerToken, ...data } = input;
     const row = await this.servers.update(userId, serverId, {
       ...data,
       ...(env !== undefined
         ? { envEnc: env ? encrypt(JSON.stringify(env)) : null }
+        : {}),
+      ...(bearerToken !== undefined
+        ? { headersEnc: bearerToken ? encrypt(JSON.stringify({ Authorization: `Bearer ${bearerToken}` })) : null }
         : {}),
     });
     await closeUserRuntimes(userId);

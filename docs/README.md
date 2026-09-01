@@ -47,9 +47,15 @@
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
 | Prompt 管理 | [architecture/prompts.md](architecture/prompts.md) | Accepted + Documented；新 Prompt 立即遵守，既有内联 Prompt 随所属能力迁移 |
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
-| Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和上传文本 adapter 已实现，知识库/Web adapter 待后续阶段 |
+| Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、上传 `read_resource`、MCP 专用 `read_mcp_resource`、Skill Read tool 已实现，知识库/Web adapter 待后续阶段 |
 | Tools 基础能力 | [spec/tools-foundation-spec.md](spec/tools-foundation-spec.md) | Draft；核心 runtime、统一 Read facade 和 MinIO 集成验证已实现，更多资源 adapter 待后续阶段 |
+| Chat Inline Chalkboard Scene | [spec/chat-inline-blackboard-spec.md](spec/chat-inline-blackboard-spec.md) | Draft + Partial；Chat 只读 Scene 工具和 slide 展示已实现，非 slide 只读视图待后续完善 |
+| Agent Tools 设计规格 | [spec/agent-tools-design-spec.md](spec/agent-tools-design-spec.md) | Accepted + Partial；Registry、显式装配、默认串行和进程内重入保护已实现；动态加载、复杂调度、output schema 与跨进程恢复不属于首期门禁 |
+| Agent Skills 设计规格 | [spec/agent-skills-design-spec.md](spec/agent-skills-design-spec.md) | Accepted + Partial；builtin、owner-scoped user store、metadata-only 和 references 读取已实现，对象存储迁移待后续 |
+| Agent MCP 设计规格 | [spec/agent-mcp-context7-design-spec.md](spec/agent-mcp-context7-design-spec.md) | Accepted + Implemented；HTTPS proxy-only v1 已收敛 |
+| Agent Subagent 设计规格 | [spec/agent-subagent-design-spec.md](spec/agent-subagent-design-spec.md) | Accepted + Implemented；单一前台 child、固定限制和审批已实现 |
 | Tools 实施计划 | [plan/plan-tools-foundation.md](plan/plan-tools-foundation.md) | Draft；实现中 |
+| Agent 平台首批集成计划 | [plan/plan-agent-platform-integration.md](plan/plan-agent-platform-integration.md) | Historical；Context7、Skills 和 Subagent 首批接线已完成，最终边界见各 Accepted Spec |
 | Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
 | Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |

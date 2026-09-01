@@ -42,6 +42,7 @@ export const mcpServers = pgTable('mcp_servers', {
   args: jsonb('args'),
   url: text('url'),
   envEnc: text('env_enc'),
+  headersEnc: text('headers_enc'),
   enabled: boolean('enabled').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -140,6 +141,24 @@ export const skillSettings = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.skillName] })],
+);
+
+export const userSkills = pgTable(
+  'user_skills',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    content: text('content').notNull(),
+    references: jsonb('references'),
+    version: text('version').notNull(),
+    contentHash: text('content_hash').notNull(),
+    enabled: boolean('enabled').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.userId, table.name)],
 );
 
 export const toolSettings = pgTable(

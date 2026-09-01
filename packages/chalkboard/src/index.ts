@@ -2,6 +2,7 @@
 // The implementation will be migrated from OpenMAIC and extended with Chalk teaching semantics.
 export {
   ActionSchema,
+  SceneContentSchema,
   SceneSchema,
   StageDocumentSchema,
   StageMetadataSchema,

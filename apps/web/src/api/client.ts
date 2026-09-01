@@ -1,5 +1,36 @@
 export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/$/, '');
 
+function isLoopbackHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+/**
+ * Keep local development requests same-site when the app is opened through a
+ * different loopback alias (for example 127.0.0.1 instead of localhost).
+ * SameSite=Lax session cookies are host-scoped, so mixing these aliases makes
+ * a successful login look unauthenticated on the next request.
+ */
+export function resolvedApiBaseUrl() {
+  if (typeof window === 'undefined') return API_BASE_URL;
+
+  try {
+    const configured = new URL(API_BASE_URL);
+    const pageHostname = window.location.hostname;
+    if (
+      isLoopbackHostname(configured.hostname) &&
+      isLoopbackHostname(pageHostname) &&
+      configured.hostname !== pageHostname
+    ) {
+      configured.hostname = pageHostname;
+      return configured.toString().replace(/\/$/, '');
+    }
+  } catch {
+    // Keep the configured value; apiUrl will surface a normal fetch error.
+  }
+
+  return API_BASE_URL;
+}
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number,
@@ -16,7 +47,7 @@ export function apiUrl(input: RequestInfo | URL) {
   if (typeof input !== 'string') return input;
   return input.startsWith('http://') || input.startsWith('https://')
     ? input
-    : `${API_BASE_URL}${input.startsWith('/') ? input : `/${input}`}`;
+    : `${resolvedApiBaseUrl()}${input.startsWith('/') ? input : `/${input}`}`;
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {

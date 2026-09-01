@@ -1,10 +1,11 @@
-import { writeFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
 const exitFile = process.env.MCP_FIXTURE_EXIT_FILE;
+const callFile = process.env.MCP_FIXTURE_CALL_FILE;
 let exitRecorded = false;
 
 function recordExit() {
@@ -29,10 +30,11 @@ server.registerTool(
       left: z.number().int(),
       right: z.number().int(),
       delayMs: z.number().int().min(0).max(60_000).optional(),
+      failAfterRecord: z.boolean().optional(),
     }),
     annotations: { readOnlyHint: true },
   },
-  async ({ left, right, delayMs = 0 }, { signal }) => {
+  async ({ left, right, delayMs = 0, failAfterRecord = false }, { signal }) => {
     if (delayMs > 0) {
       await new Promise((resolve, reject) => {
         const timeout = setTimeout(resolve, delayMs);
@@ -41,6 +43,10 @@ server.registerTool(
           reject(new Error("Fixture tool call aborted"));
         }, { once: true });
       });
+    }
+    if (failAfterRecord) {
+      if (callFile) appendFileSync(callFile, "called\n", "utf8");
+      throw new Error("Fixture call has an intentionally uncertain outcome");
     }
     return {
       content: [{ type: "text", text: `${left} + ${right} = ${left + right}` }],

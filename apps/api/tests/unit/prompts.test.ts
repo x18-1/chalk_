@@ -14,6 +14,8 @@ describe('Prompt module interface', () => {
     });
 
     expect(prompt.system).toContain('You are Chalk, a patient and rigorous mathematics teacher.');
+    expect(prompt.system).toContain('Call `read_skill` with an enabled Skill name');
+    expect(prompt.system).toContain('do not construct absolute paths');
     expect(prompt.system).toContain('<available_skills>geometry</available_skills>');
     expect(prompt.system).not.toContain('你是 Chalk');
     expect(prompt.revision).toMatch(/^[a-f0-9]{64}$/);
@@ -34,6 +36,14 @@ describe('Prompt module interface', () => {
       promptCount: 17,
       snippetCount: 7,
     });
+  });
+
+  it('keeps the Subagent system prompt static and free of session identifiers', () => {
+    const prompt = buildPrompt(PROMPT_IDS.CHAT_SUBAGENT, {});
+
+    expect(prompt.system).toContain('You have no tools');
+    expect(prompt.system).not.toContain('Parent session');
+    expect(prompt.system).not.toMatch(/\{\{[^}]+\}\}/);
   });
 
   it('preserves the OpenMAIC Director prompt and records the speech-only participant adaptation', () => {

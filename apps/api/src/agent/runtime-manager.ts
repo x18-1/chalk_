@@ -10,13 +10,14 @@ import {
   createRuntimeTelemetryContext,
   ForegroundSubagentExecutor,
   createSubagentTool,
-  createReadSkillTool,
+  SUBAGENT_TOOL_SUMMARY,
   SkillRegistry,
   type ApprovalPort,
   type ToolApprovalDecision,
   type RuntimeSession,
   type ToolApprovalMode,
   ToolErrorChannel,
+  type VirtualSkill,
 } from '@chalk/agent-runtime';
 
 import { getDb } from '../db/client';
@@ -31,13 +32,16 @@ import {
   createSkillSettingsDal,
   createToolApprovalsDal,
   createToolSettingsDal,
+  createUserSkillsDal,
 } from '../db/dal';
 import { decrypt } from '../security/credential-encryption';
 import { createBuiltinToolRegistry } from './builtin-tools';
 import { createUploadedFileResourceAdapterFromDatabase } from './tools/read/uploaded-file-reader';
-import { createMcpResourceAdapter } from './tools/read/mcp-resource-reader';
 import { createResourceReader } from './tools/read/read-resource';
+import { createMcpTools } from './tools/mcp-tool/mcp-tools';
+import { createSkillTools } from './tools/skill-tool/skill-tools';
 import { runtimeTelemetry } from './telemetry';
+import { resolveEnabledSkillNames } from './skill-enablement';
 import { ToolApprovalAlreadyDecidedError, ToolApprovalNotActiveError } from '../db/errors';
 import {
   createModelCatalog,
@@ -63,7 +67,7 @@ function getSessionRepository() {
   return sessionRepository;
 }
 
-async function canUseStdioMcp(userId: string) {
+async function canUsePrivilegedMcpTransport(userId: string) {
   const rows = await getDb()
     .select({ role: authUsers.role })
     .from(authUsers)
@@ -230,6 +234,41 @@ type RuntimeEntry = {
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
 
+function registerContext7Mcp(mcp: McpManager, configuredNames: ReadonlySet<string>) {
+  // Context7 is a test-only integration. Production/user MCP connections must
+  // be configured explicitly through the owner-scoped MCP settings.
+  if (process.env.CONTEXT7_MCP_ENABLED !== 'true') return;
+  if ([...configuredNames].some((name) => name.toLowerCase() === 'context7')) return;
+  const apiKey = process.env.CONTEXT7_API_KEY?.trim();
+  mcp.register({
+    id: 'context7',
+    name: 'context7',
+    transport: 'http',
+    url: process.env.CONTEXT7_MCP_URL?.trim() || 'https://mcp.context7.com/mcp',
+    ...(apiKey ? { headers: { Authorization: `Bearer ${apiKey}` } } : {}),
+    enabled: true,
+  });
+}
+
+async function registerUserMcpServers(mcp: McpManager, userId: string) {
+  const rows = await createMcpServersDal(getDb()).list(userId);
+  const canUsePrivilegedTransport = await canUsePrivilegedMcpTransport(userId);
+  for (const row of rows.filter((server) => server.enabled && (canUsePrivilegedTransport || server.transport === 'http'))) {
+    mcp.register({
+      id: row.id,
+      name: row.name,
+      transport: row.transport as 'stdio' | 'sse' | 'http',
+      ...(row.command ? { command: row.command } : {}),
+      ...(Array.isArray(row.args) ? { args: row.args.filter((arg): arg is string => typeof arg === 'string') } : {}),
+      ...(row.url ? { url: row.url } : {}),
+      ...(row.envEnc ? { env: JSON.parse(decrypt(row.envEnc)) as Record<string, string> } : {}),
+      ...(row.headersEnc ? { headers: JSON.parse(decrypt(row.headersEnc)) as Record<string, string> } : {}),
+      enabled: row.enabled,
+    });
+  }
+  registerContext7Mcp(mcp, new Set(rows.map((row) => row.name)));
+}
+
 async function skillSources() {
   const configuredPaths = (process.env.SKILLS_DIRS ?? '')
     .split(':')
@@ -239,16 +278,29 @@ async function skillSources() {
     realpath(resolve(process.cwd(), 'skills')).catch(() => undefined),
     realpath(resolve(process.cwd(), 'apps/api/skills')).catch(() => undefined),
   ])).filter((root): root is string => Boolean(root));
-  return Promise.all(configuredPaths.map(async (path, index) => {
+  const sourcePaths: Array<{ path: string; id: string; label: string; trusted: boolean; scope?: 'builtin' | 'user' }> = [
+    ...builtinRoots.map((path) => ({ path, id: `builtin-${path}`, label: 'Chalk builtin skills', trusted: true, scope: 'builtin' as const })),
+    ...configuredPaths.map((path, index) => ({ path, id: `configured-${index}`, label: `配置来源 ${index + 1}`, trusted: false })),
+  ];
+  const seen = new Set<string>();
+  return Promise.all(sourcePaths.map(async (source) => {
+    const path = source.path;
     const canonicalPath = await realpath(resolve(process.cwd(), path)).catch(() => resolve(process.cwd(), path));
-    const trusted = builtinRoots.some((root) => canonicalPath === root || canonicalPath.startsWith(`${root}${sep}`));
+    if (seen.has(canonicalPath)) return undefined;
+    seen.add(canonicalPath);
+    const trusted = source.trusted || builtinRoots.some((root) => canonicalPath === root || canonicalPath.startsWith(`${root}${sep}`));
+    // A shared untrusted filesystem directory is not an owner-scoped Skill
+    // store. Ignore it until the DB/object-storage Skill source is available,
+    // rather than exposing one user's files to every runtime.
+    if (!trusted) return undefined;
     return {
-      id: `configured-${index}`,
-      label: `配置来源 ${index + 1}`,
+      id: source.id,
+      label: source.label,
       path: canonicalPath,
       trusted,
+      scope: source.scope,
     };
-  }));
+  })).then((sources) => sources.filter((source): source is NonNullable<typeof source> => Boolean(source)));
 }
 
 async function createCatalog(userId: string) {
@@ -296,7 +348,7 @@ function parseCustomModels(value: unknown): CustomOpenAiModel[] {
   });
 }
 
-function createBuiltinTools(mcp?: McpManager, readSkillTool?: ReturnType<typeof createReadSkillTool>) {
+function createBuiltinTools() {
   const conversations = createConversationsDal(getDb());
   const readCursorSecret = process.env.CREDENTIAL_ENCRYPTION_KEY;
   return createBuiltinToolRegistry({
@@ -313,12 +365,10 @@ function createBuiltinTools(mcp?: McpManager, readSkillTool?: ReturnType<typeof 
       ? {
         readResourceReader: createResourceReader([
           createUploadedFileResourceAdapterFromDatabase(getDb()),
-          ...(mcp ? [createMcpResourceAdapter(mcp)] : []),
         ]),
         readCursorSecret,
       }
       : {}),
-    ...(readSkillTool ? { readSkillTool } : {}),
   });
 }
 
@@ -356,17 +406,29 @@ export async function createUserModelCatalog(userId: string) {
   return createCatalog(userId);
 }
 
+function toVirtualSkills(userRows: Awaited<ReturnType<ReturnType<typeof createUserSkillsDal>['list']>>) {
+  return userRows.map((row): VirtualSkill => ({
+    name: row.name,
+    description: row.description,
+    content: row.content,
+    source: { id: `user-skill-${row.id}`, label: 'User skills', path: `/virtual-skills/${row.id}`, trusted: false, scope: 'user' },
+    references: (row.references && typeof row.references === 'object' ? row.references as Record<string, string> : {}),
+  }));
+}
+
+export async function loadBuiltinSkillCatalog() {
+  const registry = new SkillRegistry(process.cwd(), await skillSources());
+  const snapshot = await registry.reload();
+  return { registry, snapshot };
+}
+
 export async function loadUserSkills(userId: string) {
   if (!userId) throw new Error('Skills require an authenticated user');
-  const skills = new SkillRegistry(process.cwd(), await skillSources());
+  const userRows = await createUserSkillsDal(getDb()).list(userId);
+  const skills = new SkillRegistry(process.cwd(), await skillSources(), toVirtualSkills(userRows));
   const snapshot = await skills.reload();
   const settings = await createSkillSettingsDal(getDb()).list(userId);
-  const overrides = new Map(settings.map((setting) => [setting.skillName, setting.enabled]));
-  const enabledSkillNames = new Set(
-    snapshot.skills
-      .filter((skill) => overrides.get(skill.name) ?? true)
-      .map((skill) => skill.name),
-  );
+  const enabledSkillNames = resolveEnabledSkillNames(snapshot.skills, settings, userRows);
   return { registry: skills, snapshot, enabledSkillNames };
 }
 
@@ -403,41 +465,24 @@ export async function getOrCreateRuntime(
 
   const { catalog, model } = await selectModel(userId, requestedModel);
   const llm = await catalog.resolveSelection(model);
-  const skills = new SkillRegistry(process.cwd(), await skillSources());
-  const skillSnapshot = await skills.reload();
-  const skillSettings = await createSkillSettingsDal(db).list(userId);
-  const skillOverrides = new Map(skillSettings.map((setting) => [setting.skillName, setting.enabled]));
-  const enabledSkillNames = new Set(
-    skillSnapshot.skills
-      .filter((skill) => skillOverrides.get(skill.name) ?? true)
-      .map((skill) => skill.name),
-  );
+  const {
+    registry: skills,
+    enabledSkillNames,
+  } = await loadUserSkills(userId);
   const approvals = new ApprovalBroker(userId);
   const mcp = new McpManager();
-  const mcpRows = await createMcpServersDal(db).list(userId);
-  const canUseStdio = await canUseStdioMcp(userId);
-  for (const row of mcpRows.filter((server) => server.enabled && (canUseStdio || server.transport !== 'stdio'))) {
-    mcp.register({
-      id: row.id,
-      name: row.name,
-      transport: row.transport as 'stdio' | 'sse' | 'http',
-      ...(row.command ? { command: row.command } : {}),
-      ...(Array.isArray(row.args) ? { args: row.args.filter((arg): arg is string => typeof arg === 'string') } : {}),
-      ...(row.url ? { url: row.url } : {}),
-      ...(row.envEnc ? { env: JSON.parse(decrypt(row.envEnc)) as Record<string, string> } : {}),
-      enabled: row.enabled,
-    });
-  }
+  await registerUserMcpServers(mcp, userId);
   const toolSettings = await createToolSettingsDal(db).list(userId);
   const observations = createAgentRunObservationsDal(db);
   const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
   const toolErrorChannel = new ToolErrorChannel();
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
-  const registry = createBuiltinTools(mcp, createReadSkillTool(skills, enabledSkillNames));
-  for (const tool of mcp.proxyTools()) registry.register(tool);
+  const registry = createBuiltinTools();
+  for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
+  for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
 
   const childExecutor = new ForegroundSubagentExecutor({
-      sessions: getSessionRepository(),
+    sessions: getSessionRepository(),
     audit: {
       async started(input) {
         if (!input.context.conversationId) return undefined;
@@ -459,15 +504,15 @@ export async function getOrCreateRuntime(
         });
       },
     },
-    createRuntime: ({ session, context, focus }) => {
-      const prompt = buildPrompt(PROMPT_IDS.CHAT_SUBAGENT, {
-        focusLine: focus ? `Focus for this run: ${focus}` : '',
-        parentSessionId: context.parentSessionId,
-      });
+    createRuntime: ({ session, context }) => {
+      const prompt = buildPrompt(PROMPT_IDS.CHAT_SUBAGENT, {});
       return createAgentRuntime({
         session,
         llm,
         systemPrompt: prompt.system,
+        // The single v1 child intentionally has no tools and therefore cannot
+        // recursively spawn another Subagent or perform external actions.
+        tools: [],
         telemetry: {
           context: createRuntimeTelemetryContext(runtimeTelemetry),
           attributes: {
@@ -556,6 +601,7 @@ export async function closeRuntime(conversationId: string) {
   const entry = activeRuntimes.get(conversationId);
   if (!entry) return;
   activeRuntimes.delete(conversationId);
+  entry.runtime.abort();
   try {
     await createToolApprovalsDal(getDb()).rejectPendingByConversation(
       entry.ownerId,
@@ -589,24 +635,12 @@ export async function listRuntimeTools(userId: string) {
   if (!userId) throw new Error('Tools require an authenticated user');
   const mcp = new McpManager();
   try {
-    const rows = await createMcpServersDal(getDb()).list(userId);
-    const canUseStdio = await canUseStdioMcp(userId);
-    for (const row of rows.filter((server) => server.enabled && (canUseStdio || server.transport !== 'stdio'))) {
-      mcp.register({
-        id: row.id,
-        name: row.name,
-        transport: row.transport as 'stdio' | 'sse' | 'http',
-        ...(row.command ? { command: row.command } : {}),
-        ...(Array.isArray(row.args) ? { args: row.args.filter((arg): arg is string => typeof arg === 'string') } : {}),
-        ...(row.url ? { url: row.url } : {}),
-        ...(row.envEnc ? { env: JSON.parse(decrypt(row.envEnc)) as Record<string, string> } : {}),
-        enabled: row.enabled,
-      });
-    }
+    await registerUserMcpServers(mcp, userId);
     const { registry: skills, enabledSkillNames } = await loadUserSkills(userId);
-    const registry = createBuiltinTools(mcp, createReadSkillTool(skills, enabledSkillNames));
-    for (const tool of mcp.proxyTools()) registry.register(tool);
-    return registry.list();
+    const registry = createBuiltinTools();
+    for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
+    for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
+    return [...registry.list(), SUBAGENT_TOOL_SUMMARY];
   } finally {
     await mcp.close();
   }

@@ -54,7 +54,7 @@ FORM: OpenMAIC playback chrome translated into Chalk's operating desk language.
 .slideCanvasInner { position: absolute; top: 0; left: 0; overflow: hidden; background: #fff; transform-origin: top left; }
 .canvasElement { position: absolute; overflow: hidden; transform-origin: center; }
 .canvasElementHighlighted { z-index: 20; outline: 3px solid var(--chalk-clay); outline-offset: 4px; box-shadow: 0 0 0 7px rgba(193, 95, 60, .12); }
-.canvasText { box-sizing: border-box; padding: 10px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; }
+.canvasText { box-sizing: border-box; padding: 0; line-height: 1.15; white-space: pre-wrap; overflow-wrap: anywhere; }
 .canvasText p { margin: 0 0 5px; }
 .canvasText p:last-child { margin-bottom: 0; }
 .canvasText strong { font-weight: 700; }

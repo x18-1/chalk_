@@ -5,6 +5,7 @@ export * from './provider-credentials';
 export * from './tool-approvals';
 export * from './agent-settings';
 export * from './attachments';
+export * from './user-skills';
 export * from './classrooms';
 export * from './learning-sessions';
 export * from './quiz-attempts';

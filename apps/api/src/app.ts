@@ -15,6 +15,7 @@ import { registerConfigurationRoutes } from './modules/configuration/routes';
 import { ProviderConfigurationService } from './modules/configuration/services/provider-configuration.service';
 import { RuntimeConfigurationService } from './modules/configuration/services/runtime-configuration.service';
 import { CapabilityConfigurationService } from './modules/configuration/services/capability-configuration.service';
+import { SkillStoreService } from './modules/configuration/services/skill-store.service';
 import { registerMcpRoutes } from './modules/mcp/routes';
 import { McpServerService } from './modules/mcp/services/mcp-server.service';
 import { registerTelemetryRoutes } from './modules/telemetry/routes';
@@ -131,6 +132,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     new ProviderConfigurationService(db),
     new RuntimeConfigurationService(db),
     new CapabilityConfigurationService(db, options.mediaEnvironment),
+    new SkillStoreService(db),
   );
   registerMcpRoutes(app, auth, new McpServerService(db));
   registerTelemetryRoutes(app, auth, new TelemetryQueryService(db));

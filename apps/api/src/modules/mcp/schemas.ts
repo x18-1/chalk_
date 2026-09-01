@@ -6,7 +6,14 @@ import { envSchema, httpUrlSchema } from '../../http/validation';
 export const mcpServerParamsSchema = z.object({ id: z.string().uuid() });
 
 const mcpHttpUrlSchema = httpUrlSchema.superRefine((value, context) => {
-  if (isPrivateNetworkAddress(new URL(value).hostname)) {
+  const url = new URL(value);
+  if (url.protocol !== 'https:') {
+    context.addIssue({ code: 'custom', message: 'MCP URL must use HTTPS' });
+  }
+  if (url.username || url.password) {
+    context.addIssue({ code: 'custom', message: 'MCP URL must not contain credentials' });
+  }
+  if (isPrivateNetworkAddress(url.hostname)) {
     context.addIssue({ code: 'custom', message: 'MCP URL must not target a private or local network address' });
   }
 });
@@ -18,8 +25,9 @@ export const mcpServerSchema = z.object({
   args: z.array(z.string().max(500)).max(100).optional(),
   url: mcpHttpUrlSchema.optional(),
   env: envSchema.optional(),
+  bearerToken: z.string().trim().min(1).max(4096).optional(),
   enabled: z.boolean().default(true),
-}).superRefine((value, context) => {
+}).strict().superRefine((value, context) => {
   if (value.transport === 'stdio' && !value.command) {
     context.addIssue({
       code: 'custom',
@@ -43,8 +51,9 @@ export const mcpServerUpdateSchema = z.object({
   args: z.array(z.string().max(500)).max(100).optional(),
   url: mcpHttpUrlSchema.nullable().optional(),
   env: envSchema.nullable().optional(),
+  bearerToken: z.string().trim().min(1).max(4096).nullable().optional(),
   enabled: z.boolean().optional(),
-});
+}).strict();
 
 export type McpServerInput = z.infer<typeof mcpServerSchema>;
 export type McpServerUpdateInput = z.infer<typeof mcpServerUpdateSchema>;

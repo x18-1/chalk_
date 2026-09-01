@@ -9,7 +9,15 @@ import type {
   RuntimeSession,
   SessionRepository,
 } from "../session/session-repository";
-import type { RuntimeTool } from "../tools/tool-registry";
+import {
+  ToolExecutionError,
+  type RuntimeTool,
+  type ToolSummary,
+} from "../tools/tool-registry";
+
+export const SUBAGENT_TOOL_NAME = "run_subagent";
+export const SUBAGENT_TIMEOUT_MS = 60_000;
+export const SUBAGENT_MAX_RESULT_CHARACTERS = 12_000;
 
 export type SubagentRunContext = {
   ownerId: string;
@@ -19,16 +27,13 @@ export type SubagentRunContext = {
 
 export type SubagentRunInput = {
   task: string;
-  focus?: string;
-  timeoutMs?: number;
 };
 
 export type SubagentRunResult = {
   childSessionId: string;
-  childSessionPath: string;
   status: "completed" | "aborted" | "timed_out" | "failed";
   output: string;
-  error?: string;
+  error?: "cancelled" | "timed_out" | "runtime_failed";
   durationMs: number;
 };
 
@@ -48,18 +53,13 @@ export interface SubagentAuditPort {
 export type CreateSubagentRuntime = (input: {
   session: RuntimeSession;
   context: SubagentRunContext;
-  task: string;
-  focus?: string;
-}) => Promise<AgentRuntime>;
+  signal?: AbortSignal;
+}) => Promise<AgentRuntime> | AgentRuntime;
 
 export type ForegroundSubagentExecutorOptions = {
   sessions: SessionRepository;
   createRuntime: CreateSubagentRuntime;
   audit?: SubagentAuditPort;
-  maxConcurrentPerOwner?: number;
-  defaultTimeoutMs?: number;
-  maxTimeoutMs?: number;
-  maxResultCharacters?: number;
 };
 
 function messageText(message: AgentMessage | undefined) {
@@ -77,19 +77,70 @@ function messageText(message: AgentMessage | undefined) {
     .join("");
 }
 
-export class ForegroundSubagentExecutor {
-  private readonly activeByOwner = new Map<string, number>();
-  private readonly maxConcurrentPerOwner: number;
-  private readonly defaultTimeoutMs: number;
-  private readonly maxTimeoutMs: number;
-  private readonly maxResultCharacters: number;
+function abortError(signal: AbortSignal) {
+  return signal.reason instanceof ToolExecutionError
+    ? signal.reason
+    : new ToolExecutionError("cancelled", "Subagent execution was cancelled");
+}
 
-  constructor(private readonly options: ForegroundSubagentExecutorOptions) {
-    this.maxConcurrentPerOwner = options.maxConcurrentPerOwner ?? 1;
-    this.defaultTimeoutMs = options.defaultTimeoutMs ?? 90_000;
-    this.maxTimeoutMs = options.maxTimeoutMs ?? 180_000;
-    this.maxResultCharacters = options.maxResultCharacters ?? 12_000;
+async function waitForSignal<T>(value: PromiseLike<T> | T, signal?: AbortSignal): Promise<T> {
+  if (!signal) return await value;
+  if (signal.aborted) throw abortError(signal);
+  return new Promise<T>((resolve, reject) => {
+    const aborted = () => reject(abortError(signal));
+    signal.addEventListener("abort", aborted, { once: true });
+    Promise.resolve(value).then(
+      (result) => {
+        signal.removeEventListener("abort", aborted);
+        resolve(result);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", aborted);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function finishAudit(
+  audit: SubagentAuditPort | undefined,
+  input: Parameters<SubagentAuditPort["finished"]>[0],
+) {
+  try {
+    await audit?.finished(input);
+  } catch {
+    // The child has already reached a terminal state. Audit persistence is
+    // best effort here and must not rewrite or replay the completed work.
   }
+}
+
+function failedResult(
+  childSessionId: string,
+  startedAt: number,
+  error: unknown,
+  signal?: AbortSignal,
+): SubagentRunResult {
+  const normalized = error instanceof ToolExecutionError ? error : undefined;
+  const status = normalized?.code === "timed_out"
+    ? "timed_out"
+    : signal?.aborted || normalized?.code === "cancelled"
+      ? "aborted"
+      : "failed";
+  return {
+    childSessionId,
+    status,
+    output: "",
+    error: status === "timed_out"
+      ? "timed_out"
+      : status === "aborted"
+        ? "cancelled"
+        : "runtime_failed",
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+export class ForegroundSubagentExecutor {
+  constructor(private readonly options: ForegroundSubagentExecutorOptions) {}
 
   async run(
     input: SubagentRunInput,
@@ -97,106 +148,102 @@ export class ForegroundSubagentExecutor {
     signal?: AbortSignal,
     listener?: (event: AgentRuntimeEvent) => void,
   ): Promise<SubagentRunResult> {
-    const active = this.activeByOwner.get(context.ownerId) ?? 0;
-    if (active >= this.maxConcurrentPerOwner) {
-      throw new Error("Subagent concurrency limit reached for this user");
+    if (!input.task.trim() || input.task.length > 8_000) {
+      throw new ToolExecutionError(
+        "invalid_arguments",
+        "Subagent task must contain between 1 and 8000 characters",
+      );
     }
+    if (signal?.aborted) throw abortError(signal);
 
-    const timeoutMs = Math.min(
-      Math.max(input.timeoutMs ?? this.defaultTimeoutMs, 1_000),
-      this.maxTimeoutMs,
-    );
-    this.activeByOwner.set(context.ownerId, active + 1);
     const startedAt = Date.now();
-    const session = await this.options.sessions.create({ ownerId: context.ownerId });
+    let session: RuntimeSession | undefined;
     let auditId: string | undefined;
     let runtime: AgentRuntime | undefined;
-    let timedOut = false;
-    const abort = () => runtime?.abort();
-    signal?.addEventListener("abort", abort, { once: true });
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      runtime?.abort();
-    }, timeoutMs);
+    let result: SubagentRunResult | undefined;
+    const abortRuntime = () => runtime?.abort();
+    signal?.addEventListener("abort", abortRuntime, { once: true });
 
     try {
-      const audit = await this.options.audit?.started({
+      session = await waitForSignal(
+        this.options.sessions.create({ ownerId: context.ownerId }),
+        signal,
+      );
+      const audit = await waitForSignal(this.options.audit?.started({
         context,
         childSessionId: session.descriptor.id,
-        timeoutMs,
-      });
+        timeoutMs: SUBAGENT_TIMEOUT_MS,
+      }), signal);
       auditId = audit?.id;
-      runtime = await this.options.createRuntime({
+      runtime = await waitForSignal(this.options.createRuntime({
         session,
         context,
-        task: input.task,
-        ...(input.focus ? { focus: input.focus } : {}),
-      });
-      if (signal?.aborted) runtime.abort();
-      const run = await runtime.run(input.task, listener);
-      const status = timedOut
-        ? "timed_out"
-        : run.status;
-      const result: SubagentRunResult = {
+        ...(signal ? { signal } : {}),
+      }), signal);
+      if (signal?.aborted) throw abortError(signal);
+
+      const run = await waitForSignal(runtime.run(input.task, listener), signal);
+      result = {
         childSessionId: session.descriptor.id,
-        childSessionPath: session.descriptor.path,
-        status,
-        output: messageText(run.message).slice(0, this.maxResultCharacters),
-        ...(run.error ? { error: run.error } : {}),
+        status: run.status,
+        output: messageText(run.message).slice(0, SUBAGENT_MAX_RESULT_CHARACTERS),
+        ...(run.status === "aborted"
+          ? { error: "cancelled" as const }
+          : run.status === "failed"
+            ? { error: "runtime_failed" as const }
+            : {}),
         durationMs: Date.now() - startedAt,
       };
-      await this.options.audit?.finished({
-        ...(auditId ? { id: auditId } : {}),
-        context,
-        result,
-      });
-      return result;
     } catch (error) {
-      const result: SubagentRunResult = {
-        childSessionId: session.descriptor.id,
-        childSessionPath: session.descriptor.path,
-        status: timedOut ? "timed_out" : signal?.aborted ? "aborted" : "failed",
-        output: "",
-        error: error instanceof Error ? error.message : String(error),
-        durationMs: Date.now() - startedAt,
-      };
-      await this.options.audit?.finished({
-        ...(auditId ? { id: auditId } : {}),
-        context,
-        result,
-      });
-      return result;
+      if (!session) {
+        if (error instanceof ToolExecutionError) throw error;
+        throw new ToolExecutionError(
+          "execution_failed",
+          "Unable to create an isolated Subagent session",
+          error,
+        );
+      }
+      result = failedResult(session.descriptor.id, startedAt, error, signal);
     } finally {
-      clearTimeout(timeout);
-      signal?.removeEventListener("abort", abort);
-      const remaining = (this.activeByOwner.get(context.ownerId) ?? 1) - 1;
-      if (remaining > 0) this.activeByOwner.set(context.ownerId, remaining);
-      else this.activeByOwner.delete(context.ownerId);
+      signal?.removeEventListener("abort", abortRuntime);
     }
+
+    await finishAudit(this.options.audit, {
+      ...(auditId ? { id: auditId } : {}),
+      context,
+      result,
+    });
+    return result;
   }
 }
 
 const subagentParameters = Type.Object({
   task: Type.String({ minLength: 1, maxLength: 8_000 }),
-  focus: Type.Optional(Type.String({ maxLength: 1_000 })),
-  timeoutSeconds: Type.Optional(Type.Integer({ minimum: 10, maximum: 180 })),
 });
+
+export const SUBAGENT_TOOL_SUMMARY = Object.freeze({
+  name: SUBAGENT_TOOL_NAME,
+  label: "专项子任务",
+  description: "让一个隔离的前台子 Agent 在独立会话中处理单个范围明确的任务，并返回有界摘要。",
+  source: "subagent",
+  effects: ["process", "paid", "write"],
+  approvalPolicy: "required",
+  limits: {
+    timeoutMs: SUBAGENT_TIMEOUT_MS,
+    maxResultCharacters: SUBAGENT_MAX_RESULT_CHARACTERS,
+    maxUpdateCharacters: 4_000,
+  },
+  defaultEnabled: false,
+  executionMode: "sequential",
+  requiresApproval: true,
+} satisfies ToolSummary);
 
 export function createSubagentTool(
   executor: ForegroundSubagentExecutor,
 ): RuntimeTool<typeof subagentParameters> {
   return {
-    name: "run_subagent",
-    label: "专项子任务",
-    description:
-      "让一个隔离的前台子 Agent 在独立会话中处理范围明确的子任务，并返回有界摘要。",
+    ...SUBAGENT_TOOL_SUMMARY,
     parameters: subagentParameters,
-    source: "subagent",
-    effects: ["process", "paid", "write"],
-    approvalPolicy: "required",
-    defaultEnabled: false,
-    requiresApproval: true,
-    executionMode: "sequential",
     async execute(
       args: Static<typeof subagentParameters>,
       context,
@@ -208,13 +255,7 @@ export function createSubagentTool(
         details: { type: "subagent_running" },
       });
       const result = await executor.run(
-        {
-          task: args.task,
-          ...(args.focus ? { focus: args.focus } : {}),
-          ...(args.timeoutSeconds
-            ? { timeoutMs: args.timeoutSeconds * 1_000 }
-            : {}),
-        },
+        { task: args.task },
         {
           ownerId: context.ownerId,
           parentSessionId: context.sessionId,
@@ -224,15 +265,16 @@ export function createSubagentTool(
         },
         signal,
       );
+      if (result.status !== "completed") {
+        const code = result.status === "timed_out"
+          ? "timed_out"
+          : result.status === "aborted"
+            ? "cancelled"
+            : "execution_failed";
+        throw new ToolExecutionError(code, `Subagent ${result.status}`);
+      }
       return {
-        content: [
-          {
-            type: "text",
-            text:
-              result.output ||
-              `子 Agent 已${result.status === "timed_out" ? "超时" : "结束"}，没有返回文本。`,
-          },
-        ],
+        content: [{ type: "text", text: result.output }],
         details: result,
       };
     },

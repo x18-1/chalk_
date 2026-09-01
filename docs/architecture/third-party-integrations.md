@@ -125,13 +125,19 @@ apps/api:
 
 MCP 连接失败必须显式失败，不能静默返回空工具集合并继续假装连接成功。stdio 子进程和网络连接必须在 runtime 关闭时释放。
 
-stdio MCP 会启动 API 主机上的本地进程，因此只有管理员可以创建、查看、测试、修改和删除 stdio 配置；runtime 装配时也会再次校验 owner 角色，避免历史配置绕过路由限制。SSE/Streamable HTTP 配置仍按 owner 隔离。
+产品设置只开放 HTTPS Streamable HTTP。底层 stdio/SSE adapter 仅用于管理员兼容和确定性测试，
+不属于普通 owner 的产品能力面；正式开放 stdio 前必须另行设计 worker/sandbox 与命令 allowlist。
 
-SSE/Streamable HTTP 的 MCP URL 在 API 入口拒绝 localhost、私网、loopback、link-local 和其他保留地址；runtime 的自定义 fetch 会对每次请求再次做 DNS 解析检查，并禁用自动重定向。该策略降低 SSRF 风险，但部署环境仍应配置网络出口 ACL；DNS 解析与实际连接之间的竞态不能仅靠应用层完全消除。
+Streamable HTTP 的 MCP URL 在 API 入口拒绝 localhost、私网、loopback、link-local 和其他保留地址；
+runtime 的自定义 fetch 会对每次请求及有限 redirect 逐跳做 DNS 解析检查。该策略降低 SSRF 风险，
+但当前检查结果没有固定到实际 socket，因此不宣称抵御检查与连接之间的恶意 DNS rebinding；部署
+环境仍必须配置网络出口 ACL。需要完整防御时应使用保留 TLS hostname 校验的 IP-pinning connector。
 
-MCP 的只读 tool 和 Resource 读取可以在连接失效后执行一次有限重连；写入 tool 不自动重试，避免重复副作用。MCP Resource 通过 API 的统一 `read_resource` facade 暴露，远端内容仍需 owner、媒体类型、大小和 snapshot 处理。
+MCP Tool 调用不自动重试，避免未知副作用被重复执行。底层 Resource adapter 只供显式 fixture
+测试；生产 v1 不注册 `read_mcp_resource`，也不把 Resource 合并进 proxy 搜索结果。
 
-连接初始化会按 Server capabilities 发现 `tools/list` 和 `resources/list`，并消费 MCP 返回的 `nextCursor` 直到列表结束。MCP proxy 的 `search` 结果同时包含工具和 Resource；Resource 结果使用 `<server-id>/<resource-uri>` 作为 `read_resource` 的引用，不能直接把远端 URI 当作新的 Agent 工具。
+连接初始化按 Server capabilities 发现有界的 `tools/list`，并消费 `nextCursor` 直到列表结束或达到
+页数/数量上限。Resources 只有测试显式开启底层开关后才发现，不属于生产 Agent 能力面。
 
 ## 8. Chalkboard 边界
 

@@ -274,7 +274,12 @@ function LatexCanvasElement({
         <div
           ref={innerRef}
           className={styles.canvasLatexContent}
-          style={{ color: element.color ?? "#333", transformOrigin, transform: `scale(${contentScale})` }}
+          style={{
+            color: element.color ?? "#333",
+            fontSize: typeof element.fontSize === "number" ? `${element.fontSize}px` : undefined,
+            transformOrigin,
+            transform: `scale(${contentScale})`,
+          }}
           dangerouslySetInnerHTML={{ __html: safeMarkup }}
         />
       </div>
@@ -395,13 +400,55 @@ export function SlideCanvas({ scene, highlightedElementId, laserElementId = null
           }
           if (element.type === "latex") return <LatexCanvasElement key={element.id ?? index} element={element} style={style} commonClass={commonClass} />;
           if (element.type === "shape") {
-            const viewBox = element.viewBox ?? [1, 1];
-            return <svg className={`${commonClass} ${styles.canvasShape}`} key={element.id ?? index} style={{ ...style, opacity: element.opacity }} viewBox={`0 0 ${viewBox[0]} ${viewBox[1]}`} preserveAspectRatio="none" aria-hidden="true"><path d={element.path ?? "M 0 0 L 1 0 L 1 1 L 0 1 Z"} fill={element.fill ?? "#eef4fb"} stroke={element.outline?.color} strokeWidth={element.outline?.width} strokeDasharray={element.outline?.style === "dashed" ? "8 4" : element.outline?.style === "dotted" ? "2 3" : undefined} /></svg>;
+            const width = element.width ?? 40;
+            const height = element.height ?? 30;
+            const shapeName = element.shape ?? element.shapeType;
+            let shapeStyle = style;
+            let viewBox = element.viewBox ?? [width, height];
+            const radius = Math.min(typeof element.rx === "number" ? element.rx : 12, width / 2, height / 2);
+            let fallbackPath = shapeName === "circle"
+              ? `M ${width / 2} 0 A ${Math.min(width, height) / 2} ${Math.min(width, height) / 2} 0 1 1 ${width / 2 - 0.01} ${height} A ${Math.min(width, height) / 2} ${Math.min(width, height) / 2} 0 1 1 ${width / 2} 0 Z`
+              : shapeName === "roundedRect" || shapeName === "rounded-rect"
+                ? `M ${radius} 0 H ${width - radius} Q ${width} 0 ${width} ${radius} V ${height - radius} Q ${width} ${height} ${width - radius} ${height} H ${radius} Q 0 ${height} 0 ${height - radius} V ${radius} Q 0 0 ${radius} 0 Z`
+                : shapeName === "rect" || shapeName === "rectangle"
+                  ? `M 0 0 H ${width} V ${height} H 0 Z`
+                  : "M 0 0 L 1 0 L 1 1 L 0 1 Z";
+            if (shapeName === "polygon" && !element.path && Array.isArray(element.points)) {
+              const rawPoints: unknown[] = element.points as unknown[];
+              const points = rawPoints.filter((point): point is number[] => Array.isArray(point)
+                && point.length >= 2 && typeof point[0] === "number" && typeof point[1] === "number");
+              if (points.length >= 3) {
+                const minX = Math.min(...points.map((point) => point[0]!));
+                const minY = Math.min(...points.map((point) => point[1]!));
+                const maxX = Math.max(...points.map((point) => point[0]!));
+                const maxY = Math.max(...points.map((point) => point[1]!));
+                viewBox = [Math.max(1, maxX - minX), Math.max(1, maxY - minY)];
+                shapeStyle = { ...style, left: minX, top: minY, width: viewBox[0], height: viewBox[1] };
+                fallbackPath = `${points.map((point, pointIndex) => `${pointIndex === 0 ? "M" : "L"} ${point[0]! - minX} ${point[1]! - minY}`).join(" ")} Z`;
+              }
+            }
+            return <svg className={`${commonClass} ${styles.canvasShape}`} key={element.id ?? index} style={{ ...shapeStyle, opacity: element.opacity }} viewBox={`0 0 ${viewBox[0]} ${viewBox[1]}`} preserveAspectRatio="none" aria-hidden="true"><path d={element.path ?? fallbackPath} fill={element.fill ?? "#eef4fb"} stroke={element.outline?.color} strokeWidth={element.outline?.width} strokeDasharray={element.outline?.style === "dashed" ? "8 4" : element.outline?.style === "dotted" ? "2 3" : undefined} /></svg>;
           }
           if (element.type === "text") {
             const content = element.content ?? "";
             const fontSize = content.match(/font-size:\s*(\d+)px/)?.[1];
-            return <div className={`${commonClass} ${styles.canvasText}`} key={element.id ?? index} style={{ ...style, color: element.defaultColor ?? "#333", fontSize: fontSize ? `${Number(fontSize)}px` : undefined }} dangerouslySetInnerHTML={{ __html: sanitizeClassroomMarkup(content) }} />;
+            const textAlign = element.textAlign ?? element.align;
+            // Canvas JSON expresses lineHeight in coordinate pixels. React's
+            // numeric line-height is unitless, so pass an explicit px value.
+            const lineHeight = typeof element.lineHeight === "number"
+              ? element.lineHeight <= 4 ? element.lineHeight : `${element.lineHeight}px`
+              : undefined;
+            const fontWeight = typeof element.fontWeight === "number" || typeof element.fontWeight === "string"
+              ? element.fontWeight
+              : undefined;
+            return <div className={`${commonClass} ${styles.canvasText}`} key={element.id ?? index} style={{
+              ...style,
+              color: element.defaultColor ?? element.color ?? "#333",
+              fontSize: fontSize ? `${Number(fontSize)}px` : typeof element.fontSize === "number" ? `${element.fontSize}px` : undefined,
+              fontWeight,
+              lineHeight,
+              textAlign: textAlign === "left" || textAlign === "center" || textAlign === "right" ? textAlign : undefined,
+            }} dangerouslySetInnerHTML={{ __html: sanitizeClassroomMarkup(content) }} />;
           }
           if (element.type === "table") {
             const rows = Array.isArray(element.data) ? element.data : [];

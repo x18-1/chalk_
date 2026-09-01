@@ -34,11 +34,19 @@ async function consumeEventStream(
   const decoder = new TextDecoder();
   let buffer = '';
 
-  const consumeChunk = (chunk: string) => {
+  const consumeChunk = async (chunk: string) => {
     const event = chunk.match(/^event: ([^\n]+)\ndata: ([\s\S]+)$/);
     if (!event) return;
     try {
-      onEvent({ type: event[1]!, data: JSON.parse(event[2]!) as ChatStreamEvent['data'] });
+      const parsed = { type: event[1]!, data: JSON.parse(event[2]!) as ChatStreamEvent['data'] };
+      onEvent(parsed);
+      // Tool start and finish are often written in one network frame for fast
+      // tools (for example render_chalkboard). Hold the stream briefly after
+      // the start event so the learner can actually see the running activity
+      // before completion (without slowing ordinary text deltas).
+      if (parsed.type === 'tool_started' || parsed.type === 'tool_pending') {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
+      }
     } catch {
       // Ignore malformed keep-alive chunks; the stream can continue.
     }
@@ -50,9 +58,9 @@ async function consumeEventStream(
     buffer += decoder.decode(result.value, { stream: true });
     const chunks = buffer.split('\n\n');
     buffer = chunks.pop() ?? '';
-    for (const chunk of chunks) consumeChunk(chunk);
+    for (const chunk of chunks) await consumeChunk(chunk);
   }
-  if (buffer.trim()) consumeChunk(buffer);
+  if (buffer.trim()) await consumeChunk(buffer);
 }
 
 export const chatApi = {

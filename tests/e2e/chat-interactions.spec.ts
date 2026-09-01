@@ -115,6 +115,117 @@ test('renders one tutor identity while a response is starting', async ({ page })
   }
 });
 
+test('keeps one conversation answering while the student switches to another', async ({ page }) => {
+  await signIn(page);
+  const suffix = Date.now().toString(36);
+  const titleA = `后台回答 A ${suffix}`;
+  const titleB = `并行提问 B ${suffix}`;
+  const promptA = `开始回答 A ${suffix}`;
+  const promptB = `开始回答 B ${suffix}`;
+  const conversationA = await createConversation(page, titleA);
+  const conversationB = await createConversation(page, titleB);
+  let releaseConversationA!: () => void;
+  const conversationAReleased = new Promise<void>((resolve) => {
+    releaseConversationA = resolve;
+  });
+  let markConversationAStarted!: () => void;
+  const conversationAStarted = new Promise<void>((resolve) => {
+    markConversationAStarted = resolve;
+  });
+
+  try {
+    await page.route('**/chat/*/stream', async (route) => {
+      const conversationId = new URL(route.request().url()).pathname.split('/').at(-2);
+      if (conversationId === conversationA) {
+        markConversationAStarted();
+        await conversationAReleased;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: conversationId === conversationA
+          ? `event: message_completed\ndata: ${JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: 'A 已经独立完成回答。' }], stopReason: 'stop' } })}\n\nevent: result\ndata: ${JSON.stringify({ status: 'completed' })}\n\n`
+          : `event: message_completed\ndata: ${JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: 'B 也可以同时回答。' }], stopReason: 'stop' } })}\n\nevent: result\ndata: ${JSON.stringify({ status: 'completed' })}\n\n`,
+      });
+    });
+
+    await page.goto(`/chat?conversation=${conversationA}`);
+    const recentConversations = page.getByRole('navigation', { name: '最近对话' });
+    await expect(recentConversations.getByRole('button', { name: titleA, exact: true })).toHaveAttribute('aria-current', 'page');
+    await page.getByLabel('消息内容').fill(promptA);
+    await page.getByRole('button', { name: '发送消息' }).click();
+    await conversationAStarted;
+    const conversationAButton = recentConversations.getByRole('button', { name: new RegExp(`^${promptA}( 正在回答)?$`) });
+    await expect(conversationAButton).toContainText('正在回答');
+
+    await recentConversations.getByRole('button', { name: titleB, exact: true }).click();
+    await page.getByLabel('消息内容').fill(promptB);
+    await page.getByRole('button', { name: '发送消息' }).click();
+    await expect(page.getByText('B 也可以同时回答。')).toBeVisible();
+
+    releaseConversationA();
+    await conversationAButton.click();
+    await expect(page.getByText('A 已经独立完成回答。')).toBeVisible();
+    await expect(page.getByText('B 也可以同时回答。')).toHaveCount(0);
+  } finally {
+    releaseConversationA();
+    await deleteConversation(page, conversationA);
+    await deleteConversation(page, conversationB);
+  }
+});
+
+test('stops only the selected conversation when two conversations are answering', async ({ page }) => {
+  await signIn(page);
+  const suffix = Date.now().toString(36);
+  const titleA = `只停止 A ${suffix}`;
+  const titleB = `继续回答 B ${suffix}`;
+  const promptA = `启动 A ${suffix}`;
+  const promptB = `启动 B ${suffix}`;
+  const conversationA = await createConversation(page, titleA);
+  const conversationB = await createConversation(page, titleB);
+  const abortedConversationIds: string[] = [];
+  const releaseStreams = new Map<string, () => void>();
+
+  try {
+    await page.route('**/chat/*/stream', async (route) => {
+      const conversationId = new URL(route.request().url()).pathname.split('/').at(-2);
+      if (!conversationId) return route.abort();
+      await new Promise<void>((resolve) => releaseStreams.set(conversationId, resolve));
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `event: message_completed\ndata: ${JSON.stringify({ message: { role: 'assistant', content: [{ type: 'text', text: `${conversationId} completed` }], stopReason: 'stop' } })}\n\n`,
+      }).catch(() => undefined);
+    });
+    await page.route('**/chat/*/abort', async (route) => {
+      const conversationId = new URL(route.request().url()).pathname.split('/').at(-2);
+      if (conversationId) abortedConversationIds.push(conversationId);
+      await route.fulfill({ json: { ok: true } });
+    });
+
+    await page.goto(`/chat?conversation=${conversationA}`);
+    const recentConversations = page.getByRole('navigation', { name: '最近对话' });
+    await expect(recentConversations.getByRole('button', { name: titleA, exact: true })).toHaveAttribute('aria-current', 'page');
+    await page.getByLabel('消息内容').fill(promptA);
+    await page.getByRole('button', { name: '发送消息' }).click();
+    await expect.poll(() => releaseStreams.has(conversationA)).toBe(true);
+
+    await recentConversations.getByRole('button', { name: titleB, exact: true }).click();
+    await page.getByLabel('消息内容').fill(promptB);
+    await page.getByRole('button', { name: '发送消息' }).click();
+    await expect.poll(() => releaseStreams.has(conversationB)).toBe(true);
+
+    await recentConversations.getByRole('button', { name: new RegExp(`^${promptA}( 正在回答)?$`) }).click();
+    await page.getByRole('button', { name: '停止' }).click();
+    await expect.poll(() => abortedConversationIds).toEqual([conversationA]);
+    await expect(recentConversations.getByRole('button', { name: `${promptB} 正在回答`, exact: true })).toContainText('正在回答');
+  } finally {
+    for (const release of releaseStreams.values()) release();
+    await deleteConversation(page, conversationA);
+    await deleteConversation(page, conversationB);
+  }
+});
+
 test('closes a conversation menu on one outside click and shows a clear delete confirmation', async ({ page }) => {
   await signIn(page);
   const list = page.getByRole('navigation', { name: '最近对话' });
@@ -195,6 +306,22 @@ test('keeps thinking private while restoring multiple tool results from durable 
               toolName: 'mcp__geometry__very_long_relationship_verification_tool_name',
               isError: false,
               content: [{ type: 'text', text: '关系校验完成。' }],
+              details: {
+                type: 'scene',
+                scene: {
+                  id: 'history-relationship-scene',
+                  title: '关系示意图',
+                  order: 0,
+                  type: 'slide',
+                  actionCount: 0,
+                  content: {
+                    type: 'slide',
+                    canvas: {
+                      elements: [{ type: 'text', content: 'AB = AC', left: 120, top: 80, width: 240, height: 60 }],
+                    },
+                  },
+                },
+              },
             },
             {
               role: 'assistant',
@@ -209,12 +336,71 @@ test('keeps thinking private while restoring multiple tool results from durable 
 
     await page.goto(`/chat?conversation=${conversationId}`);
     await expect(page.getByText('现在先写出最直接的一组等量关系。')).toBeVisible();
-    await expect(page.getByText('fixture inspection tool')).toBeVisible();
-    await expect(page.getByText('MCP · very long relationship verification tool name')).toBeVisible();
-    await expect(page.getByText('工具调用已完成。')).toHaveCount(2);
+    await expect(page.getByText('fixture inspection tool', { exact: true })).toBeVisible();
+    await expect(page.getByText('MCP · very long relationship verification tool name', { exact: true })).toBeVisible();
+    await expect(page.getByText('fixture inspection tool已完成。', { exact: true })).toBeVisible();
+    await expect(page.getByText('MCP · very long relationship verification tool name已完成。', { exact: true })).toBeVisible();
+    await expect(page.getByRole('figure', { name: 'Chalkboard Scene：关系示意图' })).toBeVisible();
+    await expect(page.getByRole('figure', { name: 'Chalkboard Scene：关系示意图' })).toContainText('AB = AC');
     await expect(page.getByText('先识别已知条件，再检查可以直接使用的关系。')).toHaveCount(0);
     await page.getByText('查看结果', { exact: true }).first().click();
     await expect(page.getByText('已识别三条已知关系。')).toBeVisible();
+  } finally {
+    await deleteConversation(page, conversationId);
+  }
+});
+
+test('renders a Chalkboard block returned by a Chat tool', async ({ page }) => {
+  await signIn(page);
+  const conversationId = await createConversation(page, '聊天黑板渲染测试');
+
+  try {
+    await page.goto(`/chat?conversation=${conversationId}`);
+    await page.route(`**/chat/${conversationId}/stream`, async (route) => {
+      const block = {
+        type: 'chalkboard',
+        version: 1,
+        title: '平方关系',
+        content: {
+          type: 'slide',
+          canvas: {
+            elements: [{ type: 'text', content: 'a² + b² = c²', left: 120, top: 80, width: 300, height: 70 }],
+          },
+        },
+      };
+      const events = [
+        ['tool_started', { toolCallId: 'render-tool-1', toolName: 'render_chalkboard' }],
+        ['tool_finished', {
+          toolCallId: 'render-tool-1',
+          toolName: 'render_chalkboard',
+          isError: false,
+          result: { content: [{ type: 'text', text: '已在当前聊天中插入一个 Chalkboard Scene。' }], details: {
+            type: 'scene',
+            scene: {
+              id: 'chat-scene-ping-fang-guan-xi',
+              title: block.title,
+              order: 0,
+              type: 'slide',
+              actionCount: 0,
+              content: block.content,
+            },
+          } },
+        }],
+        ['message_completed', { message: { role: 'assistant', content: [{ type: 'text', text: '这是勾股定理的关系。' }], stopReason: 'stop' } }],
+        ['result', { status: 'completed' }],
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `${events.map(([type, data]) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`).join('')}`,
+      });
+    });
+
+    await page.getByLabel('消息内容').fill('展示勾股定理');
+    await page.getByRole('button', { name: '发送消息' }).click();
+    await expect(page.getByRole('figure', { name: 'Chalkboard Scene：平方关系' })).toBeVisible();
+    await expect(page.getByRole('figure', { name: 'Chalkboard Scene：平方关系' })).toContainText('a² + b² = c²');
+    await expect(page.getByText('这是勾股定理的关系。')).toBeVisible();
   } finally {
     await deleteConversation(page, conversationId);
   }

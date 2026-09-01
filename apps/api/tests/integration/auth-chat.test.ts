@@ -38,6 +38,8 @@ let providerServer: Server;
 let fixtureProviderId: string;
 const providerRequests: Array<Record<string, unknown>> = [];
 const mediaEnvironment: NodeJS.ProcessEnv = {};
+let notifyHangingRuntimeStarted: (() => void) | undefined;
+let hangNextProviderResponse = false;
 
 function responseCookie(value: string | string[] | undefined) {
   const first = Array.isArray(value) ? value[0] : value;
@@ -86,6 +88,26 @@ function createFixtureProviderServer() {
       ? latestUser.content
       : JSON.stringify(latestUser?.content ?? '');
     const id = `fixture-${providerRequests.length}`;
+
+    if (hangNextProviderResponse) {
+      hangNextProviderResponse = false;
+      response.writeHead(200, {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache',
+      });
+      response.write(sseChunk({
+        id,
+        model: 'fixture-model',
+        choices: [{
+          index: 0,
+          delta: { role: 'assistant', reasoning_content: '等待宿主关闭当前运行。' },
+          finish_reason: null,
+        }],
+      }));
+      notifyHangingRuntimeStarted?.();
+      notifyHangingRuntimeStarted = undefined;
+      return;
+    }
 
     if (userText.includes('Provider 错误分类')) {
       response.writeHead(401, { 'content-type': 'application/json' });
@@ -674,6 +696,81 @@ describe('API auth and chat interface', () => {
     expect(adminSettings.json()).toMatchObject({ image: null, video: null });
   });
 
+  it('aborts an active Agent Run when its runtime is closed', async () => {
+    const login = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: developmentUser,
+    });
+    const runtimeCookie = responseCookie(login.headers['set-cookie']);
+    const runtimeUserId = login.json().user.id as string;
+    const provider = await app.inject({
+      method: 'POST',
+      url: '/providers/custom',
+      headers: { cookie: runtimeCookie },
+      payload: {
+        name: `Runtime close fixture ${Date.now()}`,
+        baseUrl: providerBaseUrl,
+        apiKey: 'fixture-key',
+        models: [{
+          id: 'runtime-close-model',
+          name: 'Runtime Close Model',
+          reasoning: false,
+          input: ['text'],
+          contextWindow: 128_000,
+          maxTokens: 8_192,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        }],
+      },
+    });
+    const runtimeProviderId = provider.json().provider.id as string;
+    const conversationResponse = await app.inject({
+      method: 'POST',
+      url: '/chat',
+      headers: { cookie: runtimeCookie },
+      payload: {},
+    });
+    const conversation = conversationResponse.json().conversation;
+    const entry = await getOrCreateRuntime(runtimeUserId, conversation, {
+      providerId: runtimeProviderId,
+      modelId: 'runtime-close-model',
+      thinkingLevel: 'off',
+    });
+    const runtimeStarted = new Promise<void>((resolve) => {
+      notifyHangingRuntimeStarted = resolve;
+    });
+    hangNextProviderResponse = true;
+    const run = entry.runtime.run('关闭 runtime 中止执行');
+
+    try {
+      await Promise.race([
+        runtimeStarted,
+        run.then((result) => { throw new Error(`Agent Run finished before fixture started: ${result.status}`); }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('fixture runtime did not start')), 2_000)),
+      ]);
+      await Promise.race([
+        closeRuntime(conversation.id),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('runtime close did not finish')), 2_000)),
+      ]);
+
+      const result = await Promise.race([
+        run,
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Agent Run did not abort')), 2_000)),
+      ]);
+      expect(result).toMatchObject({ status: 'aborted' });
+    } finally {
+      hangNextProviderResponse = false;
+      notifyHangingRuntimeStarted = undefined;
+      await closeRuntime(conversation.id);
+    }
+    const deleted = await app.inject({
+      method: 'DELETE',
+      url: `/chat/${conversation.id}`,
+      headers: { cookie: runtimeCookie },
+    });
+    expect(deleted.statusCode).toBe(200);
+  }, 10_000);
+
   it('uses deployment Ark credentials without exposing them or requiring a user copy', async () => {
     mediaEnvironment.ARK_API_KEY = 'environment-ark-key';
     try {
@@ -756,6 +853,13 @@ describe('API auth and chat interface', () => {
     expect(tools.statusCode).toBe(200);
     expect(tools.json().tools).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'rename_current_conversation', requiresApproval: true }),
+      expect.objectContaining({
+        name: 'run_subagent',
+        source: 'subagent',
+        defaultEnabled: false,
+        approvalPolicy: 'required',
+        limits: expect.objectContaining({ timeoutMs: 60_000 }),
+      }),
     ]));
     const toolNames = tools.json().tools.map((tool: { name: string }) => tool.name);
     expect(toolNames).not.toContain('search_learning_resources');
@@ -765,6 +869,33 @@ describe('API auth and chat interface', () => {
         expect.objectContaining({ name: 'read_resource', effects: ['read', 'network'], defaultEnabled: true }),
       ]));
     }
+
+    const enabledSubagent = await app.inject({
+      method: 'PATCH',
+      url: '/tools',
+      headers: { cookie },
+      payload: { toolName: 'run_subagent', enabled: true, approval: 'default' },
+    });
+    expect(enabledSubagent.statusCode).toBe(200);
+    expect(enabledSubagent.json().setting).toMatchObject({
+      toolName: 'run_subagent',
+      enabled: true,
+    });
+    const unsafeSubagentApproval = await app.inject({
+      method: 'PATCH',
+      url: '/tools',
+      headers: { cookie },
+      payload: { toolName: 'run_subagent', enabled: true, approval: 'never' },
+    });
+    expect(unsafeSubagentApproval.statusCode).toBe(400);
+    expect(unsafeSubagentApproval.json()).toMatchObject({ code: 'TOOL_APPROVAL_REQUIRED' });
+    const disabledSubagent = await app.inject({
+      method: 'PATCH',
+      url: '/tools',
+      headers: { cookie },
+      payload: { toolName: 'run_subagent', enabled: false, approval: 'default' },
+    });
+    expect(disabledSubagent.statusCode).toBe(200);
 
     const conversationResponse = await app.inject({
       method: 'POST',
