@@ -9,8 +9,8 @@ function required(name: string) {
   return value;
 }
 
-function client() {
-  const endpoint = process.env.S3_ENDPOINT;
+function client(endpointOverride?: string) {
+  const endpoint = endpointOverride ?? process.env.S3_ENDPOINT;
   return new S3Client({
     region: process.env.S3_REGION ?? 'us-east-1',
     ...(endpoint ? { endpoint, forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== 'false' } : {}),
@@ -34,7 +34,11 @@ export function publicObjectUrl(fileKey: string) {
 
 export async function createUploadUrl(input: { fileKey: string; contentType: string; size: number }) {
   return getSignedUrl(
-    client(),
+    // In a containerized deployment the API talks to MinIO through its
+    // service name, while the browser needs a host-resolvable endpoint. Sign
+    // uploads against the optional public endpoint without changing the
+    // internal endpoint used for reads and verification.
+    client(process.env.S3_PRESIGN_ENDPOINT),
     new PutObjectCommand({ Bucket: bucket(), Key: input.fileKey, ContentType: input.contentType, ContentLength: input.size }),
     { expiresIn: 600 },
   );

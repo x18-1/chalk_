@@ -67,6 +67,7 @@
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
 | RAG MVP 运行 | [runbooks/rag-mvp.md](runbooks/rag-mvp.md) | Accepted + Partial；sidecar、API/Web 启动、异步索引和当前限制 |
+| Docker 部署 | [runbooks/docker-deployment.md](runbooks/docker-deployment.md) | Accepted + Documented；单机 Web/API/sidecar/Postgres/MinIO Compose 部署 |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
 | Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；已通过 GitHub PR #6 合并到 `main` |
 
