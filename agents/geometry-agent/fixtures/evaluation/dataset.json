@@ -1,0 +1,44 @@
+[
+  {
+    "text": "如图，$PA$，$PB$ 分别与 $\\odot O$ 相切于 $A$，$B$ 两点，且 $\\angle APB = 56^\\circ$，若点 $C$ 是 $\\odot O$ 上异于点 $A$，$B$ 的一点，则 $\\angle ACB$ 的大小为（  ）。",
+    "img_path": [
+      "dataset_images\\image-20260415145523521.png"
+    ]
+  },
+  {
+    "text": "如图，矩形 $ABCD$ 的对角线 $AC$，$BD$ 相交于点 $O$，点 $E$，$F$ 分别是线段 $OB$，$OA$ 上的点，若 $AE = BF$，$AB = 5$，$AF = 1$，$BE = 3$，则 $BF$ 的长为（  ）。",
+    "img_path": [
+      "dataset_images\\image-20260415145549399.png"
+    ]
+  },
+  {
+    "text": "如图，在平面直角坐标系中，菱形 $OABC$ 的一边 $OC$ 在 $x$ 轴正半轴上，顶点 $A$ 的坐标为 $(2,\\,2\\sqrt{3})$，点 $D$ 是边 $OC$ 上的动点，过点 $D$ 作 $DE \\perp OB$ 交边 $OA$ 于点 $E$，作 $DF \\parallel OB$ 交边 $BC$ 于点 $F$，连接 $EF$，设 $OD=x$，$\\triangle DEF$ 的面积为 $S$。\n\n（1）求 $S$ 关于 $x$ 的函数解析式；\n\n（2）当 $x$ 取何值时，$S$ 的值最大？请求出最大值。",
+    "img_path": [
+      "dataset_images\\image-20260415145714035.png"
+    ]
+  },
+  {
+    "text": "如图，$A$，$B$，$C$，$D$ 是 $\\odot O$ 上的点，$AB=AD$，$AC$ 与 $BD$ 交于点 $E$，$AE=3$，$EC=5$，$BD=4\\sqrt{5}$，$\\odot O$ 的半径为（）。",
+    "img_path": [
+      "dataset_images\\image-20260415145859913.png"
+    ]
+  },
+  {
+    "text": "如图，在四边形 $ABCD$ 中，$\\angle A=90^\\circ$，$AD \\parallel BC$，$AB=3$，$BC=4$，点 $E$ 在 $AB$ 上，且 $AE=1$．$F$，$G$ 为边 $AD$ 上的两个动点，且 $FG=1$．当四边形 $CGFE$ 的周长最小时，$CG$ 的长为？",
+    "img_path": [
+      "dataset_images\\image-20260415150000655.png"
+    ]
+  },
+  {
+    "text": "已知椭圆 $C: \\dfrac{x^2}{4} + y^2 = 1$ 经过点 $P\\left(-\\sqrt{3}, \\frac{1}{2} \\right)$，点 $M$ 是椭圆 $C$ 上位于第一象限内的动点，$A$、$B$ 分别为椭圆 $C$ 的左顶点和下顶点，直线 $MB$ 与 $x$ 轴交于点 $C$，直线 $M A$ 与 $y$ 轴交于点 $D$，$O$ 为椭圆的中心，求三角形 $OCD$ 的面积的取值范围。",
+    "img_path": [
+      "dataset_images\\image-20260415150233791.png"
+    ]
+  },
+  {
+    "text": "如图1，抛物线 $y = ax^2 + bx + c$ 经过平行四边形 $ABCD$ 的顶点 $A(0,3)$、$B(-1,0)$、$D(2,3)$，抛物线与 $x$ 轴的另一个交点为 $E$，经过点 $E$ 的直线 $l$ 将平行四边形 $ABCD$ 分别分割成面积相等的两部分，与抛物线交于另一点 $F$。设 $P$ 为直线 $l$ 上方抛物线上一动点，设点 $P$ 的横坐标为 $t$。\n\n（1）求抛物线的解析式；\n\n（2）当t何值时，$\\triangle PFE$ 的面积最大？并求最大值的立方根；\n\n（3）是否存在点 $P$ 使 $\\triangle PAE$ 为直角三角形？若存在，求出 $t$ 的值；若不存在，说明理由。",
+    "img_path": [
+      "dataset_images\\image-20260415150251382.png"
+    ]
+  }
+]

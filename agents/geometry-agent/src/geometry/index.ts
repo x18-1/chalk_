@@ -6,11 +6,13 @@ export {
   geometrySceneSchema,
   lessonTimelineSchema,
   problemFactsSchema,
+  validateProblemFacts,
   type GeometryAssertion,
   type GeometryDiagnostic,
   type GeometryObject,
   type GeometryScene,
   type LessonTimeline,
   type ProblemFacts,
+  type RightAngleMarker,
 } from "./schema";
 export { parseGeometryScene, validateGeometryScene } from "./validate";

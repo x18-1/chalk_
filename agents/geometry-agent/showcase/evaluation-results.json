@@ -1,0 +1,3416 @@
+{
+  "generatedAt": "2026-08-31T07:14:33.506Z",
+  "cases": [
+    {
+      "id": "evaluation-1",
+      "index": 0,
+      "text": "如图，在平面直角坐标系中，菱形 $OABC$ 的一边 $OC$ 在 $x$ 轴正半轴上，顶点 $A$ 的坐标为 $(2,\\,2\\sqrt{3})$，点 $D$ 是边 $OC$ 上的动点，过点 $D$ 作 $DE \\perp OB$ 交边 $OA$ 于点 $E$，作 $DF \\parallel OB$ 交边 $BC$ 于点 $F$，连接 $EF$，设 $OD=x$，$\\triangle DEF$ 的面积为 $S$。\n\n（1）求 $S$ 关于 $x$ 的函数解析式；\n\n（2）当 $x$ 取何值时，$S$ 的值最大？请求出最大值。",
+      "imageFile": "image-20260415145714035.png",
+      "status": "completed",
+      "stage1": {
+        "problem_type": "混合",
+        "task_goal": "求三角形DEF面积S关于x的函数解析式，并求S取最大值时的x值及S的最大值",
+        "objects": [
+          {
+            "id": "coord_sys",
+            "type": "coordinate_system",
+            "description": "平面直角坐标系",
+            "properties": {
+              "axes": [
+                "axis_x",
+                "axis_y"
+              ],
+              "origin": "O"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "axis_x",
+            "type": "coordinate axis",
+            "description": "x轴",
+            "properties": {},
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "axis_y",
+            "type": "coordinate axis",
+            "description": "y轴",
+            "properties": {},
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "O",
+            "type": "point",
+            "description": "坐标原点，菱形顶点",
+            "properties": {
+              "coords": [
+                0,
+                0
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "A",
+            "type": "point",
+            "description": "菱形顶点A",
+            "properties": {
+              "coords": [
+                2,
+                3.46410161513775
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "B",
+            "type": "point",
+            "description": "菱形顶点B",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "C",
+            "type": "point",
+            "description": "菱形顶点C，位于x轴正半轴",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "rhombus_OABC",
+            "type": "polygon",
+            "description": "菱形OABC",
+            "properties": {
+              "vertices": [
+                "O",
+                "A",
+                "B",
+                "C"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "D",
+            "type": "point",
+            "description": "边OC上的动点D",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "E",
+            "type": "point",
+            "description": "边OA上的交点E",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "F",
+            "type": "point",
+            "description": "边BC上的交点F",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_OB",
+            "type": "segment",
+            "description": "菱形对角线/线段OB",
+            "properties": {
+              "endpoints": [
+                "O",
+                "B"
+              ]
+            },
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_OA",
+            "type": "segment",
+            "description": "线段OA",
+            "properties": {
+              "endpoints": [
+                "O",
+                "A"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_OC",
+            "type": "segment",
+            "description": "线段OC",
+            "properties": {
+              "endpoints": [
+                "O",
+                "C"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_BC",
+            "type": "segment",
+            "description": "线段BC",
+            "properties": {
+              "endpoints": [
+                "B",
+                "C"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_DE",
+            "type": "segment",
+            "description": "线段DE",
+            "properties": {
+              "endpoints": [
+                "D",
+                "E"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_DF",
+            "type": "segment",
+            "description": "线段DF",
+            "properties": {
+              "endpoints": [
+                "D",
+                "F"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "seg_EF",
+            "type": "segment",
+            "description": "线段EF",
+            "properties": {
+              "endpoints": [
+                "E",
+                "F"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "tri_DEF",
+            "type": "triangle",
+            "description": "三角形DEF",
+            "properties": {
+              "vertices": [
+                "D",
+                "E",
+                "F"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          }
+        ],
+        "relations": [
+          {
+            "type": "点在线段上",
+            "objects": [
+              "D",
+              "seg_OC"
+            ],
+            "description": "点D在边OC上",
+            "source": "text"
+          },
+          {
+            "type": "点在线段上",
+            "objects": [
+              "E",
+              "seg_OA"
+            ],
+            "description": "点E在边OA上",
+            "source": "text"
+          },
+          {
+            "type": "点在线段上",
+            "objects": [
+              "F",
+              "seg_BC"
+            ],
+            "description": "点F在边BC上",
+            "source": "text"
+          },
+          {
+            "type": "垂直",
+            "objects": [
+              "seg_DE",
+              "seg_OB"
+            ],
+            "description": "DE垂直于OB",
+            "source": "text"
+          },
+          {
+            "type": "平行",
+            "objects": [
+              "seg_DF",
+              "seg_OB"
+            ],
+            "description": "DF平行于OB",
+            "source": "text"
+          }
+        ],
+        "constraints": [
+          {
+            "type": "方程",
+            "expression": "O = (0, 0)",
+            "description": "原点坐标",
+            "source": "text"
+          },
+          {
+            "type": "方程",
+            "expression": "A = (2, 2\\\\sqrt{3})",
+            "description": "点A坐标",
+            "source": "text"
+          },
+          {
+            "type": "其他",
+            "expression": "菱形(OABC)",
+            "description": "四边形OABC为菱形",
+            "source": "text"
+          },
+          {
+            "type": "其他",
+            "expression": "y_C = 0, x_C > 0",
+            "description": "点C在x轴正半轴上",
+            "source": "text"
+          },
+          {
+            "type": "其他",
+            "expression": "DE \\\\perp OB",
+            "description": "DE垂直于OB",
+            "source": "text"
+          },
+          {
+            "type": "其他",
+            "expression": "DF \\\\parallel OB",
+            "description": "DF平行于OB",
+            "source": "text"
+          },
+          {
+            "type": "长度",
+            "expression": "OD = x",
+            "description": "线段OD的长度为x",
+            "source": "text"
+          },
+          {
+            "type": "面积",
+            "expression": "S = S_{\\\\triangle DEF}",
+            "description": "三角形DEF的面积为S",
+            "source": "text"
+          }
+        ],
+        "dynamics": [
+          {
+            "object_id": "D",
+            "type": "动点",
+            "constraint": "点D在边OC上移动",
+            "param": "x",
+            "param_range": "0 \\\\le x \\\\le 4",
+            "depends_on": [
+              "O",
+              "C",
+              "seg_OC"
+            ]
+          },
+          {
+            "object_id": "E",
+            "type": "构造依赖",
+            "constraint": "点E随D确定：DE垂直于OB且交OA于E",
+            "param": "",
+            "param_range": "",
+            "depends_on": [
+              "D",
+              "seg_OB",
+              "seg_OA"
+            ]
+          },
+          {
+            "object_id": "F",
+            "type": "构造依赖",
+            "constraint": "点F随D确定：DF平行于OB且交BC于F",
+            "param": "",
+            "param_range": "",
+            "depends_on": [
+              "D",
+              "seg_OB",
+              "seg_BC"
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "type": "点标记",
+            "label": "O",
+            "target": "O",
+            "position": "left-bottom of the origin",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "A",
+            "target": "A",
+            "position": "top-left vertex",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "B",
+            "target": "B",
+            "position": "top-right vertex",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "C",
+            "target": "C",
+            "position": "bottom-right vertex on x-axis",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "D",
+            "target": "D",
+            "position": "point on OC",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "E",
+            "target": "E",
+            "position": "point on OA",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "F",
+            "target": "F",
+            "position": "point on BC",
+            "source": "figure"
+          },
+          {
+            "type": "其他",
+            "label": "x",
+            "target": "axis_x",
+            "position": "end of positive x-axis",
+            "source": "figure"
+          },
+          {
+            "type": "其他",
+            "label": "y",
+            "target": "axis_y",
+            "position": "end of positive y-axis",
+            "source": "figure"
+          },
+          {
+            "type": "直角标记",
+            "label": "直角标记",
+            "target": "seg_DE",
+            "position": "intersection of DE and OB",
+            "source": "figure"
+          }
+        ],
+        "ambiguities": [],
+        "notes": ""
+      },
+      "artifact": {
+        "problemFacts": {
+          "problem_type": "混合",
+          "task_goal": "求三角形DEF面积S关于x的函数解析式，并求S取最大值时的x值及S的最大值",
+          "objects": [
+            {
+              "id": "coord_sys",
+              "type": "coordinate_system",
+              "description": "平面直角坐标系",
+              "properties": {
+                "axes": [
+                  "axis_x",
+                  "axis_y"
+                ],
+                "origin": "O"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "axis_x",
+              "type": "coordinate axis",
+              "description": "x轴",
+              "properties": {},
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "axis_y",
+              "type": "coordinate axis",
+              "description": "y轴",
+              "properties": {},
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "O",
+              "type": "point",
+              "description": "坐标原点，菱形顶点",
+              "properties": {
+                "coords": [
+                  0,
+                  0
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "A",
+              "type": "point",
+              "description": "菱形顶点A",
+              "properties": {
+                "coords": [
+                  2,
+                  3.46410161513775
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "B",
+              "type": "point",
+              "description": "菱形顶点B",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "C",
+              "type": "point",
+              "description": "菱形顶点C，位于x轴正半轴",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "rhombus_OABC",
+              "type": "polygon",
+              "description": "菱形OABC",
+              "properties": {
+                "vertices": [
+                  "O",
+                  "A",
+                  "B",
+                  "C"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "D",
+              "type": "point",
+              "description": "边OC上的动点D",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "E",
+              "type": "point",
+              "description": "边OA上的交点E",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "F",
+              "type": "point",
+              "description": "边BC上的交点F",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_OB",
+              "type": "segment",
+              "description": "菱形对角线/线段OB",
+              "properties": {
+                "endpoints": [
+                  "O",
+                  "B"
+                ]
+              },
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_OA",
+              "type": "segment",
+              "description": "线段OA",
+              "properties": {
+                "endpoints": [
+                  "O",
+                  "A"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_OC",
+              "type": "segment",
+              "description": "线段OC",
+              "properties": {
+                "endpoints": [
+                  "O",
+                  "C"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_BC",
+              "type": "segment",
+              "description": "线段BC",
+              "properties": {
+                "endpoints": [
+                  "B",
+                  "C"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_DE",
+              "type": "segment",
+              "description": "线段DE",
+              "properties": {
+                "endpoints": [
+                  "D",
+                  "E"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_DF",
+              "type": "segment",
+              "description": "线段DF",
+              "properties": {
+                "endpoints": [
+                  "D",
+                  "F"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "seg_EF",
+              "type": "segment",
+              "description": "线段EF",
+              "properties": {
+                "endpoints": [
+                  "E",
+                  "F"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "tri_DEF",
+              "type": "triangle",
+              "description": "三角形DEF",
+              "properties": {
+                "vertices": [
+                  "D",
+                  "E",
+                  "F"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            }
+          ],
+          "relations": [
+            {
+              "type": "点在线段上",
+              "objects": [
+                "D",
+                "seg_OC"
+              ],
+              "description": "点D在边OC上",
+              "source": "text"
+            },
+            {
+              "type": "点在线段上",
+              "objects": [
+                "E",
+                "seg_OA"
+              ],
+              "description": "点E在边OA上",
+              "source": "text"
+            },
+            {
+              "type": "点在线段上",
+              "objects": [
+                "F",
+                "seg_BC"
+              ],
+              "description": "点F在边BC上",
+              "source": "text"
+            },
+            {
+              "type": "垂直",
+              "objects": [
+                "seg_DE",
+                "seg_OB"
+              ],
+              "description": "DE垂直于OB",
+              "source": "text"
+            },
+            {
+              "type": "平行",
+              "objects": [
+                "seg_DF",
+                "seg_OB"
+              ],
+              "description": "DF平行于OB",
+              "source": "text"
+            }
+          ],
+          "constraints": [
+            {
+              "type": "方程",
+              "expression": "O = (0, 0)",
+              "description": "原点坐标",
+              "source": "text"
+            },
+            {
+              "type": "方程",
+              "expression": "A = (2, 2\\\\sqrt{3})",
+              "description": "点A坐标",
+              "source": "text"
+            },
+            {
+              "type": "其他",
+              "expression": "菱形(OABC)",
+              "description": "四边形OABC为菱形",
+              "source": "text"
+            },
+            {
+              "type": "其他",
+              "expression": "y_C = 0, x_C > 0",
+              "description": "点C在x轴正半轴上",
+              "source": "text"
+            },
+            {
+              "type": "其他",
+              "expression": "DE \\\\perp OB",
+              "description": "DE垂直于OB",
+              "source": "text"
+            },
+            {
+              "type": "其他",
+              "expression": "DF \\\\parallel OB",
+              "description": "DF平行于OB",
+              "source": "text"
+            },
+            {
+              "type": "长度",
+              "expression": "OD = x",
+              "description": "线段OD的长度为x",
+              "source": "text"
+            },
+            {
+              "type": "面积",
+              "expression": "S = S_{\\\\triangle DEF}",
+              "description": "三角形DEF的面积为S",
+              "source": "text"
+            }
+          ],
+          "dynamics": [
+            {
+              "object_id": "D",
+              "type": "动点",
+              "constraint": "点D在边OC上移动",
+              "param": "x",
+              "param_range": "0 \\\\le x \\\\le 4",
+              "depends_on": [
+                "O",
+                "C",
+                "seg_OC"
+              ]
+            },
+            {
+              "object_id": "E",
+              "type": "构造依赖",
+              "constraint": "点E随D确定：DE垂直于OB且交OA于E",
+              "param": "",
+              "param_range": "",
+              "depends_on": [
+                "D",
+                "seg_OB",
+                "seg_OA"
+              ]
+            },
+            {
+              "object_id": "F",
+              "type": "构造依赖",
+              "constraint": "点F随D确定：DF平行于OB且交BC于F",
+              "param": "",
+              "param_range": "",
+              "depends_on": [
+                "D",
+                "seg_OB",
+                "seg_BC"
+              ]
+            }
+          ],
+          "annotations": [
+            {
+              "type": "点标记",
+              "label": "O",
+              "target": "O",
+              "position": "left-bottom of the origin",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "A",
+              "target": "A",
+              "position": "top-left vertex",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "B",
+              "target": "B",
+              "position": "top-right vertex",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "C",
+              "target": "C",
+              "position": "bottom-right vertex on x-axis",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "D",
+              "target": "D",
+              "position": "point on OC",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "E",
+              "target": "E",
+              "position": "point on OA",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "F",
+              "target": "F",
+              "position": "point on BC",
+              "source": "figure"
+            },
+            {
+              "type": "其他",
+              "label": "x",
+              "target": "axis_x",
+              "position": "end of positive x-axis",
+              "source": "figure"
+            },
+            {
+              "type": "其他",
+              "label": "y",
+              "target": "axis_y",
+              "position": "end of positive y-axis",
+              "source": "figure"
+            },
+            {
+              "type": "直角标记",
+              "label": "直角标记",
+              "target": "seg_DE",
+              "position": "intersection of DE and OB",
+              "source": "figure"
+            }
+          ],
+          "ambiguities": [],
+          "notes": ""
+        },
+        "scene": {
+          "version": 1,
+          "objects": [],
+          "assertions": []
+        },
+        "lessonTimeline": {
+          "beats": [
+            {
+              "id": "beat_start",
+              "kind": "motivation",
+              "narration": "探究菱形中的动点问题，分析随点 D 移动时三角形 DEF 面积的变化规律与极值。",
+              "actions": [
+                {
+                  "kind": "focus",
+                  "objectIds": [
+                    "O"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_rhombus",
+              "kind": "construction",
+              "narration": "建立直角坐标系，根据顶点坐标确定菱形 OABC 及其对角线 OB。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "O",
+                    "A",
+                    "C",
+                    "B",
+                    "rhombus_OABC",
+                    "seg_OB"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_def",
+              "kind": "construction",
+              "narration": "在边 OC 上取动点 D，作 DE 垂直于 OB 交 OA 于 E，作 DF 平行于 OB 交 BC 于 F，连接 EF 构成三角形 DEF。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "t",
+                    "D",
+                    "E",
+                    "F",
+                    "H",
+                    "ang_right",
+                    "seg_DE",
+                    "seg_DF",
+                    "seg_EF",
+                    "tri_DEF"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_area",
+              "kind": "reasoning",
+              "narration": "根据各线段的几何关系求出三角形 DEF 的面积关于 x 的二次函数解析式，进而求出最大值。",
+              "actions": [
+                {
+                  "kind": "focus",
+                  "objectIds": [
+                    "tri_DEF"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "diagnostics": [],
+        "manimWebSource": "",
+        "geoGebra": {
+          "mode": "2D",
+          "commands": [
+            "SetCoordSystem[-1.5, 8, -1.5, 5]",
+            "t = Slider[0, 4, 0.01]",
+            "O = (0, 0)",
+            "A = (2, 2 * sqrt(3))",
+            "C = (4, 0)",
+            "B = (6, 2 * sqrt(3))",
+            "rhombus_OABC = Polygon[O, A, B, C]",
+            "SetFilling[rhombus_OABC, 0]",
+            "SetColor[rhombus_OABC, \"#000000\"]",
+            "seg_OB = Segment[O, B]",
+            "SetColor[seg_OB, \"#000000\"]",
+            "D = (t, 0)",
+            "E = (t / 2, sqrt(3) * t / 2)",
+            "F = ((12 - t) / 2, sqrt(3) * (4 - t) / 2)",
+            "seg_DE = Segment[D, E]",
+            "seg_DF = Segment[D, F]",
+            "seg_EF = Segment[E, F]",
+            "tri_DEF = Polygon[D, E, F]",
+            "SetFilling[tri_DEF, 0]",
+            "SetColor[tri_DEF, \"#000000\"]",
+            "H = (3 * t / 4, sqrt(3) * t / 4)",
+            "ang_right = Angle[O, H, D]",
+            "ShowLabel[O, true]",
+            "ShowLabel[A, true]",
+            "ShowLabel[B, true]",
+            "ShowLabel[C, true]",
+            "ShowLabel[D, true]",
+            "ShowLabel[E, true]",
+            "ShowLabel[F, true]",
+            "ShowLabel[H, false]",
+            "ShowLabel[ang_right, false]",
+            "ShowLabel[seg_OB, false]",
+            "ShowLabel[seg_DE, false]",
+            "ShowLabel[seg_DF, false]",
+            "ShowLabel[seg_EF, false]",
+            "ShowLabel[rhombus_OABC, false]",
+            "ShowLabel[tri_DEF, false]"
+          ]
+        },
+        "geoGebraSource": "MODE: 2D\nSetCoordSystem[-1.5, 8, -1.5, 5]\nt = Slider[0, 4, 0.01]\nO = (0, 0)\nA = (2, 2 * sqrt(3))\nC = (4, 0)\nB = (6, 2 * sqrt(3))\nrhombus_OABC = Polygon[O, A, B, C]\nSetFilling[rhombus_OABC, 0]\nSetColor[rhombus_OABC, \"#000000\"]\nseg_OB = Segment[O, B]\nSetColor[seg_OB, \"#000000\"]\nD = (t, 0)\nE = (t / 2, sqrt(3) * t / 2)\nF = ((12 - t) / 2, sqrt(3) * (4 - t) / 2)\nseg_DE = Segment[D, E]\nseg_DF = Segment[D, F]\nseg_EF = Segment[E, F]\ntri_DEF = Polygon[D, E, F]\nSetFilling[tri_DEF, 0]\nSetColor[tri_DEF, \"#000000\"]\nH = (3 * t / 4, sqrt(3) * t / 4)\nang_right = Angle[O, H, D]\nShowLabel[O, true]\nShowLabel[A, true]\nShowLabel[B, true]\nShowLabel[C, true]\nShowLabel[D, true]\nShowLabel[E, true]\nShowLabel[F, true]\nShowLabel[H, false]\nShowLabel[ang_right, false]\nShowLabel[seg_OB, false]\nShowLabel[seg_DE, false]\nShowLabel[seg_DF, false]\nShowLabel[seg_EF, false]\nShowLabel[rhombus_OABC, false]\nShowLabel[tri_DEF, false]"
+      }
+    },
+    {
+      "id": "evaluation-2",
+      "index": 1,
+      "text": "如图，$A$，$B$，$C$，$D$ 是 $\\odot O$ 上的点，$AB=AD$，$AC$ 与 $BD$ 交于点 $E$，$AE=3$，$EC=5$，$BD=4\\sqrt{5}$，$\\odot O$ 的半径为（）。",
+      "imageFile": "image-20260415145859913.png",
+      "status": "completed",
+      "stage1": {
+        "problem_type": "平面几何",
+        "task_goal": "求圆O的半径",
+        "objects": [
+          {
+            "id": "circle_O",
+            "type": "circle",
+            "description": "圆O",
+            "properties": {
+              "center": "point_O"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_O",
+            "type": "point",
+            "description": "圆心O",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_A",
+            "type": "point",
+            "description": "圆O上的点A",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_B",
+            "type": "point",
+            "description": "圆O上的点B",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_C",
+            "type": "point",
+            "description": "圆O上的点C",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_D",
+            "type": "point",
+            "description": "圆O上的点D",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_E",
+            "type": "point",
+            "description": "AC与BD的交点E",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_AB",
+            "type": "segment",
+            "description": "线段AB",
+            "properties": {
+              "endpoints": [
+                "point_A",
+                "point_B"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_AD",
+            "type": "segment",
+            "description": "线段AD",
+            "properties": {
+              "endpoints": [
+                "point_A",
+                "point_D"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_AC",
+            "type": "segment",
+            "description": "线段AC",
+            "properties": {
+              "endpoints": [
+                "point_A",
+                "point_C"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_BD",
+            "type": "segment",
+            "description": "线段BD",
+            "properties": {
+              "endpoints": [
+                "point_B",
+                "point_D"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_BC",
+            "type": "segment",
+            "description": "线段BC",
+            "properties": {
+              "endpoints": [
+                "point_B",
+                "point_C"
+              ]
+            },
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_AE",
+            "type": "segment",
+            "description": "线段AE",
+            "properties": {
+              "endpoints": [
+                "point_A",
+                "point_E"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_EC",
+            "type": "segment",
+            "description": "线段EC",
+            "properties": {
+              "endpoints": [
+                "point_E",
+                "point_C"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          }
+        ],
+        "relations": [
+          {
+            "type": "点在圆上",
+            "objects": [
+              "point_A",
+              "circle_O"
+            ],
+            "description": "点A在圆O上",
+            "source": "text"
+          },
+          {
+            "type": "点在圆上",
+            "objects": [
+              "point_B",
+              "circle_O"
+            ],
+            "description": "点B在圆O上",
+            "source": "text"
+          },
+          {
+            "type": "点在圆上",
+            "objects": [
+              "point_C",
+              "circle_O"
+            ],
+            "description": "点C在圆O上",
+            "source": "text"
+          },
+          {
+            "type": "点在圆上",
+            "objects": [
+              "point_D",
+              "circle_O"
+            ],
+            "description": "点D在圆O上",
+            "source": "text"
+          },
+          {
+            "type": "相交",
+            "objects": [
+              "segment_AC",
+              "segment_BD",
+              "point_E"
+            ],
+            "description": "线段AC与线段BD交于点E",
+            "source": "text"
+          },
+          {
+            "type": "点在直线上",
+            "objects": [
+              "point_E",
+              "segment_AC"
+            ],
+            "description": "点E在线段AC上",
+            "source": "text"
+          },
+          {
+            "type": "点在直线上",
+            "objects": [
+              "point_E",
+              "segment_BD"
+            ],
+            "description": "点E在线段BD上",
+            "source": "text"
+          }
+        ],
+        "constraints": [
+          {
+            "type": "长度",
+            "expression": "AB = AD",
+            "description": "线段AB的长度等于线段AD的长度",
+            "source": "text"
+          },
+          {
+            "type": "长度",
+            "expression": "AE = 3",
+            "description": "线段AE的长度为3",
+            "source": "text"
+          },
+          {
+            "type": "长度",
+            "expression": "EC = 5",
+            "description": "线段EC的长度为5",
+            "source": "text"
+          },
+          {
+            "type": "长度",
+            "expression": "BD = 4 * sqrt(5)",
+            "description": "线段BD的长度为4*sqrt(5)",
+            "source": "text"
+          }
+        ],
+        "dynamics": [],
+        "annotations": [
+          {
+            "type": "点标记",
+            "label": "A",
+            "target": "point_A",
+            "position": "top of circle",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "B",
+            "target": "point_B",
+            "position": "upper left of circle",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "C",
+            "target": "point_C",
+            "position": "middle right of circle",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "D",
+            "target": "point_D",
+            "position": "upper right of circle",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "E",
+            "target": "point_E",
+            "position": "intersection of AC and BD",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "O",
+            "target": "point_O",
+            "position": "center of circle",
+            "source": "figure"
+          }
+        ],
+        "ambiguities": [],
+        "notes": ""
+      },
+      "artifact": {
+        "problemFacts": {
+          "problem_type": "平面几何",
+          "task_goal": "求圆O的半径",
+          "objects": [
+            {
+              "id": "circle_O",
+              "type": "circle",
+              "description": "圆O",
+              "properties": {
+                "center": "point_O"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_O",
+              "type": "point",
+              "description": "圆心O",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_A",
+              "type": "point",
+              "description": "圆O上的点A",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_B",
+              "type": "point",
+              "description": "圆O上的点B",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_C",
+              "type": "point",
+              "description": "圆O上的点C",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_D",
+              "type": "point",
+              "description": "圆O上的点D",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_E",
+              "type": "point",
+              "description": "AC与BD的交点E",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_AB",
+              "type": "segment",
+              "description": "线段AB",
+              "properties": {
+                "endpoints": [
+                  "point_A",
+                  "point_B"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_AD",
+              "type": "segment",
+              "description": "线段AD",
+              "properties": {
+                "endpoints": [
+                  "point_A",
+                  "point_D"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_AC",
+              "type": "segment",
+              "description": "线段AC",
+              "properties": {
+                "endpoints": [
+                  "point_A",
+                  "point_C"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_BD",
+              "type": "segment",
+              "description": "线段BD",
+              "properties": {
+                "endpoints": [
+                  "point_B",
+                  "point_D"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_BC",
+              "type": "segment",
+              "description": "线段BC",
+              "properties": {
+                "endpoints": [
+                  "point_B",
+                  "point_C"
+                ]
+              },
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_AE",
+              "type": "segment",
+              "description": "线段AE",
+              "properties": {
+                "endpoints": [
+                  "point_A",
+                  "point_E"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_EC",
+              "type": "segment",
+              "description": "线段EC",
+              "properties": {
+                "endpoints": [
+                  "point_E",
+                  "point_C"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            }
+          ],
+          "relations": [
+            {
+              "type": "点在圆上",
+              "objects": [
+                "point_A",
+                "circle_O"
+              ],
+              "description": "点A在圆O上",
+              "source": "text"
+            },
+            {
+              "type": "点在圆上",
+              "objects": [
+                "point_B",
+                "circle_O"
+              ],
+              "description": "点B在圆O上",
+              "source": "text"
+            },
+            {
+              "type": "点在圆上",
+              "objects": [
+                "point_C",
+                "circle_O"
+              ],
+              "description": "点C在圆O上",
+              "source": "text"
+            },
+            {
+              "type": "点在圆上",
+              "objects": [
+                "point_D",
+                "circle_O"
+              ],
+              "description": "点D在圆O上",
+              "source": "text"
+            },
+            {
+              "type": "相交",
+              "objects": [
+                "segment_AC",
+                "segment_BD",
+                "point_E"
+              ],
+              "description": "线段AC与线段BD交于点E",
+              "source": "text"
+            },
+            {
+              "type": "点在直线上",
+              "objects": [
+                "point_E",
+                "segment_AC"
+              ],
+              "description": "点E在线段AC上",
+              "source": "text"
+            },
+            {
+              "type": "点在直线上",
+              "objects": [
+                "point_E",
+                "segment_BD"
+              ],
+              "description": "点E在线段BD上",
+              "source": "text"
+            }
+          ],
+          "constraints": [
+            {
+              "type": "长度",
+              "expression": "AB = AD",
+              "description": "线段AB的长度等于线段AD的长度",
+              "source": "text"
+            },
+            {
+              "type": "长度",
+              "expression": "AE = 3",
+              "description": "线段AE的长度为3",
+              "source": "text"
+            },
+            {
+              "type": "长度",
+              "expression": "EC = 5",
+              "description": "线段EC的长度为5",
+              "source": "text"
+            },
+            {
+              "type": "长度",
+              "expression": "BD = 4 * sqrt(5)",
+              "description": "线段BD的长度为4*sqrt(5)",
+              "source": "text"
+            }
+          ],
+          "dynamics": [],
+          "annotations": [
+            {
+              "type": "点标记",
+              "label": "A",
+              "target": "point_A",
+              "position": "top of circle",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "B",
+              "target": "point_B",
+              "position": "upper left of circle",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "C",
+              "target": "point_C",
+              "position": "middle right of circle",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "D",
+              "target": "point_D",
+              "position": "upper right of circle",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "E",
+              "target": "point_E",
+              "position": "intersection of AC and BD",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "O",
+              "target": "point_O",
+              "position": "center of circle",
+              "source": "figure"
+            }
+          ],
+          "ambiguities": [],
+          "notes": ""
+        },
+        "scene": {
+          "version": 1,
+          "objects": [],
+          "assertions": []
+        },
+        "lessonTimeline": {
+          "beats": [
+            {
+              "id": "beat_1",
+              "kind": "motivation",
+              "narration": "本题探讨圆内接四边形及相交弦构成的线段比例关系，目标是求圆O的半径。",
+              "actions": [
+                {
+                  "kind": "focus",
+                  "objectIds": [
+                    "point_O"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_2",
+              "kind": "construction",
+              "narration": "作圆O及其圆心O。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "point_O",
+                    "circle_O"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_3",
+              "kind": "construction",
+              "narration": "在圆上取点A、B、D，使得AB=AD，连接AB、AD、BD。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "point_A",
+                    "point_B",
+                    "point_D",
+                    "segment_AB",
+                    "segment_AD",
+                    "segment_BD"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_4",
+              "kind": "construction",
+              "narration": "连接AC交BD于点E，并在圆上确定点C，连接BC。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "point_C",
+                    "point_E",
+                    "segment_AC",
+                    "segment_BC"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_5",
+              "kind": "reasoning",
+              "narration": "利用相似三角形与几何性质可求得圆O的半径为6。",
+              "actions": [
+                {
+                  "kind": "focus",
+                  "objectIds": [
+                    "segment_AB",
+                    "segment_AC",
+                    "segment_AE",
+                    "circle_O"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "diagnostics": [],
+        "manimWebSource": "",
+        "geoGebra": {
+          "mode": "2D",
+          "commands": [
+            "ShowAxes(false)",
+            "ShowGrid(false)",
+            "point_O = (0, 0)",
+            "SetCaption[point_O, \"O\"]",
+            "ShowLabel[point_O, true]",
+            "circle_O = Circle[point_O, 6]",
+            "ShowLabel[circle_O, false]",
+            "point_A = (0, 6)",
+            "SetCaption[point_A, \"A\"]",
+            "ShowLabel[point_A, true]",
+            "point_B = (-2 * sqrt(5), 4)",
+            "SetCaption[point_B, \"B\"]",
+            "ShowLabel[point_B, true]",
+            "point_D = (2 * sqrt(5), 4)",
+            "SetCaption[point_D, \"D\"]",
+            "ShowLabel[point_D, true]",
+            "point_E = (sqrt(5), 4)",
+            "SetCaption[point_E, \"E\"]",
+            "ShowLabel[point_E, true]",
+            "point_C = (8 * sqrt(5) / 3, 2 / 3)",
+            "SetCaption[point_C, \"C\"]",
+            "ShowLabel[point_C, true]",
+            "segment_AB = Segment[point_A, point_B]",
+            "ShowLabel[segment_AB, false]",
+            "segment_AD = Segment[point_A, point_D]",
+            "ShowLabel[segment_AD, false]",
+            "segment_BD = Segment[point_B, point_D]",
+            "ShowLabel[segment_BD, false]",
+            "segment_AC = Segment[point_A, point_C]",
+            "ShowLabel[segment_AC, false]",
+            "segment_BC = Segment[point_B, point_C]",
+            "ShowLabel[segment_BC, false]",
+            "SetCoordSystem(-8, 8, -8, 8)"
+          ]
+        },
+        "geoGebraSource": "MODE: 2D\nShowAxes(false)\nShowGrid(false)\npoint_O = (0, 0)\nSetCaption[point_O, \"O\"]\nShowLabel[point_O, true]\ncircle_O = Circle[point_O, 6]\nShowLabel[circle_O, false]\npoint_A = (0, 6)\nSetCaption[point_A, \"A\"]\nShowLabel[point_A, true]\npoint_B = (-2 * sqrt(5), 4)\nSetCaption[point_B, \"B\"]\nShowLabel[point_B, true]\npoint_D = (2 * sqrt(5), 4)\nSetCaption[point_D, \"D\"]\nShowLabel[point_D, true]\npoint_E = (sqrt(5), 4)\nSetCaption[point_E, \"E\"]\nShowLabel[point_E, true]\npoint_C = (8 * sqrt(5) / 3, 2 / 3)\nSetCaption[point_C, \"C\"]\nShowLabel[point_C, true]\nsegment_AB = Segment[point_A, point_B]\nShowLabel[segment_AB, false]\nsegment_AD = Segment[point_A, point_D]\nShowLabel[segment_AD, false]\nsegment_BD = Segment[point_B, point_D]\nShowLabel[segment_BD, false]\nsegment_AC = Segment[point_A, point_C]\nShowLabel[segment_AC, false]\nsegment_BC = Segment[point_B, point_C]\nShowLabel[segment_BC, false]\nSetCoordSystem(-8, 8, -8, 8)"
+      }
+    },
+    {
+      "id": "evaluation-1",
+      "index": 0,
+      "text": "已知椭圆 $C: \\dfrac{x^2}{4} + y^2 = 1$ 经过点 $P\\left(-\\sqrt{3}, \\frac{1}{2} \\right)$，点 $M$ 是椭圆 $C$ 上位于第一象限内的动点，$A$、$B$ 分别为椭圆 $C$ 的左顶点和下顶点，直线 $MB$ 与 $x$ 轴交于点 $C$，直线 $M A$ 与 $y$ 轴交于点 $D$，$O$ 为椭圆的中心，求三角形 $OCD$ 的面积的取值范围。",
+      "imageFile": "image-20260415150233791.png",
+      "status": "completed",
+      "stage1": {
+        "problem_type": "解析几何",
+        "task_goal": "求三角形 OCD 的面积的取值范围",
+        "objects": [
+          {
+            "id": "ellipse_C",
+            "type": "ellipse",
+            "description": "椭圆 C",
+            "properties": {
+              "equation": "x^2 / 4 + y^2 = 1"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "O",
+            "type": "point",
+            "description": "椭圆中心及坐标原点 O",
+            "properties": {
+              "coords": [
+                0,
+                0
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "P",
+            "type": "point",
+            "description": "椭圆经过的已知点 P",
+            "properties": {
+              "coords": [
+                "-\\\\sqrt{3}",
+                0.5
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "A",
+            "type": "point",
+            "description": "椭圆左顶点 A",
+            "properties": {
+              "coords": [
+                -2,
+                0
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "B",
+            "type": "point",
+            "description": "椭圆下顶点 B",
+            "properties": {
+              "coords": [
+                0,
+                -1
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "M",
+            "type": "point",
+            "description": "第一象限内的动点 M",
+            "properties": {
+              "domain": "x > 0, y > 0"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "C",
+            "type": "point",
+            "description": "直线 MB 与 x 轴的交点 C",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "D",
+            "type": "point",
+            "description": "直线 MA 与 y 轴的交点 D",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "axis_x",
+            "type": "coordinate axis",
+            "description": "直角坐标系 x 轴",
+            "properties": {
+              "equation": "y = 0"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "axis_y",
+            "type": "coordinate axis",
+            "description": "直角坐标系 y 轴",
+            "properties": {
+              "equation": "x = 0"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "line_MB",
+            "type": "line",
+            "description": "直线 MB",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "line_MA",
+            "type": "line",
+            "description": "直线 MA",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_AB",
+            "type": "segment",
+            "description": "线段 AB",
+            "properties": {},
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "segment_CD",
+            "type": "segment",
+            "description": "线段 CD",
+            "properties": {},
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "triangle_OCD",
+            "type": "triangle",
+            "description": "三角形 OCD",
+            "properties": {
+              "vertices": [
+                "O",
+                "C",
+                "D"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          }
+        ],
+        "relations": [
+          {
+            "type": "点在曲线上",
+            "objects": [
+              "P",
+              "ellipse_C"
+            ],
+            "description": "点 P 在椭圆 ellipse_C 上",
+            "source": "text"
+          },
+          {
+            "type": "点在曲线上",
+            "objects": [
+              "M",
+              "ellipse_C"
+            ],
+            "description": "点 M 在椭圆 ellipse_C 上",
+            "source": "text"
+          },
+          {
+            "type": "点在曲线上",
+            "objects": [
+              "A",
+              "ellipse_C"
+            ],
+            "description": "点 A 在椭圆 ellipse_C 上",
+            "source": "text"
+          },
+          {
+            "type": "点在曲线上",
+            "objects": [
+              "B",
+              "ellipse_C"
+            ],
+            "description": "点 B 在椭圆 ellipse_C 上",
+            "source": "text"
+          },
+          {
+            "type": "直线经过点",
+            "objects": [
+              "line_MB",
+              "M",
+              "B"
+            ],
+            "description": "直线 line_MB 经过点 M 和点 B",
+            "source": "text"
+          },
+          {
+            "type": "直线经过点",
+            "objects": [
+              "line_MA",
+              "M",
+              "A"
+            ],
+            "description": "直线 line_MA 经过点 M 和点 A",
+            "source": "text"
+          },
+          {
+            "type": "相交",
+            "objects": [
+              "line_MB",
+              "axis_x",
+              "C"
+            ],
+            "description": "直线 line_MB 与 x 轴交于点 C",
+            "source": "text"
+          },
+          {
+            "type": "相交",
+            "objects": [
+              "line_MA",
+              "axis_y",
+              "D"
+            ],
+            "description": "直线 line_MA 与 y 轴交于点 D",
+            "source": "text"
+          }
+        ],
+        "constraints": [
+          {
+            "type": "方程",
+            "expression": "x^2 / 4 + y^2 = 1",
+            "description": "椭圆的标准方程",
+            "source": "text"
+          },
+          {
+            "type": "方程",
+            "expression": "(-\\\\sqrt{3})^2 / 4 + (1/2)^2 = 1",
+            "description": "点P在椭圆上",
+            "source": "text"
+          },
+          {
+            "type": "范围",
+            "expression": "x_M > 0 \\\\land y_M > 0",
+            "description": "点M在第一象限",
+            "source": "text"
+          },
+          {
+            "type": "参数",
+            "expression": "coords(A) = (-2, 0)",
+            "description": "点A为椭圆左顶点",
+            "source": "text"
+          },
+          {
+            "type": "参数",
+            "expression": "coords(B) = (0, -1)",
+            "description": "点B为椭圆下顶点",
+            "source": "text"
+          },
+          {
+            "type": "参数",
+            "expression": "coords(O) = (0, 0)",
+            "description": "点O为椭圆中心（坐标原点）",
+            "source": "text"
+          },
+          {
+            "type": "约束",
+            "expression": "y_C = 0",
+            "description": "点C在x轴上",
+            "source": "text"
+          },
+          {
+            "type": "约束",
+            "expression": "x_D = 0",
+            "description": "点D在y轴上",
+            "source": "text"
+          }
+        ],
+        "dynamics": [
+          {
+            "object_id": "M",
+            "type": "动点",
+            "constraint": "x^2 / 4 + y^2 = 1 且 x > 0, y > 0",
+            "param": "\\\\theta",
+            "param_range": "(0, \\\\pi / 2)",
+            "depends_on": [
+              "ellipse_C"
+            ]
+          },
+          {
+            "object_id": "C",
+            "type": "构造依赖",
+            "constraint": "直线 MB 与 x 轴的交点",
+            "param": "",
+            "param_range": "",
+            "depends_on": [
+              "M",
+              "B",
+              "axis_x"
+            ]
+          },
+          {
+            "object_id": "D",
+            "type": "构造依赖",
+            "constraint": "直线 MA 与 y 轴的交点",
+            "param": "",
+            "param_range": "",
+            "depends_on": [
+              "M",
+              "A",
+              "axis_y"
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "type": "刻度",
+            "label": "x",
+            "target": "axis_x",
+            "position": "x轴正半轴末端",
+            "source": "figure"
+          },
+          {
+            "type": "刻度",
+            "label": "y",
+            "target": "axis_y",
+            "position": "y轴正半轴末端",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "A",
+            "target": "A",
+            "position": "点A左下方",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "B",
+            "target": "B",
+            "position": "点B左下方",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "C",
+            "target": "C",
+            "position": "点C右下方",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "D",
+            "target": "D",
+            "position": "点D左上方",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "M",
+            "target": "M",
+            "position": "点M上方",
+            "source": "figure"
+          }
+        ],
+        "ambiguities": [
+          "字母 C 同时表示椭圆和直线 MB 与 x 轴的交点"
+        ],
+        "notes": "椭圆名称与点C重名，结构化中将椭圆标识为 ellipse_C，交点标识为 C。"
+      },
+      "artifact": {
+        "problemFacts": {
+          "problem_type": "解析几何",
+          "task_goal": "求三角形 OCD 的面积的取值范围",
+          "objects": [
+            {
+              "id": "ellipse_C",
+              "type": "ellipse",
+              "description": "椭圆 C",
+              "properties": {
+                "equation": "x^2 / 4 + y^2 = 1"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "O",
+              "type": "point",
+              "description": "椭圆中心及坐标原点 O",
+              "properties": {
+                "coords": [
+                  0,
+                  0
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "P",
+              "type": "point",
+              "description": "椭圆经过的已知点 P",
+              "properties": {
+                "coords": [
+                  "-\\\\sqrt{3}",
+                  0.5
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "A",
+              "type": "point",
+              "description": "椭圆左顶点 A",
+              "properties": {
+                "coords": [
+                  -2,
+                  0
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "B",
+              "type": "point",
+              "description": "椭圆下顶点 B",
+              "properties": {
+                "coords": [
+                  0,
+                  -1
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "M",
+              "type": "point",
+              "description": "第一象限内的动点 M",
+              "properties": {
+                "domain": "x > 0, y > 0"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "C",
+              "type": "point",
+              "description": "直线 MB 与 x 轴的交点 C",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "D",
+              "type": "point",
+              "description": "直线 MA 与 y 轴的交点 D",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "axis_x",
+              "type": "coordinate axis",
+              "description": "直角坐标系 x 轴",
+              "properties": {
+                "equation": "y = 0"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "axis_y",
+              "type": "coordinate axis",
+              "description": "直角坐标系 y 轴",
+              "properties": {
+                "equation": "x = 0"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "line_MB",
+              "type": "line",
+              "description": "直线 MB",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "line_MA",
+              "type": "line",
+              "description": "直线 MA",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_AB",
+              "type": "segment",
+              "description": "线段 AB",
+              "properties": {},
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "segment_CD",
+              "type": "segment",
+              "description": "线段 CD",
+              "properties": {},
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "triangle_OCD",
+              "type": "triangle",
+              "description": "三角形 OCD",
+              "properties": {
+                "vertices": [
+                  "O",
+                  "C",
+                  "D"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            }
+          ],
+          "relations": [
+            {
+              "type": "点在曲线上",
+              "objects": [
+                "P",
+                "ellipse_C"
+              ],
+              "description": "点 P 在椭圆 ellipse_C 上",
+              "source": "text"
+            },
+            {
+              "type": "点在曲线上",
+              "objects": [
+                "M",
+                "ellipse_C"
+              ],
+              "description": "点 M 在椭圆 ellipse_C 上",
+              "source": "text"
+            },
+            {
+              "type": "点在曲线上",
+              "objects": [
+                "A",
+                "ellipse_C"
+              ],
+              "description": "点 A 在椭圆 ellipse_C 上",
+              "source": "text"
+            },
+            {
+              "type": "点在曲线上",
+              "objects": [
+                "B",
+                "ellipse_C"
+              ],
+              "description": "点 B 在椭圆 ellipse_C 上",
+              "source": "text"
+            },
+            {
+              "type": "直线经过点",
+              "objects": [
+                "line_MB",
+                "M",
+                "B"
+              ],
+              "description": "直线 line_MB 经过点 M 和点 B",
+              "source": "text"
+            },
+            {
+              "type": "直线经过点",
+              "objects": [
+                "line_MA",
+                "M",
+                "A"
+              ],
+              "description": "直线 line_MA 经过点 M 和点 A",
+              "source": "text"
+            },
+            {
+              "type": "相交",
+              "objects": [
+                "line_MB",
+                "axis_x",
+                "C"
+              ],
+              "description": "直线 line_MB 与 x 轴交于点 C",
+              "source": "text"
+            },
+            {
+              "type": "相交",
+              "objects": [
+                "line_MA",
+                "axis_y",
+                "D"
+              ],
+              "description": "直线 line_MA 与 y 轴交于点 D",
+              "source": "text"
+            }
+          ],
+          "constraints": [
+            {
+              "type": "方程",
+              "expression": "x^2 / 4 + y^2 = 1",
+              "description": "椭圆的标准方程",
+              "source": "text"
+            },
+            {
+              "type": "方程",
+              "expression": "(-\\\\sqrt{3})^2 / 4 + (1/2)^2 = 1",
+              "description": "点P在椭圆上",
+              "source": "text"
+            },
+            {
+              "type": "范围",
+              "expression": "x_M > 0 \\\\land y_M > 0",
+              "description": "点M在第一象限",
+              "source": "text"
+            },
+            {
+              "type": "参数",
+              "expression": "coords(A) = (-2, 0)",
+              "description": "点A为椭圆左顶点",
+              "source": "text"
+            },
+            {
+              "type": "参数",
+              "expression": "coords(B) = (0, -1)",
+              "description": "点B为椭圆下顶点",
+              "source": "text"
+            },
+            {
+              "type": "参数",
+              "expression": "coords(O) = (0, 0)",
+              "description": "点O为椭圆中心（坐标原点）",
+              "source": "text"
+            },
+            {
+              "type": "约束",
+              "expression": "y_C = 0",
+              "description": "点C在x轴上",
+              "source": "text"
+            },
+            {
+              "type": "约束",
+              "expression": "x_D = 0",
+              "description": "点D在y轴上",
+              "source": "text"
+            }
+          ],
+          "dynamics": [
+            {
+              "object_id": "M",
+              "type": "动点",
+              "constraint": "x^2 / 4 + y^2 = 1 且 x > 0, y > 0",
+              "param": "\\\\theta",
+              "param_range": "(0, \\\\pi / 2)",
+              "depends_on": [
+                "ellipse_C"
+              ]
+            },
+            {
+              "object_id": "C",
+              "type": "构造依赖",
+              "constraint": "直线 MB 与 x 轴的交点",
+              "param": "",
+              "param_range": "",
+              "depends_on": [
+                "M",
+                "B",
+                "axis_x"
+              ]
+            },
+            {
+              "object_id": "D",
+              "type": "构造依赖",
+              "constraint": "直线 MA 与 y 轴的交点",
+              "param": "",
+              "param_range": "",
+              "depends_on": [
+                "M",
+                "A",
+                "axis_y"
+              ]
+            }
+          ],
+          "annotations": [
+            {
+              "type": "刻度",
+              "label": "x",
+              "target": "axis_x",
+              "position": "x轴正半轴末端",
+              "source": "figure"
+            },
+            {
+              "type": "刻度",
+              "label": "y",
+              "target": "axis_y",
+              "position": "y轴正半轴末端",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "A",
+              "target": "A",
+              "position": "点A左下方",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "B",
+              "target": "B",
+              "position": "点B左下方",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "C",
+              "target": "C",
+              "position": "点C右下方",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "D",
+              "target": "D",
+              "position": "点D左上方",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "M",
+              "target": "M",
+              "position": "点M上方",
+              "source": "figure"
+            }
+          ],
+          "ambiguities": [
+            "字母 C 同时表示椭圆和直线 MB 与 x 轴的交点"
+          ],
+          "notes": "椭圆名称与点C重名，结构化中将椭圆标识为 ellipse_C，交点标识为 C。"
+        },
+        "scene": {
+          "version": 1,
+          "objects": [],
+          "assertions": []
+        },
+        "lessonTimeline": {
+          "beats": [
+            {
+              "id": "beat1",
+              "kind": "motivation",
+              "narration": "建立平面直角坐标系，绘制椭圆 C: x^2/4 + y^2 = 1，并确定左顶点 A(-2, 0) 和下顶点 B(0, -1)。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "ellipse_C",
+                    "O",
+                    "A",
+                    "B",
+                    "segment_AB"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat2",
+              "kind": "construction",
+              "narration": "在椭圆第一象限内引入动点 M(2cosθ, sinθ)。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "theta",
+                    "M"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat3",
+              "kind": "construction",
+              "narration": "连接直线 MB 与 x 轴交于点 C，连接直线 MA 与 y 轴交于点 D，构造三角形 OCD。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "line_MB",
+                    "line_MA",
+                    "C",
+                    "D",
+                    "segment_CD",
+                    "triangle_OCD"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat4",
+              "kind": "reasoning",
+              "narration": "随着点 M 在第一象限内移动，求得点 C 与点 D 的坐标，进而分析三角形 OCD 的面积变化与取值范围。",
+              "actions": [
+                {
+                  "kind": "focus",
+                  "objectIds": [
+                    "triangle_OCD",
+                    "C",
+                    "D"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "diagnostics": [],
+        "manimWebSource": "",
+        "geoGebra": {
+          "mode": "2D",
+          "commands": [
+            "SetCoordSystem[-3, 3, -2, 2]",
+            "ellipse_C: x^2 / 4 + y^2 = 1",
+            "O = (0, 0)",
+            "P = (-sqrt(3), 0.5)",
+            "A = (-2, 0)",
+            "B = (0, -1)",
+            "theta = Slider[0.05, 1.52, 0.01]",
+            "M = (2 * cos(theta), sin(theta))",
+            "line_MB = Line[M, B]",
+            "line_MA = Line[M, A]",
+            "C = Intersect[line_MB, xAxis]",
+            "D = Intersect[line_MA, yAxis]",
+            "segment_AB = Segment[A, B]",
+            "segment_CD = Segment[C, D]",
+            "triangle_OCD = Polygon[O, C, D]",
+            "ShowLabel[P, false]",
+            "ShowLabel[O, false]",
+            "ShowLabel[A, true]",
+            "ShowLabel[B, true]",
+            "ShowLabel[C, true]",
+            "ShowLabel[D, true]",
+            "ShowLabel[M, true]",
+            "ShowLabel[line_MB, false]",
+            "ShowLabel[line_MA, false]",
+            "ShowLabel[segment_AB, false]",
+            "ShowLabel[segment_CD, false]",
+            "ShowLabel[triangle_OCD, false]"
+          ]
+        },
+        "geoGebraSource": "MODE: 2D\nSetCoordSystem[-3, 3, -2, 2]\nellipse_C: x^2 / 4 + y^2 = 1\nO = (0, 0)\nP = (-sqrt(3), 0.5)\nA = (-2, 0)\nB = (0, -1)\ntheta = Slider[0.05, 1.52, 0.01]\nM = (2 * cos(theta), sin(theta))\nline_MB = Line[M, B]\nline_MA = Line[M, A]\nC = Intersect[line_MB, xAxis]\nD = Intersect[line_MA, yAxis]\nsegment_AB = Segment[A, B]\nsegment_CD = Segment[C, D]\ntriangle_OCD = Polygon[O, C, D]\nShowLabel[P, false]\nShowLabel[O, false]\nShowLabel[A, true]\nShowLabel[B, true]\nShowLabel[C, true]\nShowLabel[D, true]\nShowLabel[M, true]\nShowLabel[line_MB, false]\nShowLabel[line_MA, false]\nShowLabel[segment_AB, false]\nShowLabel[segment_CD, false]\nShowLabel[triangle_OCD, false]"
+      }
+    },
+    {
+      "id": "evaluation-4",
+      "index": 3,
+      "text": "如图1，抛物线 $y = ax^2 + bx + c$ 经过平行四边形 $ABCD$ 的顶点 $A(0,3)$、$B(-1,0)$、$D(2,3)$，抛物线与 $x$ 轴的另一个交点为 $E$，经过点 $E$ 的直线 $l$ 将平行四边形 $ABCD$ 分别分割成面积相等的两部分，与抛物线交于另一点 $F$。设 $P$ 为直线 $l$ 上方抛物线上一动点，设点 $P$ 的横坐标为 $t$。\n\n（1）求抛物线的解析式；\n\n（2）当t何值时，$\\triangle PFE$ 的面积最大？并求最大值的立方根；\n\n（3）是否存在点 $P$ 使 $\\triangle PAE$ 为直角三角形？若存在，求出 $t$ 的值；若不存在，说明理由。",
+      "imageFile": "image-20260415150251382.png",
+      "status": "completed",
+      "stage1": {
+        "problem_type": "解析几何",
+        "task_goal": "求抛物线解析式，求△PFE面积最大时t的值及最大值的立方根，并探究是否存在点P使△PAE为直角三角形及相应的t值",
+        "objects": [
+          {
+            "id": "coord_sys",
+            "type": "coordinate_system",
+            "description": "平面直角坐标系",
+            "properties": {},
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "point_O",
+            "type": "point",
+            "description": "坐标原点",
+            "properties": {
+              "coords": [
+                0,
+                0
+              ]
+            },
+            "source": "figure",
+            "confidence": "high"
+          },
+          {
+            "id": "point_A",
+            "type": "point",
+            "description": "平行四边形顶点A",
+            "properties": {
+              "coords": [
+                0,
+                3
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_B",
+            "type": "point",
+            "description": "平行四边形顶点B",
+            "properties": {
+              "coords": [
+                -1,
+                0
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_C",
+            "type": "point",
+            "description": "平行四边形顶点C",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_D",
+            "type": "point",
+            "description": "平行四边形顶点D",
+            "properties": {
+              "coords": [
+                2,
+                3
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "quad_ABCD",
+            "type": "polygon",
+            "description": "平行四边形ABCD",
+            "properties": {
+              "vertices": [
+                "point_A",
+                "point_B",
+                "point_C",
+                "point_D"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "parabola_1",
+            "type": "parabola",
+            "description": "抛物线 y = ax^2 + bx + c",
+            "properties": {
+              "equation": "y = a*x^2 + b*x + c"
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_E",
+            "type": "point",
+            "description": "抛物线与x轴除点B外的另一个交点E",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "line_l",
+            "type": "line",
+            "description": "平分平行四边形ABCD面积且过点E的直线l",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_F",
+            "type": "point",
+            "description": "直线l与抛物线除点E外的交点F",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "point_P",
+            "type": "point",
+            "description": "直线l上方抛物线上的动点P",
+            "properties": {},
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "triangle_PFE",
+            "type": "triangle",
+            "description": "三角形PFE",
+            "properties": {
+              "vertices": [
+                "point_P",
+                "point_F",
+                "point_E"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          },
+          {
+            "id": "triangle_PAE",
+            "type": "triangle",
+            "description": "三角形PAE",
+            "properties": {
+              "vertices": [
+                "point_P",
+                "point_A",
+                "point_E"
+              ]
+            },
+            "source": "text",
+            "confidence": "high"
+          }
+        ],
+        "relations": [
+          {
+            "type": "包含",
+            "objects": [
+              "parabola_1",
+              "point_A",
+              "point_B",
+              "point_D"
+            ],
+            "description": "抛物线经过点A, B, D",
+            "source": "text"
+          },
+          {
+            "type": "相交",
+            "objects": [
+              "point_E",
+              "parabola_1"
+            ],
+            "description": "点E在抛物线上且在x轴上",
+            "source": "text"
+          },
+          {
+            "type": "包含",
+            "objects": [
+              "line_l",
+              "point_E"
+            ],
+            "description": "直线l经过点E",
+            "source": "text"
+          },
+          {
+            "type": "相交",
+            "objects": [
+              "point_F",
+              "line_l",
+              "parabola_1"
+            ],
+            "description": "点F为直线l与抛物线的交点",
+            "source": "text"
+          },
+          {
+            "type": "包含",
+            "objects": [
+              "point_P",
+              "parabola_1",
+              "line_l"
+            ],
+            "description": "点P在抛物线上且位于直线l上方",
+            "source": "text"
+          }
+        ],
+        "constraints": [
+          {
+            "type": "参数",
+            "expression": "A = (0, 3)",
+            "description": "点A坐标为(0,3)",
+            "source": "text"
+          },
+          {
+            "type": "参数",
+            "expression": "B = (-1, 0)",
+            "description": "点B坐标为(-1,0)",
+            "source": "text"
+          },
+          {
+            "type": "参数",
+            "expression": "D = (2, 3)",
+            "description": "点D坐标为(2,3)",
+            "source": "text"
+          },
+          {
+            "type": "方程",
+            "expression": "y = a*x^2 + b*x + c",
+            "description": "抛物线解析式",
+            "source": "text"
+          },
+          {
+            "type": "其他",
+            "expression": "ABCD \\\\text{ 是平行四边形}",
+            "description": "四边形ABCD为平行四边形",
+            "source": "text"
+          },
+          {
+            "type": "面积",
+            "expression": "S_{\\\\text{分割部分1}} = S_{\\\\text{分割部分2}}",
+            "description": "直线l平分平行四边形ABCD的面积",
+            "source": "text"
+          },
+          {
+            "type": "参数",
+            "expression": "x_P = t",
+            "description": "点P的横坐标为t",
+            "source": "text"
+          }
+        ],
+        "dynamics": [
+          {
+            "object_id": "point_P",
+            "type": "动点",
+            "constraint": "点P在直线l上方的抛物线上运动",
+            "param": "t",
+            "param_range": "x_F < t < x_E",
+            "depends_on": [
+              "parabola_1",
+              "line_l"
+            ]
+          }
+        ],
+        "annotations": [
+          {
+            "type": "点标记",
+            "label": "y",
+            "target": "coord_sys",
+            "position": "y轴正半轴上方",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "x",
+            "target": "coord_sys",
+            "position": "x轴正半轴右侧",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "O",
+            "target": "point_O",
+            "position": "原点附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "A",
+            "target": "point_A",
+            "position": "点A附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "B",
+            "target": "point_B",
+            "position": "点B附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "C",
+            "target": "point_C",
+            "position": "点C附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "D",
+            "target": "point_D",
+            "position": "点D附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "E",
+            "target": "point_E",
+            "position": "点E附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "F",
+            "target": "point_F",
+            "position": "点F附近",
+            "source": "figure"
+          },
+          {
+            "type": "点标记",
+            "label": "P",
+            "target": "point_P",
+            "position": "点P附近",
+            "source": "figure"
+          }
+        ],
+        "ambiguities": [],
+        "notes": "直线l经过平行四边形的对称中心（对角线交点），且经过点E。"
+      },
+      "artifact": {
+        "problemFacts": {
+          "problem_type": "解析几何",
+          "task_goal": "求抛物线解析式，求△PFE面积最大时t的值及最大值的立方根，并探究是否存在点P使△PAE为直角三角形及相应的t值",
+          "objects": [
+            {
+              "id": "coord_sys",
+              "type": "coordinate_system",
+              "description": "平面直角坐标系",
+              "properties": {},
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "point_O",
+              "type": "point",
+              "description": "坐标原点",
+              "properties": {
+                "coords": [
+                  0,
+                  0
+                ]
+              },
+              "source": "figure",
+              "confidence": "high"
+            },
+            {
+              "id": "point_A",
+              "type": "point",
+              "description": "平行四边形顶点A",
+              "properties": {
+                "coords": [
+                  0,
+                  3
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_B",
+              "type": "point",
+              "description": "平行四边形顶点B",
+              "properties": {
+                "coords": [
+                  -1,
+                  0
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_C",
+              "type": "point",
+              "description": "平行四边形顶点C",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_D",
+              "type": "point",
+              "description": "平行四边形顶点D",
+              "properties": {
+                "coords": [
+                  2,
+                  3
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "quad_ABCD",
+              "type": "polygon",
+              "description": "平行四边形ABCD",
+              "properties": {
+                "vertices": [
+                  "point_A",
+                  "point_B",
+                  "point_C",
+                  "point_D"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "parabola_1",
+              "type": "parabola",
+              "description": "抛物线 y = ax^2 + bx + c",
+              "properties": {
+                "equation": "y = a*x^2 + b*x + c"
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_E",
+              "type": "point",
+              "description": "抛物线与x轴除点B外的另一个交点E",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "line_l",
+              "type": "line",
+              "description": "平分平行四边形ABCD面积且过点E的直线l",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_F",
+              "type": "point",
+              "description": "直线l与抛物线除点E外的交点F",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "point_P",
+              "type": "point",
+              "description": "直线l上方抛物线上的动点P",
+              "properties": {},
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "triangle_PFE",
+              "type": "triangle",
+              "description": "三角形PFE",
+              "properties": {
+                "vertices": [
+                  "point_P",
+                  "point_F",
+                  "point_E"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            },
+            {
+              "id": "triangle_PAE",
+              "type": "triangle",
+              "description": "三角形PAE",
+              "properties": {
+                "vertices": [
+                  "point_P",
+                  "point_A",
+                  "point_E"
+                ]
+              },
+              "source": "text",
+              "confidence": "high"
+            }
+          ],
+          "relations": [
+            {
+              "type": "包含",
+              "objects": [
+                "parabola_1",
+                "point_A",
+                "point_B",
+                "point_D"
+              ],
+              "description": "抛物线经过点A, B, D",
+              "source": "text"
+            },
+            {
+              "type": "相交",
+              "objects": [
+                "point_E",
+                "parabola_1"
+              ],
+              "description": "点E在抛物线上且在x轴上",
+              "source": "text"
+            },
+            {
+              "type": "包含",
+              "objects": [
+                "line_l",
+                "point_E"
+              ],
+              "description": "直线l经过点E",
+              "source": "text"
+            },
+            {
+              "type": "相交",
+              "objects": [
+                "point_F",
+                "line_l",
+                "parabola_1"
+              ],
+              "description": "点F为直线l与抛物线的交点",
+              "source": "text"
+            },
+            {
+              "type": "包含",
+              "objects": [
+                "point_P",
+                "parabola_1",
+                "line_l"
+              ],
+              "description": "点P在抛物线上且位于直线l上方",
+              "source": "text"
+            }
+          ],
+          "constraints": [
+            {
+              "type": "参数",
+              "expression": "A = (0, 3)",
+              "description": "点A坐标为(0,3)",
+              "source": "text"
+            },
+            {
+              "type": "参数",
+              "expression": "B = (-1, 0)",
+              "description": "点B坐标为(-1,0)",
+              "source": "text"
+            },
+            {
+              "type": "参数",
+              "expression": "D = (2, 3)",
+              "description": "点D坐标为(2,3)",
+              "source": "text"
+            },
+            {
+              "type": "方程",
+              "expression": "y = a*x^2 + b*x + c",
+              "description": "抛物线解析式",
+              "source": "text"
+            },
+            {
+              "type": "其他",
+              "expression": "ABCD \\\\text{ 是平行四边形}",
+              "description": "四边形ABCD为平行四边形",
+              "source": "text"
+            },
+            {
+              "type": "面积",
+              "expression": "S_{\\\\text{分割部分1}} = S_{\\\\text{分割部分2}}",
+              "description": "直线l平分平行四边形ABCD的面积",
+              "source": "text"
+            },
+            {
+              "type": "参数",
+              "expression": "x_P = t",
+              "description": "点P的横坐标为t",
+              "source": "text"
+            }
+          ],
+          "dynamics": [
+            {
+              "object_id": "point_P",
+              "type": "动点",
+              "constraint": "点P在直线l上方的抛物线上运动",
+              "param": "t",
+              "param_range": "x_F < t < x_E",
+              "depends_on": [
+                "parabola_1",
+                "line_l"
+              ]
+            }
+          ],
+          "annotations": [
+            {
+              "type": "点标记",
+              "label": "y",
+              "target": "coord_sys",
+              "position": "y轴正半轴上方",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "x",
+              "target": "coord_sys",
+              "position": "x轴正半轴右侧",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "O",
+              "target": "point_O",
+              "position": "原点附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "A",
+              "target": "point_A",
+              "position": "点A附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "B",
+              "target": "point_B",
+              "position": "点B附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "C",
+              "target": "point_C",
+              "position": "点C附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "D",
+              "target": "point_D",
+              "position": "点D附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "E",
+              "target": "point_E",
+              "position": "点E附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "F",
+              "target": "point_F",
+              "position": "点F附近",
+              "source": "figure"
+            },
+            {
+              "type": "点标记",
+              "label": "P",
+              "target": "point_P",
+              "position": "点P附近",
+              "source": "figure"
+            }
+          ],
+          "ambiguities": [],
+          "notes": "直线l经过平行四边形的对称中心（对角线交点），且经过点E。"
+        },
+        "scene": {
+          "version": 1,
+          "objects": [],
+          "assertions": []
+        },
+        "lessonTimeline": {
+          "beats": [
+            {
+              "id": "beat_0",
+              "kind": "motivation",
+              "narration": "我们首先在平面直角坐标系中根据已知条件还原平行四边形和抛物线的几何位置。",
+              "actions": [
+                {
+                  "kind": "focus",
+                  "objectIds": [
+                    "point_O"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_1",
+              "kind": "construction",
+              "narration": "根据题意绘制平行四边形ABCD，顶点坐标分别为A(0,3)、B(-1,0)、C(1,0)、D(2,3)。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "point_O",
+                    "point_A",
+                    "point_B",
+                    "point_C",
+                    "point_D",
+                    "quad_ABCD"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_2",
+              "kind": "construction",
+              "narration": "由A(0,3)、B(-1,0)、D(2,3)求得抛物线解析式为 y = -x² + 2x + 3，抛物线与x轴的另一交点为E(3,0)。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "parabola_1",
+                    "point_E"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_3",
+              "kind": "construction",
+              "narration": "直线l平分平行四边形ABCD的面积，必过对称中心与点E(3,0)，求得其与抛物线的交点F(-2/5, 51/25)。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "line_l",
+                    "point_F"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "beat_4",
+              "kind": "construction",
+              "narration": "在直线l上方的抛物线上取动点P(t, -t² + 2t + 3)，连接点P、F、E构成△PFE。",
+              "actions": [
+                {
+                  "kind": "create",
+                  "objectIds": [
+                    "point_P",
+                    "triangle_PFE"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "diagnostics": [],
+        "manimWebSource": "",
+        "geoGebra": {
+          "mode": "2D",
+          "commands": [
+            "SetCoordSystem(-3, 5, -2, 6)",
+            "point_O = (0, 0)",
+            "SetCaption[point_O, \"O\"]",
+            "ShowLabel[point_O, true]",
+            "point_A = (0, 3)",
+            "SetCaption[point_A, \"A\"]",
+            "ShowLabel[point_A, true]",
+            "point_B = (-1, 0)",
+            "SetCaption[point_B, \"B\"]",
+            "ShowLabel[point_B, true]",
+            "point_C = (1, 0)",
+            "SetCaption[point_C, \"C\"]",
+            "ShowLabel[point_C, true]",
+            "point_D = (2, 3)",
+            "SetCaption[point_D, \"D\"]",
+            "ShowLabel[point_D, true]",
+            "quad_ABCD = Polygon[point_A, point_B, point_C, point_D]",
+            "ShowLabel[quad_ABCD, false]",
+            "SetFilling[quad_ABCD, 0.05]",
+            "parabola_1: y = -x^2 + 2*x + 3",
+            "point_E = (3, 0)",
+            "SetCaption[point_E, \"E\"]",
+            "ShowLabel[point_E, true]",
+            "center_M = Midpoint[point_A, point_C]",
+            "ShowLabel[center_M, false]",
+            "SetVisibleInView[center_M, 1, false]",
+            "line_l = Line[point_E, center_M]",
+            "SetCaption[line_l, \"l\"]",
+            "ShowLabel[line_l, false]",
+            "point_F = (-2/5, 51/25)",
+            "SetCaption[point_F, \"F\"]",
+            "ShowLabel[point_F, true]",
+            "t = Slider(-2/5, 3, 0.01)",
+            "SetValue(t, 1.5)",
+            "point_P = (t, -t^2 + 2*t + 3)",
+            "SetCaption[point_P, \"P\"]",
+            "ShowLabel[point_P, true]",
+            "triangle_PFE = Polygon[point_P, point_F, point_E]",
+            "ShowLabel[triangle_PFE, false]",
+            "SetFilling[triangle_PFE, 0.1]"
+          ]
+        },
+        "geoGebraSource": "MODE: 2D\nSetCoordSystem(-3, 5, -2, 6)\npoint_O = (0, 0)\nSetCaption[point_O, \"O\"]\nShowLabel[point_O, true]\npoint_A = (0, 3)\nSetCaption[point_A, \"A\"]\nShowLabel[point_A, true]\npoint_B = (-1, 0)\nSetCaption[point_B, \"B\"]\nShowLabel[point_B, true]\npoint_C = (1, 0)\nSetCaption[point_C, \"C\"]\nShowLabel[point_C, true]\npoint_D = (2, 3)\nSetCaption[point_D, \"D\"]\nShowLabel[point_D, true]\nquad_ABCD = Polygon[point_A, point_B, point_C, point_D]\nShowLabel[quad_ABCD, false]\nSetFilling[quad_ABCD, 0.05]\nparabola_1: y = -x^2 + 2*x + 3\npoint_E = (3, 0)\nSetCaption[point_E, \"E\"]\nShowLabel[point_E, true]\ncenter_M = Midpoint[point_A, point_C]\nShowLabel[center_M, false]\nSetVisibleInView[center_M, 1, false]\nline_l = Line[point_E, center_M]\nSetCaption[line_l, \"l\"]\nShowLabel[line_l, false]\npoint_F = (-2/5, 51/25)\nSetCaption[point_F, \"F\"]\nShowLabel[point_F, true]\nt = Slider(-2/5, 3, 0.01)\nSetValue(t, 1.5)\npoint_P = (t, -t^2 + 2*t + 3)\nSetCaption[point_P, \"P\"]\nShowLabel[point_P, true]\ntriangle_PFE = Polygon[point_P, point_F, point_E]\nShowLabel[triangle_PFE, false]\nSetFilling[triangle_PFE, 0.1]"
+      }
+    }
+  ]
+}

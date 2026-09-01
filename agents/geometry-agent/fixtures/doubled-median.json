@@ -19,5 +19,27 @@
       { "kind": "equal_length", "segments": ["AD", "DE"] },
       { "kind": "collinear", "points": ["A", "D", "E"] }
     ]
+  },
+  "lessonTimeline": {
+    "beats": [
+      {
+        "id": "motivation",
+        "kind": "motivation",
+        "narration": "D 是 BC 的中点，把 AD 延长一倍来观察对称关系。",
+        "actions": [{ "kind": "focus", "objectIds": ["AD"] }]
+      },
+      {
+        "id": "construct",
+        "kind": "construction",
+        "narration": "以 D 为中心作 A 的对称点 E。",
+        "actions": [{ "kind": "create", "objectIds": ["E", "DE"] }]
+      },
+      {
+        "id": "reason",
+        "kind": "reasoning",
+        "narration": "因为 D 是 AE 的中点，所以 AD 与 DE 等长。",
+        "actions": [{ "kind": "highlight", "objectIds": ["AD", "DE"] }]
+      }
+    ]
   }
 }

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Geometry Agent · GeoGebra inspector</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://www.geogebra.org/apps/deployggb.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="kicker">CHALK / GEOMETRY AGENT</p>
+          <h1>Scene inspector</h1>
+          <p class="lede">把题目事实转换为可编辑的 GeoGebra 构造，直接检查坐标、约束和动点依赖。</p>
+        </div>
+        <div class="version">Geometry Agent<br /><span>GeoGebra Classic</span></div>
+      </header>
+
+      <section class="workspace" aria-label="Geometry scene inspector">
+        <aside class="sidebar">
+          <section class="panel intro-panel">
+            <div class="status-row"><span class="status-dot" id="status-dot"></span><span id="status-text">场景已加载</span></div>
+            <label class="case-picker" for="case-select"><span>评测题目</span><select id="case-select" aria-label="选择评测题目"></select></label>
+            <p id="case-meta" class="case-meta"></p>
+            <p id="problem-text" class="problem"></p>
+            <p id="drag-help" class="drag-help" role="status"></p>
+            <div class="actions">
+              <button id="lesson-button" class="button">逐步讲解</button>
+              <button id="reset-button" class="button button-quiet">重置</button>
+            </div>
+            <p id="error-box" class="error-box" hidden></p>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><h2>约束检查</h2><button id="check-button" class="text-button">重新检查</button></div>
+            <div id="assertions" class="assertions"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading"><h2>Stage 1 提取</h2><span class="tag">read-only</span></div>
+            <pre id="facts" class="json-view"></pre>
+          </section>
+
+          <section class="panel source-panel">
+            <div class="panel-heading"><h2>GeoGebra 命令</h2><span class="tag">stage 2</span></div>
+            <pre id="geogebra-source" class="json-view command-view"></pre>
+          </section>
+
+          <section class="panel timeline-panel">
+            <div class="panel-heading"><h2>教学时间线</h2><span class="tag">fixture</span></div>
+            <div id="timeline" class="timeline"></div>
+          </section>
+        </aside>
+
+        <section class="stage-panel">
+          <div class="stage-toolbar"><span>GeoGebra scene</span><span id="beat-label">准备检查</span></div>
+          <div class="scene-wrap">
+            <div id="scene-container" class="scene-container" aria-label="Rendered geometry scene"></div>
+            <div id="geogebra-container" class="geogebra-container" aria-label="GeoGebra geometry scene" hidden></div>
+            <div id="motion-controls" class="motion-controls" hidden></div>
+            <button id="drag-button" class="drag-toggle" type="button" aria-label="拖动画布中的动点" title="按住图中的动点拖动">
+              <span class="drag-toggle-icon" aria-hidden="true">↔</span>
+              <span class="drag-toggle-label">拖动动点</span>
+            </button>
+          </div>
+          <div class="source-preview"><span>原图对照</span><div id="source-image" hidden></div></div>
+          <div class="legend"><span><i class="legend-point"></i>基础点</span><span><i class="legend-derived"></i>派生点</span><span><i class="legend-construction"></i>构造线</span></div>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

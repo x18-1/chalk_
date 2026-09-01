@@ -5,19 +5,22 @@ import {
   type Models,
 } from "@earendil-works/pi-ai";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 
 const DEFAULT_BASE_URL = "https://premium.hezubus.cc/v1";
 const DEFAULT_MODEL_ID = "gpt-5.6-sol";
+type GeometryApi = "openai-responses" | "openai-completions";
 
 export type GeometryModelConfig = {
   apiKey: string;
   baseUrl: string;
   modelId: string;
+  api?: GeometryApi;
 };
 
 export type GeometryModelClient = {
   models: Models;
-  model: Model<"openai-responses">;
+  model: Model<GeometryApi>;
 };
 
 export function resolveModelConfig(
@@ -30,6 +33,7 @@ export function resolveModelConfig(
     apiKey,
     baseUrl: (env.GEOMETRY_AGENT_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, ""),
     modelId: env.GEOMETRY_AGENT_MODEL?.trim() || DEFAULT_MODEL_ID,
+    api: env.GEOMETRY_AGENT_API?.trim() === "openai-completions" ? "openai-completions" : "openai-responses",
   };
 }
 
@@ -41,7 +45,7 @@ export function createGeometryModelClient(
     id: config.modelId,
     name: config.modelId,
     provider: "openai",
-    api: "openai-responses",
+    api: config.api ?? "openai-responses",
     baseUrl,
     reasoning: true,
     input: ["text", "image"],
@@ -53,11 +57,11 @@ export function createGeometryModelClient(
       supportsStrictMode: false,
       sessionAffinityFormat: "openai-nosession",
     },
-  } satisfies Model<"openai-responses">;
+  } as Model<GeometryApi>;
 
   const provider = createProvider({
     id: "openai",
-    name: "Geometry Agent Responses Gateway",
+    name: "Geometry Agent OpenAI-Compatible Gateway",
     baseUrl,
     auth: {
       apiKey: {
@@ -66,7 +70,10 @@ export function createGeometryModelClient(
       },
     },
     models: [model],
-    api: openAIResponsesApi(),
+    api: {
+      "openai-responses": openAIResponsesApi(),
+      "openai-completions": openAICompletionsApi(),
+    },
   });
   const models = createModels();
   models.setProvider(provider);

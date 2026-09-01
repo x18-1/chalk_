@@ -51,6 +51,13 @@ function evaluateAssertion(
       const [originId, secondId, ...rest] = assertion.points;
       const origin = result.points[originId!]!;
       const direction = subtract(result.points[secondId!]!, origin);
+      if (length(direction) <= EPSILON) {
+        return {
+          code: "DEGENERATE_CONSTRUCTION",
+          path,
+          message: "Collinearity requires at least two distinct reference points",
+        };
+      }
       passed = rest.every((id) => Math.abs(cross(direction, subtract(result.points[id]!, origin))) <= tolerance);
       break;
     }
@@ -91,6 +98,8 @@ export function evaluateGeometryScene(scene: GeometryScene): GeometryEvaluation 
     switch (object.kind) {
       case "point":
         result.points[object.id] = { x: object.x, y: object.y };
+        break;
+      case "axes":
         break;
       case "midpoint": {
         const [a, b] = object.points.map((id) => result.points[id]!);
@@ -185,6 +194,8 @@ export function evaluateGeometryScene(scene: GeometryScene): GeometryEvaluation 
         break;
       }
       case "circle":
+      case "ellipse":
+      case "parabola":
       case "polygon":
         break;
     }
@@ -208,6 +219,33 @@ export function evaluateGeometryScene(scene: GeometryScene): GeometryEvaluation 
     if (!progressed) break;
   }
 
+  if (result.diagnostics.length === 0) {
+    for (const object of scene.objects) {
+      if (object.kind !== "point" || !object.on) continue;
+      const locus = byId.get(object.on);
+      const value = result.points[object.id];
+      if (!locus || !value) continue;
+      let residual: number | undefined;
+      if (locus.kind === "circle" || locus.kind === "ellipse") {
+        const center = result.points[locus.center];
+        if (center) residual = Math.abs(((value.x - center.x) / (locus.kind === "ellipse" ? locus.radiusX : locus.radius)) ** 2 + ((value.y - center.y) / (locus.kind === "ellipse" ? locus.radiusY : locus.radius)) ** 2 - 1);
+      } else if (locus.kind === "parabola") {
+        residual = Math.abs(value.y - (locus.a * value.x * value.x + locus.b * value.x + locus.c));
+      } else if (["line", "parallel_line", "perpendicular_line"].includes(locus.kind)) {
+        const line = result.lines[locus.id];
+        if (line) residual = Math.abs(cross(line.direction, subtract(value, line.point)));
+      } else if (locus.kind === "segment") {
+        const [start, end] = locus.points.map((id) => result.points[id]!);
+        if (start && end) {
+          const direction = subtract(end, start);
+          const denominator = dot(direction, direction) || 1;
+          const parameter = dot(subtract(value, start), direction) / denominator;
+          residual = Math.max(Math.abs(cross(direction, subtract(value, start))), -parameter, parameter - 1);
+        }
+      }
+      if (residual !== undefined && residual > 1e-5) result.diagnostics.push({ code: "POSTCONDITION_FAILED", path: `objects.${object.id}.on`, message: `Point "${object.id}" is not on locus "${object.on}"` });
+    }
+  }
   if (result.diagnostics.length === 0) {
     scene.assertions.forEach((assertion, index) => {
       const diagnostic = evaluateAssertion(assertion, result, `assertions[${index}]`);
