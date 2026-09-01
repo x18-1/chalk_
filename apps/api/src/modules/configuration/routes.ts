@@ -7,6 +7,7 @@ import {
   customProviderUpdateSchema,
   capabilitySettingsSchema,
   modelSelectionSchema,
+  memorySettingsSchema,
   modelsQuerySchema,
   providerCredentialSchema,
   providerParamsSchema,
@@ -111,6 +112,12 @@ export function registerConfigurationRoutes(
       user.id,
       modelSelectionSchema.parse(request.body),
     );
+  });
+
+  app.put('/settings/memory', async (request) => {
+    const user = await auth.requireUser(request);
+    const { enabled } = memorySettingsSchema.parse(request.body);
+    return providers.setMemoryInjectionEnabled(user.id, enabled);
   });
 
   app.get('/settings/capabilities', async (request) => {

@@ -26,6 +26,7 @@ type StoredSettings = {
   defaultProviderId: string | null;
   defaultModelId: string | null;
   defaultThinkingLevel: string;
+  memoryInjectionEnabled: boolean;
 } | null;
 
 function defaultModel(settings: StoredSettings) {
@@ -226,7 +227,17 @@ export class ProviderConfigurationService {
   }
 
   async getSettings(userId: string) {
-    return { defaultModel: defaultModel(await this.settings.get(userId)) };
+    const settings = await this.settings.get(userId);
+    return {
+      defaultModel: defaultModel(settings),
+      memoryInjectionEnabled: settings?.memoryInjectionEnabled ?? true,
+    };
+  }
+
+  async setMemoryInjectionEnabled(userId: string, enabled: boolean) {
+    const settings = await this.settings.setMemoryInjectionEnabled(userId, enabled);
+    await closeUserRuntimes(userId);
+    return { memoryInjectionEnabled: settings.memoryInjectionEnabled };
   }
 
   async setDefaultModel(userId: string, model: ModelSelection) {

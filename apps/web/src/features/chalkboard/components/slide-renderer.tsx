@@ -408,6 +408,8 @@ export function SlideCanvas({ scene, highlightedElementId, laserElementId = null
             const radius = Math.min(typeof element.rx === "number" ? element.rx : 12, width / 2, height / 2);
             let fallbackPath = shapeName === "circle"
               ? `M ${width / 2} 0 A ${Math.min(width, height) / 2} ${Math.min(width, height) / 2} 0 1 1 ${width / 2 - 0.01} ${height} A ${Math.min(width, height) / 2} ${Math.min(width, height) / 2} 0 1 1 ${width / 2} 0 Z`
+              : shapeName === "ellipse" || shapeName === "oval"
+                ? `M ${width / 2} 0 A ${width / 2} ${height / 2} 0 1 1 ${width / 2} ${height} A ${width / 2} ${height / 2} 0 1 1 ${width / 2} 0 Z`
               : shapeName === "roundedRect" || shapeName === "rounded-rect"
                 ? `M ${radius} 0 H ${width - radius} Q ${width} 0 ${width} ${radius} V ${height - radius} Q ${width} ${height} ${width - radius} ${height} H ${radius} Q 0 ${height} 0 ${height - radius} V ${radius} Q 0 0 ${radius} 0 Z`
                 : shapeName === "rect" || shapeName === "rectangle"

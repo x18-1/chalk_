@@ -39,6 +39,7 @@ describe('render_chalkboard tool feature', () => {
           background: '#fff',
           elements: [
             { type: 'shape', shapeType: 'circle', x: 100, y: 160, width: 40, height: 40, fill: '#14532d' },
+            { type: 'shape', shape: 'ellipse', x: 150, y: 160, width: 80, height: 40, fill: 'none', stroke: '#14532d', strokeWidth: 3 },
             { type: 'shape', shape: 'rect', x: 200, y: 160, width: 30, height: 60, fill: '#3f7bd8' },
             { type: 'shape', shape: 'polygon', points: [[250, 160], [260, 170], [250, 180]], fill: '#4a5b75' },
             { type: 'text', x: 120, y: 262, text: '认识界面\n单元格与输入\n工作表管理', textAlign: 'center', fontSize: 13 },
@@ -49,15 +50,16 @@ describe('render_chalkboard tool feature', () => {
     }, {} as never);
     const elements = result.details.scene.content.canvas?.elements as Array<Record<string, unknown>>;
     expect(elements[0]).toMatchObject({ shape: 'circle', viewBox: [40, 40], left: 100, top: 160 });
-    expect(elements[1]).toMatchObject({ shape: 'rect', viewBox: [30, 60], path: 'M 0 0 H 30 V 60 H 0 Z' });
-    expect(elements[2]).toMatchObject({ shape: 'polygon', left: 250, top: 160, width: 10, height: 20, viewBox: [10, 20], path: 'M 0 0 L 10 10 L 0 20 Z' });
-    expect(elements[3]).toMatchObject({ align: 'center' });
-    expect(elements[3]!.width as number).toBeCloseTo(110.4);
-    expect(elements[3]!.height as number).toBeCloseTo(85.6);
-    expect(elements[3]!.left as number).toBeCloseTo(64.8);
+    expect(elements[1]).toMatchObject({ shape: 'ellipse', viewBox: [80, 40], left: 150, top: 160, outline: { color: '#14532d', width: 3 }, path: 'M 40 0 A 40 20 0 1 1 40 40 A 40 20 0 1 1 40 0 Z' });
+    expect(elements[2]).toMatchObject({ shape: 'rect', viewBox: [30, 60], path: 'M 0 0 H 30 V 60 H 0 Z' });
+    expect(elements[3]).toMatchObject({ shape: 'polygon', left: 250, top: 160, width: 10, height: 20, viewBox: [10, 20], path: 'M 0 0 L 10 10 L 0 20 Z' });
     expect(elements[4]).toMatchObject({ align: 'center' });
-    expect(elements[4]!.width as number).toBeCloseTo(42);
-    expect(elements[4]!.left as number).toBeCloseTo(194);
+    expect(elements[4]!.width as number).toBeCloseTo(110.4);
+    expect(elements[4]!.height as number).toBeCloseTo(85.6);
+    expect(elements[4]!.left as number).toBeCloseTo(64.8);
+    expect(elements[5]).toMatchObject({ align: 'center' });
+    expect(elements[5]!.width as number).toBeCloseTo(42);
+    expect(elements[5]!.left as number).toBeCloseTo(194);
   });
 
   it('returns only content accepted by the canonical Chalkboard Scene schema', async () => {

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "pnpm --filter @chalk/agent-runtime build && tsx watch src/server.ts",
     "build": "pnpm --filter @chalk/agent-runtime build && esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --alias:@chalk/chalkboard=../../packages/chalkboard/src/index.ts --outfile=dist/server.js && node scripts/copy-prompt-assets.mjs",
     "start": "node dist/server.js",
     "test": "pnpm test:unit && pnpm test:integration",

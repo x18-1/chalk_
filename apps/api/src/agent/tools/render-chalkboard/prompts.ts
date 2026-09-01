@@ -10,6 +10,7 @@ export const RENDER_CHALKBOARD_PROMPT =
   'one central diagram/formula/table, and short annotations; prefer shapes, lines, LaTeX, and spatial relationships over a stack of text rows. ' +
   'Keep 50px margins, align related elements, avoid overlaps, use at most 10 purposeful elements, and keep text concise enough to fit its box. ' +
   'For learning roadmaps or process maps, use 3–5 spacious nodes connected by line/arrow shapes; prefer a two-row or generous horizontal path over dense card grids. ' +
+  'For shape elements, use circle, ellipse (or oval), rect/rectangle, roundedRect, polygon, or arrow; always provide explicit x/y/width/height, and pair fill:none with a visible stroke or outline. ' +
   'Give every node and text block explicit x/y/width/height, keep node copy to three short lines, and never use a text glyph as an arrow. ' +
   'For text, use textAlign (or align) with x as the alignment anchor, preserve explicit width/height for dense labels, and use lineHeight as a 1–3 multiplier. ' +
   'Keep learner-facing text at 16px or larger (titles 28px or larger); use smaller text only for optional metadata. ' +

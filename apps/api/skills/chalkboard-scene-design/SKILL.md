@@ -53,6 +53,12 @@ regions and markers, `line` for relationships, `latex` for mathematics, and
 `table`/`chart` only when their structure carries meaning. Keep text to short
 phrases; never paste the whole assistant answer into the canvas.
 
+For `shape` elements, use one of the adapter's canonical names: `circle`,
+`ellipse` (or `oval`), `rect`/`rectangle`, `roundedRect`, `polygon`, or `arrow`.
+Always provide explicit `x`/`y` (or `left`/`top`) and positive `width`/`height`.
+Use `fill: "none"` only when a visible `stroke`/`outline` is also provided.
+For polygons, provide at least three finite `[x, y]` points.
+
 ### Roadmaps and process maps
 
 For a learning route, show progression as a path rather than five dense cards.

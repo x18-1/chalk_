@@ -27,6 +27,7 @@ export {
   type VideoCapabilitySelection,
 } from './settings';
 export { uploadsApi } from './uploads';
+export { memoryApi, type MemoryEntry, type MemoryConsolidationRun } from './memory';
 export { mediaApi, type MediaCapability, type MediaProvider, type MediaProviders } from './media';
 export {
   classroomErrorMessage,

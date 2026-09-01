@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { validateToolArguments } from '@earendil-works/pi-ai';
 
 import { createBuiltinToolRegistry } from '../../src/agent/builtin-tools';
+import type { MemoryService } from '../../src/modules/memory/services/memory.service';
 
 describe('Chalk built-in tools', () => {
   it('does not register a placeholder search tool without a provider', () => {
@@ -263,5 +264,42 @@ describe('Chalk built-in tools', () => {
     await expect(tool!.execute('rename-2', { title: '不应执行' }, undefined))
       .rejects.toThrow('requires approval');
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('reads curated memory through the owner-scoped memory module', async () => {
+    const read = vi.fn(async () => ({ text: '## preferences\n- Use Chinese', entries: [{ id: 'entry-1' }] }));
+    const memory = { read, writePreference: vi.fn() } as unknown as MemoryService;
+    const registry = createBuiltinToolRegistry({
+      conversationTitleUpdater: { update: vi.fn() },
+      memory,
+    });
+    const tool = registry.createAgentTools({
+      context: { ownerId: 'student-1', sessionId: 'session-1' },
+    }).find((candidate) => candidate.name === 'read_memory');
+
+    const result = await tool!.execute('read-memory-1', {}, undefined);
+
+    expect(read).toHaveBeenCalledWith('student-1');
+    expect(JSON.stringify(result)).toContain('Use Chinese');
+  });
+
+  it('persists an explicit memory without an approval round-trip', async () => {
+    const writePreference = vi.fn(async () => ({
+      entry: { id: 'entry-1' }, event: { id: 'event-1' }, deduplicated: false,
+    }));
+    const memory = { read: vi.fn(), writePreference } as unknown as MemoryService;
+    const registry = createBuiltinToolRegistry({
+      conversationTitleUpdater: { update: vi.fn() },
+      memory,
+    });
+    const tool = registry.createAgentTools({
+      context: { ownerId: 'student-1', sessionId: 'session-1' },
+    }).find((candidate) => candidate.name === 'write_memory');
+
+    await tool!.execute('write-memory-1', { text: 'Please explain step by step', slot: 'preferences' }, undefined);
+
+    expect(writePreference).toHaveBeenCalledWith('student-1', {
+      text: 'Please explain step by step', slot: 'preferences',
+    });
   });
 });

@@ -87,14 +87,26 @@ export const settingsApi = {
     return apiJson<{ providers: Provider[]; defaultModel: ModelSelection | null }>('/providers');
   },
 
+  memory() {
+    return apiJson<{ memoryInjectionEnabled: boolean }>('/settings');
+  },
+
+  setMemoryEnabled(enabled: boolean) {
+    return apiJson<{ memoryInjectionEnabled: boolean }>('/settings/memory', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    });
+  },
+
   async load() {
-    const [providers, skills, mcp, tools] = await Promise.all([
+    const [providers, settings, skills, mcp, tools] = await Promise.all([
       settingsApi.providers(),
+      settingsApi.memory(),
       apiJson<{ skills: Skill[]; diagnostics: Array<{ message: string; code: string }> }>('/skills'),
       apiJson<{ servers: McpServer[] }>('/mcp'),
       apiJson<{ tools: Tool[] }>('/tools'),
     ]);
-    return { ...providers, ...skills, ...mcp, ...tools };
+    return { ...providers, ...settings, ...skills, ...mcp, ...tools };
   },
 
   capabilities() {

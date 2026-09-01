@@ -195,6 +195,16 @@
 .saveButton:hover { background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }
 .saveButton:disabled, .secondaryButton:disabled, .iconActionButton:disabled, .rowStatusButton:disabled { opacity: 0.55; cursor: wait; }
 .settingsList { display: flex; flex-direction: column; border-top: 1px solid var(--chalk-border-light); }
+.memorySection { border-bottom: 1px solid var(--chalk-border-light); }
+.memorySectionHeader { display: flex; min-height: 38px; padding: 0 4px; align-items: center; justify-content: space-between; color: var(--chalk-ink-soft); font-size: 13px; }
+.memorySectionHeader span { color: var(--chalk-stone); font-size: 11px; }
+.memorySection .settingsRow { border-bottom: 0; }
+.memoryEditor { width: 100%; }
+.memoryEditor textarea { width: 100%; min-height: 76px; padding: 9px; color: var(--chalk-ink); font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; border: 1px solid var(--chalk-border); border-radius: 6px; background: var(--chalk-paper-soft); }
+.memoryEditor textarea:focus { border-color: var(--chalk-clay); outline: 0; box-shadow: 0 0 0 2px rgba(193, 95, 60, 0.12); }
+.memoryArchived { opacity: .68; }
+.memoryFootnote { display: flex; align-items: center; gap: 7px; padding-top: 20px; margin: 0; color: var(--chalk-stone); font-size: 12px; }
+.memoryHint { padding: 9px 0 14px; margin: 0; color: var(--chalk-stone); font-size: 12px; line-height: 1.55; }
 .settingsRow { display: grid; min-height: 64px; padding: 11px 0; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--chalk-border-light); }
 .settingsRowIcon { display: grid; width: 28px; height: 28px; color: var(--chalk-clay); place-items: center; background: #f7ede7; border-radius: 6px; }
 .settingsRowCopy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }

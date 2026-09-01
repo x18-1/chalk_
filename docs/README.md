@@ -41,6 +41,7 @@
 | Chalkboard V3 课堂讨论 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Accepted；V3 第二个纵向切片 |
 | 课堂讨论 LangGraph 决策 | [adr/0001-langgraph-for-classroom-discussion.md](adr/0001-langgraph-for-classroom-discussion.md) | Accepted |
 | Chalkboard 教学内核与领域插件边界 | [adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md](adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md) | Accepted；保持 `Scene -> Action`，Beat/Checkpoint 暂不引入 |
+| DeepTutor 风格学习记忆 | [adr/0003-deeptutor-style-memory.md](adr/0003-deeptutor-style-memory.md) | Accepted + Partial；L1/L2/L3、owner DAL、读写工具、受限 consolidation、后台 worker 和 memory 集成测试已实现；完整对象存储集成与运行审计仍有缺口 |
 | Python LightRAG 在线检索 sidecar | [adr/0003-python-lightrag-retrieval-sidecar.md](adr/0003-python-lightrag-retrieval-sidecar.md) | Accepted；LightRAG-only，Python 仅负责受控内部索引/查询，TS 负责业务与授权 |
 | Chalkboard V3–V6 路线 | [plan/chalkboard-roadmap.md](plan/chalkboard-roadmap.md) | Accepted；V4 可观测性/安全，V5 数学插件，V6 单课学习闭环；均等待主分支 Memory/Tools/Chat 生成 Scene 合并 |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
@@ -59,6 +60,7 @@
 | Agent 平台首批集成计划 | [plan/plan-agent-platform-integration.md](plan/plan-agent-platform-integration.md) | Historical；Context7、Skills 和 Subagent 首批接线已完成，最终边界见各 Accepted Spec |
 | Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
 | Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
+| Memory 系统分支现场 | [handoff/memory-system.md](handoff/memory-system.md) | Ready for review / merge；DeepTutor 风格三层记忆、后台 consolidation worker、工具和 Workbench 已实现 |
 | 主分支最新交接 | [handoff/handoff_8-28.md](handoff/handoff_8-28.md) | Accepted；V3 合并后的 `main` 基线、平台先决工作与接手入口 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
 | Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Historical；V3 课堂运行时、渐进式生成、多 Agent 讨论、AI Live Chalkboard 与 Chromium 门禁已完成 |
