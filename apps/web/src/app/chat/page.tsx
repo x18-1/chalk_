@@ -41,6 +41,7 @@ import { ApiRequestError, chatApi, knowledgeBasesApi, mediaApi, settingsApi, upl
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import type { SceneView } from "@chalk/chalkboard";
 import { InlineChalkboard } from "../../features/chat/components/inline-chalkboard";
+import { extractRagReferences, mergeRagReferences } from "./rag-references";
 import styles from "./chat.module.css";
 
 type Role = "student" | "tutor";
@@ -596,6 +597,8 @@ export default function ChatPage() {
       ...current,
       [id]: historyMessages(id, data.messages),
     }));
+    const historyReferences = data.messages.flatMap((message) => message.role === "toolResult" ? extractRagReferences(message.details) : []);
+    setReferences(historyReferences);
   }
 
   async function selectConversation(id: string) {
@@ -686,6 +689,7 @@ export default function ChatPage() {
       : conversation));
     setNotice(null);
     setFailure(null);
+    setReferences([]);
     setConversationFailure(conversationId, undefined);
     const now = new Date();
     const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
@@ -749,6 +753,8 @@ export default function ChatPage() {
           const toolCallId = String(data.toolCallId ?? "");
           const toolName = String(data.toolName ?? "tool");
           const result = objectValue(data.result);
+          const ragReferences = extractRagReferences(result?.details);
+          if (ragReferences.length) setReferences((current) => mergeRagReferences(current, ragReferences));
           const resultText = toolResultText(result?.content);
           const rejected = rejectedToolCallsRef.current.get(conversationId)?.has(toolCallId) === true
             || isStudentRejectedTool(result?.content);
@@ -1102,7 +1108,7 @@ export default function ChatPage() {
       <aside className={styles.contextRail} aria-label="学习上下文">
         <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>参考资料</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
         {selectedKnowledgeBaseId && <section className={styles.knowledgeBaseContext}><span>当前知识库</span><strong>{knowledgeBases.find((knowledgeBase) => knowledgeBase.id === selectedKnowledgeBaseId)?.name ?? "已选择知识库"}</strong><small>Chalk 会在需要时让 Agent 查阅这里的资料。</small></section>}
-        {references.length ? <section className={styles.referenceList} aria-live="polite"><div className={styles.referenceListHeader}><BookOpen size={16} /><strong>答案来自这些资料</strong><span>{references.length}</span></div>{references.map((reference) => <article key={reference.citationId} className={styles.referenceItem}><strong>{reference.documentName}</strong><small>{[reference.page ? `第 ${reference.page} 页` : "", reference.paragraph ? `第 ${reference.paragraph} 段` : ""].filter(Boolean).join(" · ") || reference.chunkId}</small><p>{reference.snippet}</p></article>)}</section> : <section className={styles.contextEmpty} aria-live="polite"><BookOpen size={18} /><p>{selectedKnowledgeBaseId ? "Agent 还没有引用资料。你可以直接提问，或说明希望从知识库中查找什么。" : "选择一个知识库后，Agent 会在需要时检索并显示引用。"}</p></section>}
+        {references.length ? <section className={styles.referenceList} aria-live="polite"><div className={styles.referenceListHeader}><BookOpen size={16} /><strong>答案来自这些资料</strong><span>{references.length}</span></div>{references.map((reference) => <article key={`${reference.documentId}:${reference.chunkId}`} className={styles.referenceItem}><strong>{reference.documentName}</strong><small>{[reference.page ? `第 ${reference.page} 页` : "", reference.paragraph ? `第 ${reference.paragraph} 段` : ""].filter(Boolean).join(" · ") || reference.chunkId}</small><p>{reference.snippet}</p></article>)}</section> : <section className={styles.contextEmpty} aria-live="polite"><BookOpen size={18} /><p>{selectedKnowledgeBaseId ? "Agent 还没有引用资料。你可以直接提问，或说明希望从知识库中查找什么。" : "选择一个知识库后，Agent 会在需要时检索并显示引用。"}</p></section>}
       </aside>
       {settingsOpen && <SettingsDialog onClose={() => { void reloadModelCatalog(); }} />}
     </main>
