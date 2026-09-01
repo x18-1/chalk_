@@ -17,11 +17,24 @@ function ReadonlyQuiz({ scene }: { scene: SceneView }) {
       {questions.map((rawQuestion, index) => {
         const question = asRecord(rawQuestion);
         const options = Array.isArray(question.options) ? question.options : [];
+        const prompt = typeof question.question === "string"
+          ? question.question
+          : typeof question.prompt === "string"
+            ? question.prompt
+            : "未提供题干";
         return (
           <section className={styles.inlineQuestion} key={typeof question.id === "string" ? question.id : index}>
             <div className={styles.inlineQuestionNumber}>QUESTION {String(index + 1).padStart(2, "0")}</div>
-            <p>{typeof question.question === "string" ? question.question : "未提供题干"}</p>
-            {options.length ? <ul>{options.map((rawOption, optionIndex) => { const option = asRecord(rawOption); return <li key={optionIndex}><span>{String.fromCharCode(65 + optionIndex)}</span>{typeof option.label === "string" ? option.label : String(option.value ?? "")}</li>; })}</ul> : null}
+            <p>{prompt}</p>
+            {options.length ? <ul>{options.map((rawOption, optionIndex) => {
+              const option = asRecord(rawOption);
+              const label = typeof rawOption === "string"
+                ? rawOption
+                : typeof option.label === "string"
+                  ? option.label
+                  : String(option.value ?? "");
+              return <li key={optionIndex}><span>{String.fromCharCode(65 + optionIndex)}</span>{label}</li>;
+            })}</ul> : null}
           </section>
         );
       })}

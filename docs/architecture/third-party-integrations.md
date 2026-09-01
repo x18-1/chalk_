@@ -100,6 +100,8 @@ LightRAG 调用例外：API 在完成用户认证、owner 校验、配额和审�
 
 Provider 的接口应表达 Chalk 实际需要的能力，而不是完整复制供应商 SDK。不同 Provider 能力不共用一个 `generate` 接口：Pi LLM 的单次或流式调用、视频的异步任务、TTS 的音频结果和 PDF 的解析结果分别定义自己的输入输出。
 
+LightRAG sidecar 不是 Chalk 业务 Provider，而是独立 Python 运行时 adapter。它只通过版本化内部 HTTP/JSON 提供索引和查询能力，不读取 Chalk 数据库、凭据表或认证上下文；浏览器不得直接访问 sidecar。
+
 Service 通过明确的依赖调用 Provider。供应商 Provider 不创建全局数据库客户端、不读取 Fastify request、不查询用户数据，也不保存 API key。LLM 目录中的 `DrizzleCredentialStore` 是 Pi `CredentialStore` 与 Chalk 数据库之间的内部 adapter，并不负责第三方请求。需要测试时，Service 可以注入受控的 fake Provider，Provider 自身通过 HTTP mock 或协议 fixture 验证供应商请求。
 
 S3/MinIO、JSONL session repository、MCP client 等不是 Provider。它们仍按自己的职责放在 `apps/api/src/storage`、`packages/agent-runtime` 或对应模块中，不能因为都调用了第三方 SDK 就合并到 `providers/`。

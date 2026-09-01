@@ -17,6 +17,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
+    "rag:protocol:generate": "tsx scripts/generate-rag-protocol.ts",
     "chalkboard:seed": "tsx scripts/seed-chalkboard-classrooms.ts"
   },
   "dependencies": {

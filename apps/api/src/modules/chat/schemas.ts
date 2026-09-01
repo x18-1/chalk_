@@ -27,6 +27,7 @@ export const chatStreamSchema = z.object({
   message: z.string().trim().min(1).max(20_000),
   model: modelSelectionSchema.optional(),
   attachmentIds: z.array(z.string().uuid()).max(4).default([]),
+  knowledgeBaseId: z.string().uuid().optional(),
 });
 
 export const steerRunSchema = z.object({

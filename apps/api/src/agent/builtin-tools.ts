@@ -9,10 +9,13 @@ import {
   type SearchProvider,
 } from './tools/search';
 import { createReadResourceTool, type ResourceReader } from './tools/read/read-resource';
+import { createKnowledgeBaseSearchTool, type KnowledgeBaseQueryer } from './tools/knowledge-base-search';
 import { createReadMemoryTool } from './tools/read-memory';
 import { createWriteMemoryTool } from './tools/write-memory';
 import type { MemoryService } from '../modules/memory/services/memory.service';
 import { createRenderChalkboardTool } from './tools/render-chalkboard/tool';
+
+export type { KnowledgeBaseQueryer } from './tools/knowledge-base-search';
 
 export type BuiltinToolDependencies = {
   conversationTitleUpdater: ConversationTitleUpdater;
@@ -20,6 +23,9 @@ export type BuiltinToolDependencies = {
   readResourceReader?: ResourceReader;
   readCursorSecret?: string;
   readSkillTool?: RuntimeTool;
+  knowledgeBaseQueryer?: KnowledgeBaseQueryer;
+  knowledgeBaseId?: string;
+  ownerId?: string;
   memory?: MemoryService;
 };
 
@@ -33,6 +39,9 @@ export function createBuiltinToolRegistry(dependencies: BuiltinToolDependencies)
     tools.unshift(createReadResourceTool(dependencies.readResourceReader, dependencies.readCursorSecret));
   }
   if (dependencies.readSkillTool) tools.unshift(dependencies.readSkillTool);
+  if (dependencies.knowledgeBaseQueryer && dependencies.knowledgeBaseId && dependencies.ownerId) {
+    tools.unshift(createKnowledgeBaseSearchTool(dependencies.knowledgeBaseQueryer, dependencies.ownerId, dependencies.knowledgeBaseId));
+  }
   if (dependencies.memory) {
     tools.unshift(createWriteMemoryTool(dependencies.memory));
     tools.unshift(createReadMemoryTool(dependencies.memory));

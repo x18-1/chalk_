@@ -139,6 +139,29 @@ export const toolSettingSchema = z.object({
   approval: z.enum(['default', 'always', 'never']).default('default'),
 });
 
+export const ragSettingsSchema = z.object({
+  embedding: z.object({
+    model: z.string().trim().min(1).max(200),
+    baseUrl: httpUrlSchema.optional().or(z.literal('')),
+    apiKey: z.string().trim().max(10_000).optional(),
+  }).strict().optional(),
+  rerank: z.object({
+    model: z.string().trim().min(1).max(200),
+    url: httpUrlSchema.optional().or(z.literal('')),
+    apiKey: z.string().trim().max(10_000).optional(),
+  }).strict().optional(),
+  pdf: z.object({
+    engine: z.enum(['text_only', 'markitdown', 'mineru']),
+    mode: z.enum(['local', 'cloud']),
+    modelVersion: z.string().trim().min(1).max(100),
+    ocr: z.boolean(),
+    formula: z.boolean(),
+    table: z.boolean(),
+    language: z.string().trim().max(20),
+    apiToken: z.string().trim().max(10_000).optional(),
+  }).strict().optional(),
+}).strict().refine((value) => Object.keys(value).length > 0, 'At least one RAG setting is required');
+
 export type CustomProviderInput = z.infer<typeof customProviderSchema>;
 export type CustomProviderUpdateInput = z.infer<typeof customProviderUpdateSchema>;
 export type CapabilitySettingsInput = z.infer<typeof capabilitySettingsSchema>;
@@ -146,3 +169,4 @@ export type SkillSettingInput = z.infer<typeof skillSettingSchema>;
 export type UserSkillCreateInput = z.infer<typeof userSkillCreateSchema>;
 export type UserSkillUpdateInput = z.infer<typeof userSkillUpdateSchema>;
 export type ToolSettingInput = z.infer<typeof toolSettingSchema>;
+export type RagSettingsInput = z.infer<typeof ragSettingsSchema>;

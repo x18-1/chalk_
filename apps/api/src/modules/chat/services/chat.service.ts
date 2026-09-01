@@ -23,11 +23,13 @@ import {
 import { readUploadedObject } from '../../../storage/s3';
 import { PROMPT_IDS, buildPrompt } from '../../../prompts';
 import type { MemoryService } from '../../memory/services/memory.service';
+import type { KnowledgeBaseQueryer } from '../../../agent/tools/knowledge-base-search';
 
 export type ChatStreamInput = {
   message: string;
   model?: ModelSelection;
   attachmentIds: string[];
+  knowledgeBaseId?: string;
 };
 
 export type ChatMessageRun = {
@@ -70,6 +72,7 @@ function boundedMessagePayload(message: unknown) {
 type ChatServiceOptions = {
   onSessionCleanupError?: (error: unknown, sessionId: string) => void;
   memory?: MemoryService;
+  knowledgeBaseQueryer?: KnowledgeBaseQueryer;
 };
 
 export class ChatService {
@@ -213,6 +216,9 @@ export class ChatService {
         'ATTACHMENT_NOT_READY',
       );
     }
+    if (input.knowledgeBaseId && !this.options.knowledgeBaseQueryer) {
+      throw new ApiError(503, 'Knowledge base search is temporarily unavailable', 'RAG_SIDECAR_UNAVAILABLE');
+    }
 
     const images: ImageContent[] = [];
     for (const attachment of attachments) {
@@ -233,7 +239,10 @@ export class ChatService {
       : input.message;
     let entry;
     try {
-      entry = await getOrCreateRuntime(userId, conversation, input.model);
+      entry = await getOrCreateRuntime(userId, conversation, input.model, {
+        ...(input.knowledgeBaseId ? { knowledgeBaseId: input.knowledgeBaseId } : {}),
+        ...(this.options.knowledgeBaseQueryer ? { knowledgeBaseQueryer: this.options.knowledgeBaseQueryer } : {}),
+      });
     } catch (error) {
       if (error instanceof UnsupportedThinkingLevelError) {
         throw new ApiError(400, error.message, 'UNSUPPORTED_THINKING_LEVEL');

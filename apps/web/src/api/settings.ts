@@ -82,6 +82,12 @@ export type CapabilitySettingsInput = Partial<{
   speech: BrowserSpeechSettings;
 }>;
 
+export type RagSettings = {
+  embedding: { model: string; baseUrl: string; configured: boolean };
+  rerank: { model: string; url: string; configured: boolean };
+  pdf: { engine: string; mode: string; modelVersion: string; ocr: boolean; formula: boolean; table: boolean; language: string };
+};
+
 export const settingsApi = {
   providers() {
     return apiJson<{ providers: Provider[]; defaultModel: ModelSelection | null }>('/providers');
@@ -111,6 +117,14 @@ export const settingsApi = {
 
   capabilities() {
     return apiJson<CapabilitySettings>('/settings/capabilities');
+  },
+
+  rag() {
+    return apiJson<RagSettings>('/settings/rag');
+  },
+
+  saveRag(input: Record<string, unknown>) {
+    return apiJson<RagSettings>('/settings/rag', { method: 'PUT', body: JSON.stringify(input) });
   },
 
   saveCapabilities(input: CapabilitySettingsInput) {

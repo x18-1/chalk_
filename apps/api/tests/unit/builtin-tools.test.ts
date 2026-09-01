@@ -11,6 +11,7 @@ describe('Chalk built-in tools', () => {
     });
 
     expect(registry.list().map((tool) => tool.name)).not.toContain('search_learning_resources');
+    expect(registry.list().map((tool) => tool.name)).not.toContain('search_knowledge_base');
     expect(registry.list().map((tool) => tool.name)).not.toContain('read_resource');
   });
 

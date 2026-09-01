@@ -5,6 +5,7 @@ import {
   AudioLines,
   Archive,
   BrainCircuit,
+  Database,
   Check,
   Eye,
   Globe2,
@@ -29,6 +30,7 @@ import {
   type McpServer,
   type Model,
   type Provider,
+  type RagSettings as RagSettingsData,
   type Skill,
   type SkillDetails,
   type Tool,
@@ -39,7 +41,7 @@ import { MediaProviderSettings } from "./media-provider-settings";
 import { SecretInput } from "./secret-input";
 
 type SettingsTab = "api" | "skills" | "mcp" | "tools" | "memory";
-type ApiSubtab = "models" | "voice" | "image" | "video" | "search";
+type ApiSubtab = "models" | "rag" | "voice" | "image" | "video" | "search";
 
 type McpDraft = {
   id?: string;
@@ -101,6 +103,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [diagnostics, setDiagnostics] = useState<Array<{ message: string; code: string }>>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [ragSettings, setRagSettings] = useState<RagSettingsData | null>(null);
   const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
   const [memoryInjectionEnabled, setMemoryInjectionEnabled] = useState(true);
   const [showArchivedMemory, setShowArchivedMemory] = useState(false);
@@ -148,6 +151,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       setDiagnostics(data.diagnostics ?? []);
       setMcpServers(data.servers);
       setTools(data.tools);
+      setRagSettings(await settingsApi.rag());
       setMemoryInjectionEnabled(data.memoryInjectionEnabled);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载工作区配置失败");
@@ -527,7 +531,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             {loading && <p>正在加载工作区配置…</p>}
             {error && <div className={styles.settingsAlert} role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="关闭错误"><X size={14} /></button></div>}
             {notice && <div className={styles.settingsNotice} role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭提示"><X size={14} /></button></div>}
-            {!loading && tab === "api" && <ApiSettings providers={providers} models={models} modelsLoading={modelsLoading} modelsError={modelsError} providerId={providerId} apiKey={apiKey} customDraft={customDraft} busy={busy} setProviderId={(value) => { setProviderId(value); setApiKey(""); setCustomDraft(null); }} setApiKey={setApiKey} setCustomDraft={setCustomDraft} onSave={saveApiSettings} onRemoveCredential={removeCredential} onTestConnection={testProviderConnection} onSaveCustom={saveCustomProvider} onDeleteCustom={deleteCustomProvider} />}
+            {!loading && tab === "api" && <ApiSettings providers={providers} models={models} modelsLoading={modelsLoading} modelsError={modelsError} ragSettings={ragSettings} providerId={providerId} apiKey={apiKey} customDraft={customDraft} busy={busy} setProviderId={(value) => { setProviderId(value); setApiKey(""); setCustomDraft(null); }} setApiKey={setApiKey} setCustomDraft={setCustomDraft} onSave={saveApiSettings} onRemoveCredential={removeCredential} onTestConnection={testProviderConnection} onSaveCustom={saveCustomProvider} onDeleteCustom={deleteCustomProvider} />}
             {!loading && tab === "skills" && <SkillsSettings skills={skills} diagnostics={diagnostics} busy={busy} draft={skillDraft} detail={skillDetail} detailLoading={skillDetailLoading} onDraftChange={(draft) => { setSkillDraft(draft); if (draft) setSkillDetail(null); }} onSave={saveUserSkill} onToggle={toggleSkill} onEdit={editUserSkill} onDelete={deleteUserSkill} onView={viewSkill} onCloseDetail={() => setSkillDetail(null)} />}
             {!loading && tab === "mcp" && <McpSettings servers={mcpServers} draft={mcpDraft} busy={busy} onStartNew={() => setMcpDraft(emptyMcpDraft)} onEdit={(server) => setMcpDraft(serverToDraft(server))} onDraftChange={setMcpDraft} onSave={saveMcp} onCancel={() => setMcpDraft(null)} onToggle={toggleMcp} onTest={testMcp} onDelete={deleteMcp} />}
             {!loading && tab === "tools" && <ToolsSettings tools={tools} busy={busy} onUpdate={updateTool} />}
@@ -543,11 +547,45 @@ function SettingsTabButton({ active, icon, label, onClick }: { active: boolean; 
   return <button className={active ? styles.settingsTabActive : ""} type="button" role="tab" aria-selected={active} onClick={onClick}>{icon}<span>{label}</span></button>;
 }
 
+function RagSettings({ settings }: { settings: RagSettingsData }) {
+  const [subtab, setSubtab] = useState<"embedding" | "rerank" | "pdf">("embedding");
+  const [draft, setDraft] = useState(settings);
+  const [secret, setSecret] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const tabs = [
+    ["embedding", "Embedding"],
+    ["rerank", "Rerank"],
+    ["pdf", "PDF"],
+  ] as const;
+  return <div>
+    <div className={styles.voiceSubnav} role="tablist" aria-label="RAG 配置分类">
+      {tabs.map(([id, label]) => <ApiSubtabButton key={id} active={subtab === id} icon={<Database size={14} />} label={label} onClick={() => setSubtab(id)} />)}
+    </div>
+    {message && <div className={styles.settingsNotice} role="status">{message}</div>}
+    {error && <div className={styles.settingsAlert} role="alert">{error}</div>}
+    {subtab === "embedding" && <RagEditablePanel title="Embedding" description="LightRAG 使用的向量模型。" configured={draft.embedding.configured} fields={<><label className={styles.settingsField}><span>模型</span><input value={draft.embedding.model} onChange={(e) => setDraft({ ...draft, embedding: { ...draft.embedding, model: e.target.value } })} /></label><label className={styles.settingsField}><span>Base URL</span><input type="url" value={draft.embedding.baseUrl} onChange={(e) => setDraft({ ...draft, embedding: { ...draft.embedding, baseUrl: e.target.value } })} /></label></>} secret={secret} setSecret={setSecret} saving={saving} onSave={async () => { setSaving(true); setError(null); try { const next = await settingsApi.saveRag({ embedding: { model: draft.embedding.model, baseUrl: draft.embedding.baseUrl, ...(secret ? { apiKey: secret } : {}) } }); setDraft(next); setSecret(""); setMessage("Embedding 配置已保存"); } catch (e) { setError(e instanceof Error ? e.message : "保存失败"); } finally { setSaving(false); } }} />}
+    {subtab === "rerank" && <RagEditablePanel title="Rerank" description="检索候选结果的二次排序服务。" configured={draft.rerank.configured} fields={<><label className={styles.settingsField}><span>模型</span><input value={draft.rerank.model} onChange={(e) => setDraft({ ...draft, rerank: { ...draft.rerank, model: e.target.value } })} /></label><label className={styles.settingsField}><span>Endpoint</span><input type="url" value={draft.rerank.url} onChange={(e) => setDraft({ ...draft, rerank: { ...draft.rerank, url: e.target.value } })} /></label></>} secret={secret} setSecret={setSecret} saving={saving} onSave={async () => { setSaving(true); setError(null); try { const next = await settingsApi.saveRag({ rerank: { model: draft.rerank.model, url: draft.rerank.url, ...(secret ? { apiKey: secret } : {}) } }); setDraft(next); setSecret(""); setMessage("Rerank 配置已保存"); } catch (e) { setError(e instanceof Error ? e.message : "保存失败"); } finally { setSaving(false); } }} />}
+    {subtab === "pdf" && <RagEditablePanel title="PDF 解析" description="文档进入 LightRAG 前由 Python sidecar 执行。" configured={draft.pdf.engine !== "mineru" || draft.pdf.mode === "cloud" || draft.pdf.mode === "local"} fields={<><label className={styles.settingsField}><span>解析器</span><select value={draft.pdf.engine} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, engine: e.target.value } })}><option value="mineru">MinerU</option><option value="markitdown">MarkItDown</option><option value="text_only">Text only</option></select></label><label className={styles.settingsField}><span>模式</span><select value={draft.pdf.mode} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, mode: e.target.value } })}><option value="cloud">云端 API</option><option value="local">本地 CLI</option></select></label><label className={styles.settingsField}><span>模型版本</span><input value={draft.pdf.modelVersion} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, modelVersion: e.target.value } })} /></label><label className={styles.settingsField}><span>语言</span><input value={draft.pdf.language} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, language: e.target.value } })} /></label><label><input type="checkbox" checked={draft.pdf.ocr} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, ocr: e.target.checked } })} /> OCR</label><label><input type="checkbox" checked={draft.pdf.formula} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, formula: e.target.checked } })} /> 公式</label><label><input type="checkbox" checked={draft.pdf.table} onChange={(e) => setDraft({ ...draft, pdf: { ...draft.pdf, table: e.target.checked } })} /> 表格</label></>} secret={secret} setSecret={setSecret} saving={saving} onSave={async () => { setSaving(true); setError(null); try { const next = await settingsApi.saveRag({ pdf: { ...draft.pdf, ...(secret ? { apiToken: secret } : {}) } }); setDraft(next); setSecret(""); setMessage("PDF 配置已保存"); } catch (e) { setError(e instanceof Error ? e.message : "保存失败"); } finally { setSaving(false); } }} />}
+    <p className={styles.ragSettingsHint}>保存后新的文档或“重新索引”会使用新配置。`.env` 仍作为重新部署后的默认配置来源。</p>
+  </div>;
+}
+
+function RagEditablePanel({ title, description, configured, fields, secret, setSecret, saving, onSave }: { title: string; description: string; configured: boolean; fields: ReactNode; secret: string; setSecret: (value: string) => void; saving: boolean; onSave: () => Promise<void> }) {
+  return <section className={styles.ragPanel}><div className={styles.settingsTitle}><div><h4>{title}</h4><p>{description}</p></div><span className={configured ? styles.ragConfigured : styles.ragUnconfigured}>{configured ? "已配置" : "未配置"}</span></div>{fields}<div className={styles.settingsField}><label>密钥（留空则保留现有值）</label><SecretInput value={secret} onChange={(event) => setSecret(event.target.value)} autoComplete="new-password" /></div><div className={styles.settingsFooter}><span>修改后新的索引任务会使用此配置</span><button className={styles.saveButton} type="button" onClick={() => void onSave()} disabled={saving}><Save size={14} />{saving ? "保存中…" : "保存配置"}</button></div></section>;
+}
+
+function RagConfigPanel({ title, description, configured, rows }: { title: string; description: string; configured: boolean; rows: Array<[string, string]> }) {
+  return <section className={styles.ragPanel} aria-labelledby={`rag-${title}`}><div className={styles.settingsTitle}><div><h4 id={`rag-${title}`}>{title}</h4><p>{description}</p></div><span className={configured ? styles.ragConfigured : styles.ragUnconfigured}>{configured ? "已配置" : "未配置"}</span></div><dl className={styles.ragFacts}>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={value}>{value}</dd></div>)}</dl></section>;
+}
+
 function ApiSettings(props: {
   providers: Provider[];
   models: Model[];
   modelsLoading: boolean;
   modelsError: string | null;
+  ragSettings: RagSettingsData | null;
   providerId: string;
   apiKey: string;
   customDraft: CustomProviderDraft | null;
@@ -593,12 +631,13 @@ function ApiSettings(props: {
   return <div>
     <nav className={styles.apiSubnav} aria-label="API 类型" role="tablist">
       <ApiSubtabButton active={subtab === "models"} icon={<BrainCircuit size={15} />} label="大模型" onClick={() => setSubtab("models")} />
+      <ApiSubtabButton active={subtab === "rag"} icon={<Database size={15} />} label="RAG" onClick={() => setSubtab("rag")} />
       <ApiSubtabButton active={subtab === "voice"} icon={<AudioLines size={15} />} label="语音" onClick={() => setSubtab("voice")} />
       <ApiSubtabButton active={subtab === "image"} icon={<ImageIcon size={15} />} label="生图" onClick={() => setSubtab("image")} />
       <ApiSubtabButton active={subtab === "video"} icon={<Video size={15} />} label="视频" onClick={() => setSubtab("video")} />
       <ApiSubtabButton active={subtab === "search"} icon={<Globe2 size={15} />} label="Web Search" onClick={() => setSubtab("search")} />
     </nav>
-    {subtab === "voice" ? <div>
+    {subtab === "rag" ? props.ragSettings ? <RagSettings settings={props.ragSettings} /> : <p className={styles.emptySettings}>正在读取 RAG 配置…</p> : subtab === "voice" ? <div>
       <div className={styles.voiceSubnav} role="tablist" aria-label="语音能力">
         <ApiSubtabButton active={voiceCapability === "tts"} icon={<AudioLines size={14} />} label="TTS 文本转语音" onClick={() => setVoiceCapability("tts")} />
         <ApiSubtabButton active={voiceCapability === "asr"} icon={<AudioLines size={14} />} label="ASR 语音识别" onClick={() => setVoiceCapability("asr")} />
@@ -641,8 +680,8 @@ function ApiSubtabButton({ active, icon, label, onClick }: { active: boolean; ic
   return <button className={`${styles.apiSubtab} ${active ? styles.apiSubtabActive : ""}`} type="button" role="tab" aria-selected={active} onClick={onClick}>{icon}<span>{label}</span></button>;
 }
 
-function ApiComingSoon({ type }: { type: Exclude<ApiSubtab, "models"> }) {
-  const labels: Record<Exclude<ApiSubtab, "models">, string> = { voice: "语音", image: "生图", video: "视频", search: "Web Search" };
+function ApiComingSoon({ type }: { type: Exclude<ApiSubtab, "models" | "rag"> }) {
+  const labels: Record<Exclude<ApiSubtab, "models" | "rag">, string> = { voice: "语音", image: "生图", video: "视频", search: "Web Search" };
   return <div className={styles.apiEmptyState}><Globe2 size={22} /><h3>{labels[type]} API</h3><p>该 API 类型尚未接入。二级导航已预留，接入后会在这里管理 Provider 和调用参数。</p></div>;
 }
 

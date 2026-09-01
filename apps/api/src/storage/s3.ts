@@ -76,6 +76,9 @@ export const s3UploadObjectStorage = {
       ...(object.ContentType ? { contentType: object.ContentType } : {}),
     };
   },
+  async readObject(fileKey: string) {
+    return readUploadedObject(fileKey);
+  },
 };
 
 export const s3ClassroomObjectStorage = {

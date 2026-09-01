@@ -35,7 +35,8 @@ import {
   createUserSkillsDal,
 } from '../db/dal';
 import { decrypt } from '../security/credential-encryption';
-import { createBuiltinToolRegistry } from './builtin-tools';
+import { createBuiltinToolRegistry, type KnowledgeBaseQueryer } from './builtin-tools';
+import { knowledgeBaseSearchToolSummary } from './tools/knowledge-base-search';
 import { createUploadedFileResourceAdapterFromDatabase } from './tools/read/uploaded-file-reader';
 import { createResourceReader } from './tools/read/read-resource';
 import { createMcpTools } from './tools/mcp-tool/mcp-tools';
@@ -232,6 +233,7 @@ type RuntimeEntry = {
   mcp: McpManager;
   model: ModelSelection;
   systemPrompt: string;
+  knowledgeBaseId?: string;
 };
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
@@ -350,10 +352,11 @@ function parseCustomModels(value: unknown): CustomOpenAiModel[] {
   });
 }
 
-function createBuiltinTools() {
+function createBuiltinTools(userId: string, knowledgeBase?: { queryer: KnowledgeBaseQueryer; id: string }) {
   const conversations = createConversationsDal(getDb());
   const readCursorSecret = process.env.CREDENTIAL_ENCRYPTION_KEY;
   return createBuiltinToolRegistry({
+    ...(knowledgeBase ? { knowledgeBaseQueryer: knowledgeBase.queryer, knowledgeBaseId: knowledgeBase.id, ownerId: userId } : {}),
     memory: new MemoryService(getDb()),
     conversationTitleUpdater: {
       async update(input) {
@@ -439,6 +442,7 @@ export async function getOrCreateRuntime(
   userId: string,
   conversation: { id: string; sessionId: string; sessionFilePath?: string },
   requestedModel?: ModelSelection,
+  options: { knowledgeBaseId?: string; knowledgeBaseQueryer?: KnowledgeBaseQueryer } = {},
 ) {
   const db = getDb();
   const settings = await createAgentSettingsDal(db).get(userId);
@@ -455,7 +459,8 @@ export async function getOrCreateRuntime(
   if (existing && (!selectedModel ||
     existing.model.providerId === selectedModel.providerId &&
     existing.model.modelId === selectedModel.modelId &&
-    existing.model.thinkingLevel === selectedModel.thinkingLevel)) {
+    existing.model.thinkingLevel === selectedModel.thinkingLevel) &&
+    existing.knowledgeBaseId === options.knowledgeBaseId) {
     return existing;
   }
   if (existing) await closeRuntime(conversation.id);
@@ -480,7 +485,7 @@ export async function getOrCreateRuntime(
   const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
   const toolErrorChannel = new ToolErrorChannel();
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
-  const registry = createBuiltinTools();
+  const registry = createBuiltinTools(userId, options.knowledgeBaseId && options.knowledgeBaseQueryer ? { id: options.knowledgeBaseId, queryer: options.knowledgeBaseQueryer } : undefined);
   for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
   for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
 
@@ -591,7 +596,7 @@ export async function getOrCreateRuntime(
     },
     toolErrorChannel,
   });
-  const entry = { ownerId: userId, runtime, session, approvals, mcp, model, systemPrompt: mainPrompt.system };
+  const entry = { ownerId: userId, runtime, session, approvals, mcp, model, systemPrompt: mainPrompt.system, ...(options.knowledgeBaseId ? { knowledgeBaseId: options.knowledgeBaseId } : {}) };
   activeRuntimes.set(conversation.id, entry);
   return entry;
 }
@@ -640,10 +645,14 @@ export async function listRuntimeTools(userId: string) {
   try {
     await registerUserMcpServers(mcp, userId);
     const { registry: skills, enabledSkillNames } = await loadUserSkills(userId);
-    const registry = createBuiltinTools();
+    const registry = createBuiltinTools(userId);
     for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
     for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
-    return [...registry.list(), SUBAGENT_TOOL_SUMMARY];
+    // The executable RAG tool is bound to a mounted knowledge base at chat
+    // runtime creation time. Still advertise its stable summary here so the
+    // settings catalog can display and persist the user's enabled/disabled
+    // preference before a knowledge base is mounted.
+    return [...registry.list(), knowledgeBaseSearchToolSummary, SUBAGENT_TOOL_SUMMARY];
   } finally {
     await mcp.close();
   }

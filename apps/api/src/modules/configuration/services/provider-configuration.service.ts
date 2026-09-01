@@ -20,6 +20,7 @@ import {
   customProviderModelSchema,
   type CustomProviderInput,
   type CustomProviderUpdateInput,
+  type RagSettingsInput,
 } from '../schemas';
 
 type StoredSettings = {
@@ -238,6 +239,85 @@ export class ProviderConfigurationService {
     const settings = await this.settings.setMemoryInjectionEnabled(userId, enabled);
     await closeUserRuntimes(userId);
     return { memoryInjectionEnabled: settings.memoryInjectionEnabled };
+  }
+
+  async getRagSettings(userId: string) {
+    if (!userId) throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    const env = process.env;
+    const rows = await this.providerCredentials.list(userId);
+    const row = (id: string) => rows.find((item) => item.providerId === id);
+    const settings = (id: string) => {
+      const value = row(id)?.settings;
+      return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    };
+    const embedding = settings('rag:embedding');
+    const rerank = settings('rag:rerank');
+    const pdf = settings('rag:pdf');
+    return {
+      embedding: {
+        model: typeof embedding.model === 'string' ? embedding.model : env.RAG_EMBEDDING_MODEL || 'text-embedding-3-small',
+        baseUrl: typeof embedding.baseUrl === 'string' ? embedding.baseUrl : env.RAG_EMBEDDING_BASE_URL || env.OPENAI_BASE_URL || '',
+        configured: Boolean(row('rag:embedding')?.apiKeyEnc || env.RAG_EMBEDDING_API_KEY || env.OPENAI_API_KEY),
+      },
+      rerank: {
+        model: typeof rerank.model === 'string' ? rerank.model : env.RAG_RERANK_MODEL || '',
+        url: typeof rerank.url === 'string' ? rerank.url : env.RAG_RERANK_URL || '',
+        configured: Boolean(
+          (typeof rerank.url === 'string' ? rerank.url : env.RAG_RERANK_URL)
+          && (typeof rerank.model === 'string' ? rerank.model : env.RAG_RERANK_MODEL)
+          && (row('rag:rerank')?.apiKeyEnc || env.RAG_RERANK_API_KEY || env.RAG_LLM_API_KEY),
+        ),
+      },
+      pdf: {
+        engine: typeof pdf.engine === 'string' ? pdf.engine : env.RAG_PARSER_ENGINE || 'text_only',
+        mode: typeof pdf.mode === 'string' ? pdf.mode : env.RAG_MINERU_MODE || 'local',
+        modelVersion: typeof pdf.modelVersion === 'string' ? pdf.modelVersion : env.RAG_MINERU_MODEL_VERSION || 'pipeline',
+        ocr: typeof pdf.ocr === 'boolean' ? pdf.ocr : (env.RAG_MINERU_OCR || 'false').toLowerCase() === 'true',
+        formula: typeof pdf.formula === 'boolean' ? pdf.formula : (env.RAG_MINERU_ENABLE_FORMULA || 'true').toLowerCase() !== 'false',
+        table: typeof pdf.table === 'boolean' ? pdf.table : (env.RAG_MINERU_ENABLE_TABLE || 'true').toLowerCase() !== 'false',
+        language: typeof pdf.language === 'string' ? pdf.language : env.RAG_MINERU_LANGUAGE || 'auto',
+      },
+    };
+  }
+
+  async updateRagSettings(userId: string, input: RagSettingsInput) {
+    if (!userId) throw new ApiError(401, 'Authentication required', 'AUTH_REQUIRED');
+    // Persist non-secret fields and encrypt credentials using the same store
+    // as the model and media Provider settings. Environment values remain the
+    // deployment defaults and are updated for the current process.
+    if (input.embedding) {
+      process.env.RAG_EMBEDDING_MODEL = input.embedding.model;
+      process.env.RAG_EMBEDDING_BASE_URL = input.embedding.baseUrl ?? '';
+      if (input.embedding.apiKey) process.env.RAG_EMBEDDING_API_KEY = input.embedding.apiKey;
+      const existing = await this.providerCredentials.getByProvider(userId, 'rag:embedding');
+      await this.providerCredentials.upsert(userId, 'rag:embedding', input.embedding.apiKey ? encrypt(input.embedding.apiKey) : existing?.apiKeyEnc ?? null, input.embedding.baseUrl ?? null, { model: input.embedding.model, baseUrl: input.embedding.baseUrl ?? '' });
+    }
+    if (input.rerank) {
+      process.env.RAG_RERANK_MODEL = input.rerank.model;
+      process.env.RAG_RERANK_URL = input.rerank.url ?? '';
+      if (input.rerank.apiKey) process.env.RAG_RERANK_API_KEY = input.rerank.apiKey;
+      const existing = await this.providerCredentials.getByProvider(userId, 'rag:rerank');
+      await this.providerCredentials.upsert(userId, 'rag:rerank', input.rerank.apiKey ? encrypt(input.rerank.apiKey) : existing?.apiKeyEnc ?? null, input.rerank.url ?? null, { model: input.rerank.model, url: input.rerank.url ?? '' });
+    }
+    if (input.pdf) {
+      process.env.RAG_PARSER_ENGINE = input.pdf.engine;
+      process.env.RAG_MINERU_MODE = input.pdf.mode;
+      process.env.RAG_MINERU_MODEL_VERSION = input.pdf.modelVersion;
+      process.env.RAG_MINERU_OCR = String(input.pdf.ocr);
+      process.env.RAG_MINERU_ENABLE_FORMULA = String(input.pdf.formula);
+      process.env.RAG_MINERU_ENABLE_TABLE = String(input.pdf.table);
+      process.env.RAG_MINERU_LANGUAGE = input.pdf.language;
+      if (input.pdf.apiToken) process.env.RAG_MINERU_API_TOKEN = input.pdf.apiToken;
+      const existing = await this.providerCredentials.getByProvider(userId, 'rag:pdf');
+      const { apiToken, ...pdfSettings } = input.pdf;
+      await this.providerCredentials.upsert(userId, 'rag:pdf', apiToken ? encrypt(apiToken) : existing?.apiKeyEnc ?? null, null, pdfSettings);
+    }
+    await fetch(`${(process.env.RAG_SIDECAR_URL || 'http://127.0.0.1:8010').replace(/\/$/, '')}/v1/config`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${process.env.RAG_SIDECAR_TOKEN || ''}` },
+      body: JSON.stringify(input),
+    }).catch(() => undefined);
+    return this.getRagSettings(userId);
   }
 
   async setDefaultModel(userId: string, model: ModelSelection) {

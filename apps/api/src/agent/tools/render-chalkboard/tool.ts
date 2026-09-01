@@ -222,6 +222,54 @@ function normalizeCanvasElement(input: Record<string, unknown>, viewportSize: nu
   return element;
 }
 
+function normalizeQuizQuestions(input: unknown[]): Record<string, unknown>[] {
+  return input.map((rawQuestion, index) => {
+    if (!rawQuestion || typeof rawQuestion !== 'object' || Array.isArray(rawQuestion)) {
+      invalidScene(`content.questions[${index}]`, 'must be an object');
+    }
+    const question = { ...(rawQuestion as Record<string, unknown>) };
+    const stem = typeof question.question === 'string'
+      ? question.question
+      : typeof question.prompt === 'string'
+        ? question.prompt
+        : '';
+    if (!stem.trim()) invalidScene(`content.questions[${index}].question`, 'must be a non-empty string');
+
+    const rawOptions = Array.isArray(question.options) ? question.options : undefined;
+    const options = rawOptions?.map((rawOption, optionIndex) => {
+      if (typeof rawOption === 'string') {
+        return { value: String.fromCharCode(65 + optionIndex), label: rawOption };
+      }
+      if (!rawOption || typeof rawOption !== 'object' || Array.isArray(rawOption)) {
+        invalidScene(`content.questions[${index}].options[${optionIndex}]`, 'must be a string or an object with value and label');
+      }
+      const option = rawOption as Record<string, unknown>;
+      const value = typeof option.value === 'string' ? option.value : String.fromCharCode(65 + optionIndex);
+      const label = typeof option.label === 'string' ? option.label : value;
+      return { ...option, value, label };
+    });
+
+    const rawAnswer = Array.isArray(question.answer)
+      ? question.answer.filter((value): value is string => typeof value === 'string')
+      : typeof question.correctIndex === 'number' && options?.[question.correctIndex]
+        ? [options[question.correctIndex]!.value]
+        : undefined;
+    return {
+      ...question,
+      id: typeof question.id === 'string' && question.id.trim() ? question.id : `q${index + 1}`,
+      type: question.type === 'multiple' || question.type === 'short_answer' ? question.type : 'single',
+      question: stem,
+      ...(options ? { options } : {}),
+      ...(rawAnswer?.length ? { answer: rawAnswer } : {}),
+      ...(typeof question.analysis === 'string'
+        ? { analysis: question.analysis }
+        : typeof question.explanation === 'string'
+          ? { analysis: question.explanation }
+          : {}),
+    };
+  });
+}
+
 function normalizeRenderSceneContent(input: unknown): SceneContent {
   if (!input || typeof input !== 'object' || Array.isArray(input)) invalidScene('content', 'must be an object');
   const content = input as SceneContent;
@@ -229,6 +277,9 @@ function normalizeRenderSceneContent(input: unknown): SceneContent {
   if (content.type === 'slide' && (!content.canvas || typeof content.canvas !== 'object' || Array.isArray(content.canvas))) invalidScene('content.canvas', 'slide content requires an object `canvas`');
   if (content.type === 'quiz' && !Array.isArray(content.questions)) invalidScene('content.questions', 'quiz content requires a `questions` array');
   if (content.type === 'interactive' && typeof content.url !== 'string' && typeof content.html !== 'string') invalidScene('content', 'interactive content requires `url` or `html`');
+  if (content.type === 'quiz') {
+    return { ...content, questions: normalizeQuizQuestions(content.questions!) };
+  }
   if (content.type !== 'slide' || !content.canvas) return content;
   const viewportRatio = content.canvas.viewportRatio;
   const rawBackground = content.canvas.background;

@@ -66,6 +66,7 @@
 | Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Historical；V3 课堂运行时、渐进式生成、多 Agent 讨论、AI Live Chalkboard 与 Chromium 门禁已完成 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
+| RAG MVP 运行 | [runbooks/rag-mvp.md](runbooks/rag-mvp.md) | Accepted + Partial；sidecar、API/Web 启动、异步索引和当前限制 |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
 | Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；已通过 GitHub PR #6 合并到 `main` |
 

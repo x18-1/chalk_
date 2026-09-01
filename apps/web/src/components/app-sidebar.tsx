@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Check,
+  BookOpen,
   ChevronRight,
   ChevronUp,
   CircleHelp,
@@ -54,7 +55,7 @@ export const defaultSidebarConversations: SidebarConversation[] = [
 const conversationGroupOrder: ConversationGroup[] = ["今天", "昨天", "过去 7 天", "过去 30 天"];
 
 type AppSidebarProps = {
-  activeSection?: "new" | "chats" | "chalkboard" | "memory";
+  activeSection?: "new" | "chats" | "chalkboard" | "knowledge-bases" | "memory";
   /** Which records belong in the contextual history rail on this surface. */
   historyMode?: "chat" | "chalkboard" | "all";
   conversations?: SidebarConversation[];
@@ -195,6 +196,7 @@ export function AppSidebar({
       <nav className={styles.primaryNav} aria-label="产品功能">
         <Link className={activeSection === "chats" ? styles.activeNavItem : ""} href="/chats"><MessageCircle size={16} /><span>Chats</span></Link>
         <Link className={activeSection === "chalkboard" ? styles.activeNavItem : ""} href="/chalkboard"><PanelTop size={16} /><span>Chalkboard</span></Link>
+        <Link className={activeSection === "knowledge-bases" ? styles.activeNavItem : ""} href="/knowledge-bases"><BookOpen size={16} /><span>知识库</span></Link>
       </nav>
 
       {historyMode !== "chalkboard" ? <div className={styles.recentHeader}>

@@ -37,7 +37,7 @@ import {
 
 import { AppSidebar, defaultSidebarConversations } from "../../components/app-sidebar";
 import { SettingsDialog } from "../../components/settings-dialog";
-import { ApiRequestError, chatApi, mediaApi, settingsApi, uploadsApi, type CapabilitySettings, type MediaCapability, type MediaProvider, type MediaProviders, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
+import { ApiRequestError, chatApi, knowledgeBasesApi, mediaApi, settingsApi, uploadsApi, type CapabilitySettings, type KnowledgeBase, type RagReference, type MediaCapability, type MediaProvider, type MediaProviders, type Model, type ModelSelection, type Provider, type ThinkingLevel } from "../../api";
 import { conversationGroup, formatConversationTitle } from "../../lib/conversations";
 import type { SceneView } from "@chalk/chalkboard";
 import { InlineChalkboard } from "../../features/chat/components/inline-chalkboard";
@@ -435,6 +435,9 @@ export default function ChatPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
   const [contextCollapsed, setContextCollapsed] = useState(false);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState("");
+  const [references, setReferences] = useState<RagReference[]>([]);
   const [isDraftConversation, setIsDraftConversation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
@@ -452,12 +455,13 @@ export default function ChatPage() {
     let cancelled = false;
     async function loadWorkspace() {
       try {
-        const [conversationData, providerData, modelData, mediaData, capabilities] = await Promise.all([
+        const [conversationData, providerData, modelData, mediaData, capabilities, knowledgeBaseData] = await Promise.all([
           chatApi.list(),
           settingsApi.providers(),
           settingsApi.models(),
           mediaApi.providers(),
           settingsApi.capabilities(),
+          knowledgeBasesApi.list().catch(() => ({ knowledgeBases: [] as KnowledgeBase[] })),
         ]);
         if (cancelled) return;
         const nextConversations = conversationData.conversations.map((conversation) => ({ id: conversation.id, title: formatConversationTitle(conversation), group: conversationGroup(conversation.updatedAt) }));
@@ -468,6 +472,7 @@ export default function ChatPage() {
         setModelProviders(providerData.providers);
         setMediaProviders(mediaData);
         setCapabilitySettings(capabilities);
+        setKnowledgeBases(knowledgeBaseData.knowledgeBases);
         setActiveModelProviderId(nextSelection?.providerId ?? "");
         const query = new URLSearchParams(window.location.search);
         const isNewConversation = query.get("new") === "1";
@@ -561,6 +566,7 @@ export default function ChatPage() {
     setDraft("");
     setNotice(null);
     setFailure(null);
+    setReferences([]);
   }
 
   function updateConversationMessages(id: string, update: (messages: Message[]) => Message[]) {
@@ -700,7 +706,12 @@ export default function ChatPage() {
     const controller = new AbortController();
     runControllersRef.current.set(conversationId, controller);
     try {
-      await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
+      await chatApi.stream(conversationId, {
+        message: text,
+        model: selectedModel ?? undefined,
+        attachmentIds: attachedFile?.id ? [attachedFile.id] : [],
+        knowledgeBaseId: selectedKnowledgeBaseId || undefined,
+      }, ({ type, data }) => {
         if (type === "text_delta") updateConversationMessages(conversationId, (current) => current.map((message) => {
           if (message.id !== tutorId) return message;
           return { ...appendMessageText(message, String(data.delta ?? "")), thinking: undefined };
@@ -1051,6 +1062,18 @@ export default function ChatPage() {
                     </div>
                   </div>}
                 </div>
+                <label className={styles.knowledgeBasePicker}>
+                  <BookOpen size={14} />
+                  <select
+                    className={styles.knowledgeBaseSelect}
+                    aria-label="挂载知识库"
+                    value={selectedKnowledgeBaseId}
+                    onChange={(event) => setSelectedKnowledgeBaseId(event.target.value)}
+                  >
+                    <option value="">不使用知识库</option>
+                    {knowledgeBases.map((knowledgeBase) => <option key={knowledgeBase.id} value={knowledgeBase.id}>{knowledgeBase.name}</option>)}
+                  </select>
+                </label>
                 <div ref={mediaPickerRef} className={styles.mediaPicker}>
                   <button className={styles.mediaButton} type="button" aria-expanded={showMediaMenu} onClick={toggleMediaMenu}><AudioLines size={14} /><span>媒体</span><ChevronDown size={14} /></button>
                   {showMediaMenu && <div className={styles.mediaMenu} role="dialog" aria-label="选择媒体模型">
@@ -1078,7 +1101,8 @@ export default function ChatPage() {
 
       <aside className={styles.contextRail} aria-label="学习上下文">
         <div className={styles.contextHeader}><div><span className={styles.railKicker}>学习上下文</span><h2>参考资料</h2></div><button className={styles.iconButton} type="button" aria-label="收起学习上下文" title="收起学习上下文" onClick={() => setContextCollapsed(true)}><PanelRightClose size={16} /></button></div>
-        <section className={styles.contextEmpty} aria-live="polite"><BookOpen size={18} /><p>本次对话还没有搜索或引用资料。</p></section>
+        {selectedKnowledgeBaseId && <section className={styles.knowledgeBaseContext}><span>当前知识库</span><strong>{knowledgeBases.find((knowledgeBase) => knowledgeBase.id === selectedKnowledgeBaseId)?.name ?? "已选择知识库"}</strong><small>Chalk 会在需要时让 Agent 查阅这里的资料。</small></section>}
+        {references.length ? <section className={styles.referenceList} aria-live="polite"><div className={styles.referenceListHeader}><BookOpen size={16} /><strong>答案来自这些资料</strong><span>{references.length}</span></div>{references.map((reference) => <article key={reference.citationId} className={styles.referenceItem}><strong>{reference.documentName}</strong><small>{[reference.page ? `第 ${reference.page} 页` : "", reference.paragraph ? `第 ${reference.paragraph} 段` : ""].filter(Boolean).join(" · ") || reference.chunkId}</small><p>{reference.snippet}</p></article>)}</section> : <section className={styles.contextEmpty} aria-live="polite"><BookOpen size={18} /><p>{selectedKnowledgeBaseId ? "Agent 还没有引用资料。你可以直接提问，或说明希望从知识库中查找什么。" : "选择一个知识库后，Agent 会在需要时检索并显示引用。"}</p></section>}
       </aside>
       {settingsOpen && <SettingsDialog onClose={() => { void reloadModelCatalog(); }} />}
     </main>

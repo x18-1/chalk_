@@ -854,6 +854,12 @@ describe('API auth and chat interface', () => {
     expect(tools.json().tools).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'rename_current_conversation', requiresApproval: true }),
       expect.objectContaining({
+        name: 'search_knowledge_base',
+        source: 'chalk',
+        defaultEnabled: true,
+        requiresApproval: false,
+      }),
+      expect.objectContaining({
         name: 'run_subagent',
         source: 'subagent',
         defaultEnabled: false,
