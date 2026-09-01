@@ -61,6 +61,10 @@ import { MemoryConsolidationService } from './modules/memory/services/memory-con
 import type { MemoryConsolidationModel } from './modules/memory/services/memory-consolidation.service';
 import { piMemoryConsolidationModel } from './providers/llm/memory-consolidation-model';
 import { MemoryConsolidationWorker } from './modules/memory/services/memory-consolidation.worker';
+import { registerKnowledgeBaseRoutes } from './modules/knowledge-bases/routes';
+import { KnowledgeBaseService, type KnowledgeObjectStorage } from './modules/knowledge-bases/services/knowledge-base.service';
+import { createRagSidecarClient, type RagSidecarClient } from './modules/knowledge-bases/rag-sidecar-client';
+import { s3UploadObjectStorage } from './storage/s3';
 
 export type BuildApiOptions = {
   config?: ApiConfig;
@@ -146,6 +150,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   );
   registerChatRoutes(app, auth, new ChatService(db, {
     memory,
+    knowledgeBaseQueryer: knowledgeBases,
     onSessionCleanupError(error, sessionId) {
       app.log.warn({ err: error, sessionId }, 'Unable to delete JSONL session');
     },

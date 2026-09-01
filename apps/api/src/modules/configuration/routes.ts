@@ -18,6 +18,7 @@ import {
   userSkillCreateSchema,
   userSkillUpdateSchema,
   userSkillParamsSchema,
+  ragSettingsSchema,
 } from './schemas';
 import type { ProviderConfigurationService } from './services/provider-configuration.service';
 import type { RuntimeConfigurationService } from './services/runtime-configuration.service';

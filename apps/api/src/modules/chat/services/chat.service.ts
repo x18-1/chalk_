@@ -23,6 +23,7 @@ import {
 import { readUploadedObject } from '../../../storage/s3';
 import { PROMPT_IDS, buildPrompt } from '../../../prompts';
 import type { MemoryService } from '../../memory/services/memory.service';
+import type { KnowledgeBaseQueryer } from '../../../agent/tools/knowledge-base-search';
 
 export type ChatStreamInput = {
   message: string;
@@ -71,6 +72,7 @@ function boundedMessagePayload(message: unknown) {
 type ChatServiceOptions = {
   onSessionCleanupError?: (error: unknown, sessionId: string) => void;
   memory?: MemoryService;
+  knowledgeBaseQueryer?: KnowledgeBaseQueryer;
 };
 
 export class ChatService {

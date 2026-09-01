@@ -233,6 +233,7 @@ type RuntimeEntry = {
   mcp: McpManager;
   model: ModelSelection;
   systemPrompt: string;
+  knowledgeBaseId?: string;
 };
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
@@ -351,10 +352,11 @@ function parseCustomModels(value: unknown): CustomOpenAiModel[] {
   });
 }
 
-function createBuiltinTools() {
+function createBuiltinTools(userId: string, knowledgeBase?: { queryer: KnowledgeBaseQueryer; id: string }) {
   const conversations = createConversationsDal(getDb());
   const readCursorSecret = process.env.CREDENTIAL_ENCRYPTION_KEY;
   return createBuiltinToolRegistry({
+    ...(knowledgeBase ? { knowledgeBaseQueryer: knowledgeBase.queryer, knowledgeBaseId: knowledgeBase.id, ownerId: userId } : {}),
     memory: new MemoryService(getDb()),
     conversationTitleUpdater: {
       async update(input) {
@@ -483,7 +485,7 @@ export async function getOrCreateRuntime(
   const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
   const toolErrorChannel = new ToolErrorChannel();
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
-  const registry = createBuiltinTools();
+  const registry = createBuiltinTools(userId, options.knowledgeBaseId && options.knowledgeBaseQueryer ? { id: options.knowledgeBaseId, queryer: options.knowledgeBaseQueryer } : undefined);
   for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
   for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
 
@@ -594,7 +596,7 @@ export async function getOrCreateRuntime(
     },
     toolErrorChannel,
   });
-  const entry = { ownerId: userId, runtime, session, approvals, mcp, model, systemPrompt: mainPrompt.system };
+  const entry = { ownerId: userId, runtime, session, approvals, mcp, model, systemPrompt: mainPrompt.system, ...(options.knowledgeBaseId ? { knowledgeBaseId: options.knowledgeBaseId } : {}) };
   activeRuntimes.set(conversation.id, entry);
   return entry;
 }
@@ -643,7 +645,7 @@ export async function listRuntimeTools(userId: string) {
   try {
     await registerUserMcpServers(mcp, userId);
     const { registry: skills, enabledSkillNames } = await loadUserSkills(userId);
-    const registry = createBuiltinTools();
+    const registry = createBuiltinTools(userId);
     for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
     for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
     return [...registry.list(), SUBAGENT_TOOL_SUMMARY];

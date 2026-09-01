@@ -14,3 +14,4 @@ export * from './classroom-discussions';
 export * from './agent-run-observations';
 export * from './auth-users';
 export * from './memory';
+export * from './knowledge-bases';
