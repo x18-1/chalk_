@@ -576,10 +576,6 @@ function RagEditablePanel({ title, description, configured, fields, secret, setS
   return <section className={styles.ragPanel}><div className={styles.settingsTitle}><div><h4>{title}</h4><p>{description}</p></div><span className={configured ? styles.ragConfigured : styles.ragUnconfigured}>{configured ? "已配置" : "未配置"}</span></div>{fields}<div className={styles.settingsField}><label>密钥（留空则保留现有值）</label><SecretInput value={secret} onChange={(event) => setSecret(event.target.value)} autoComplete="new-password" /></div><div className={styles.settingsFooter}><span>修改后新的索引任务会使用此配置</span><button className={styles.saveButton} type="button" onClick={() => void onSave()} disabled={saving}><Save size={14} />{saving ? "保存中…" : "保存配置"}</button></div></section>;
 }
 
-function RagConfigPanel({ title, description, configured, rows }: { title: string; description: string; configured: boolean; rows: Array<[string, string]> }) {
-  return <section className={styles.ragPanel} aria-labelledby={`rag-${title}`}><div className={styles.settingsTitle}><div><h4 id={`rag-${title}`}>{title}</h4><p>{description}</p></div><span className={configured ? styles.ragConfigured : styles.ragUnconfigured}>{configured ? "已配置" : "未配置"}</span></div><dl className={styles.ragFacts}>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd title={value}>{value}</dd></div>)}</dl></section>;
-}
-
 function ApiSettings(props: {
   providers: Provider[];
   models: Model[];
