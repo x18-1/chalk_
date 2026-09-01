@@ -11,6 +11,7 @@ describe('render_chalkboard tool feature', () => {
 
     expect(tool.description).toBe(RENDER_CHALKBOARD_PROMPT);
     expect(tool.description).toMatch(/^Use render_chalkboard/);
+    expect(tool.description).toContain('one fixed question schema');
   });
 
   it('declares a read-only sequential tool with bounded output', () => {
@@ -73,5 +74,30 @@ describe('render_chalkboard tool feature', () => {
       type: 'interactive',
       html: '<canvas id="lesson"></canvas>',
     });
+  });
+
+  it('normalizes legacy quiz aliases into the canonical question contract', async () => {
+    const tool = createRenderChalkboardTool();
+    const result = await tool.execute({
+      title: '检查点',
+      content: {
+        type: 'quiz',
+        questions: [{
+          prompt: '哪一个选项正确？',
+          options: ['正确', '错误'],
+          correctIndex: 0,
+          explanation: '根据定义可知。',
+        }],
+      },
+    }, {} as never);
+
+    expect(result.details.scene.content.questions).toEqual([expect.objectContaining({
+      id: 'q1',
+      type: 'single',
+      question: '哪一个选项正确？',
+      options: [{ value: 'A', label: '正确' }, { value: 'B', label: '错误' }],
+      answer: ['A'],
+      analysis: '根据定义可知。',
+    })]);
   });
 });
