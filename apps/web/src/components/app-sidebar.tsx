@@ -55,7 +55,7 @@ export const defaultSidebarConversations: SidebarConversation[] = [
 const conversationGroupOrder: ConversationGroup[] = ["今天", "昨天", "过去 7 天", "过去 30 天"];
 
 type AppSidebarProps = {
-  activeSection?: "new" | "chats" | "chalkboard" | "memory";
+  activeSection?: "new" | "chats" | "chalkboard" | "knowledge-bases" | "memory";
   /** Which records belong in the contextual history rail on this surface. */
   historyMode?: "chat" | "chalkboard" | "all";
   conversations?: SidebarConversation[];

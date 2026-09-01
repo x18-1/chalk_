@@ -28,6 +28,7 @@ export {
   type VideoCapabilitySelection,
 } from './settings';
 export { uploadsApi } from './uploads';
+export { knowledgeBasesApi, knowledgeBaseErrorMessage, type KnowledgeBase, type KnowledgeChunk, type KnowledgeDocument, type RagAnswer, type RagReference } from './knowledge-bases';
 export { memoryApi, type MemoryEntry, type MemoryConsolidationRun } from './memory';
 export { mediaApi, type MediaCapability, type MediaProvider, type MediaProviders } from './media';
 export {

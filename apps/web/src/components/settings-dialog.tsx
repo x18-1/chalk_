@@ -5,6 +5,7 @@ import {
   AudioLines,
   Archive,
   BrainCircuit,
+  Database,
   Check,
   Eye,
   Globe2,
@@ -40,7 +41,7 @@ import { MediaProviderSettings } from "./media-provider-settings";
 import { SecretInput } from "./secret-input";
 
 type SettingsTab = "api" | "skills" | "mcp" | "tools" | "memory";
-type ApiSubtab = "models" | "voice" | "image" | "video" | "search";
+type ApiSubtab = "models" | "rag" | "voice" | "image" | "video" | "search";
 
 type McpDraft = {
   id?: string;
@@ -102,6 +103,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [diagnostics, setDiagnostics] = useState<Array<{ message: string; code: string }>>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [ragSettings, setRagSettings] = useState<RagSettingsData | null>(null);
   const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
   const [memoryInjectionEnabled, setMemoryInjectionEnabled] = useState(true);
   const [showArchivedMemory, setShowArchivedMemory] = useState(false);
@@ -149,6 +151,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       setDiagnostics(data.diagnostics ?? []);
       setMcpServers(data.servers);
       setTools(data.tools);
+      setRagSettings(await settingsApi.rag());
       setMemoryInjectionEnabled(data.memoryInjectionEnabled);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载工作区配置失败");
@@ -528,7 +531,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             {loading && <p>正在加载工作区配置…</p>}
             {error && <div className={styles.settingsAlert} role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="关闭错误"><X size={14} /></button></div>}
             {notice && <div className={styles.settingsNotice} role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭提示"><X size={14} /></button></div>}
-            {!loading && tab === "api" && <ApiSettings providers={providers} models={models} modelsLoading={modelsLoading} modelsError={modelsError} providerId={providerId} apiKey={apiKey} customDraft={customDraft} busy={busy} setProviderId={(value) => { setProviderId(value); setApiKey(""); setCustomDraft(null); }} setApiKey={setApiKey} setCustomDraft={setCustomDraft} onSave={saveApiSettings} onRemoveCredential={removeCredential} onTestConnection={testProviderConnection} onSaveCustom={saveCustomProvider} onDeleteCustom={deleteCustomProvider} />}
+            {!loading && tab === "api" && <ApiSettings providers={providers} models={models} modelsLoading={modelsLoading} modelsError={modelsError} ragSettings={ragSettings} providerId={providerId} apiKey={apiKey} customDraft={customDraft} busy={busy} setProviderId={(value) => { setProviderId(value); setApiKey(""); setCustomDraft(null); }} setApiKey={setApiKey} setCustomDraft={setCustomDraft} onSave={saveApiSettings} onRemoveCredential={removeCredential} onTestConnection={testProviderConnection} onSaveCustom={saveCustomProvider} onDeleteCustom={deleteCustomProvider} />}
             {!loading && tab === "skills" && <SkillsSettings skills={skills} diagnostics={diagnostics} busy={busy} draft={skillDraft} detail={skillDetail} detailLoading={skillDetailLoading} onDraftChange={(draft) => { setSkillDraft(draft); if (draft) setSkillDetail(null); }} onSave={saveUserSkill} onToggle={toggleSkill} onEdit={editUserSkill} onDelete={deleteUserSkill} onView={viewSkill} onCloseDetail={() => setSkillDetail(null)} />}
             {!loading && tab === "mcp" && <McpSettings servers={mcpServers} draft={mcpDraft} busy={busy} onStartNew={() => setMcpDraft(emptyMcpDraft)} onEdit={(server) => setMcpDraft(serverToDraft(server))} onDraftChange={setMcpDraft} onSave={saveMcp} onCancel={() => setMcpDraft(null)} onToggle={toggleMcp} onTest={testMcp} onDelete={deleteMcp} />}
             {!loading && tab === "tools" && <ToolsSettings tools={tools} busy={busy} onUpdate={updateTool} />}
