@@ -126,22 +126,3 @@ docs/                     # 架构决策、规格、运行手册和调研资料
 evals/                    # Chalkboard 等系统评测脚本与数据集
 tests/                    # Playwright 端到端测试
 ```
-
-## 工程设计重点
-
-1. **业务边界清晰**：认证、owner 校验、业务状态和数据库访问集中在 TypeScript API；RAG sidecar 通过受控内部协议接入。
-2. **确定性校验优先**：课堂 DSL、几何命令、数据库权限和学习证据不由模型自行决定；模型只负责在约束内生成内容。
-3. **工具统一治理**：Tools 经过同一套参数校验、审批、超时、取消、结果预算和 telemetry 生命周期。
-4. **可恢复的学习过程**：课堂、对话、讨论和学习会话都有明确的持久化边界，避免只依赖浏览器内存状态。
-5. **质量门禁**：静态检查、单元测试、API 集成测试和 Chromium 浏览器测试在 GitHub Actions 中运行。
-
-## 当前边界
-
-这是一个单机、可运行的 AI 学习平台版本，不刻意包装成分布式基础设施：
-
-- RAG 索引使用 API 进程内轻量异步 worker，不包含 Redis/Kafka 或多副本调度；
-- LightRAG 检索质量评估集（Recall/MRR、citation correctness、faithfulness）尚未纳入首期；
-- Docker Compose 适合单机部署，生产环境仍需配置 HTTPS 反向代理、外部对象存储和备份策略；
-- 多学科、复杂任务队列和大规模在线伸缩不属于当前版本范围。
-
-更多架构约束和开发流程见 [docs/README.md](docs/README.md)。
