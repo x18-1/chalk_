@@ -182,6 +182,17 @@ function normalizeCanvasElement(input: Record<string, unknown>, viewportSize: nu
       element.viewBox = [width, height];
       element.path = `M ${width / 2} 0 A ${radius} ${radius} 0 1 1 ${width / 2 - 0.01} ${height} A ${radius} ${radius} 0 1 1 ${width / 2} 0 Z`;
     }
+    if (element.path === undefined && (shape === 'ellipse' || shape === 'oval')) {
+      // Keep the ellipse in the element's local coordinate system so the
+      // renderer can position and scale it with the same left/top/width/
+      // height contract as every other shape.
+      const radiusX = width / 2;
+      const radiusY = height / 2;
+      const centerX = radiusX;
+      element.shape = 'ellipse';
+      element.viewBox = [width, height];
+      element.path = `M ${centerX} 0 A ${radiusX} ${radiusY} 0 1 1 ${centerX} ${height} A ${radiusX} ${radiusY} 0 1 1 ${centerX} 0 Z`;
+    }
     if (element.path === undefined && (shape === 'roundedRect' || shape === 'rounded-rect')) {
       const radius = Math.min(finiteNumber(element.rx) ? element.rx : 12, width / 2, height / 2);
       element.viewBox = [width, height];

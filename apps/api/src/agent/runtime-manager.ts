@@ -51,6 +51,7 @@ import {
 } from '../providers/llm/model-catalog';
 import { DrizzleCredentialStore } from '../providers/llm/credential-store';
 import { PROMPT_IDS, buildPrompt } from '../prompts';
+import { MemoryService } from '../modules/memory/services/memory.service';
 
 let sessionRepository: ReturnType<typeof createJsonlSessionRepository> | undefined;
 
@@ -230,6 +231,7 @@ type RuntimeEntry = {
   approvals: ApprovalBroker;
   mcp: McpManager;
   model: ModelSelection;
+  systemPrompt: string;
 };
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
@@ -352,6 +354,7 @@ function createBuiltinTools() {
   const conversations = createConversationsDal(getDb());
   const readCursorSecret = process.env.CREDENTIAL_ENCRYPTION_KEY;
   return createBuiltinToolRegistry({
+    memory: new MemoryService(getDb()),
     conversationTitleUpdater: {
       async update(input) {
         const row = await conversations.update(input.ownerId, input.conversationId, {
@@ -588,7 +591,7 @@ export async function getOrCreateRuntime(
     },
     toolErrorChannel,
   });
-  const entry = { ownerId: userId, runtime, session, approvals, mcp, model };
+  const entry = { ownerId: userId, runtime, session, approvals, mcp, model, systemPrompt: mainPrompt.system };
   activeRuntimes.set(conversation.id, entry);
   return entry;
 }

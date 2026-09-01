@@ -16,6 +16,10 @@ export const modelSelectionSchema = z.object({
   thinkingLevel: z.enum(MODEL_THINKING_LEVELS),
 });
 
+export const memorySettingsSchema = z.object({
+  enabled: z.boolean(),
+}).strict();
+
 const mediaSelectionSchema = z.object({
   providerId: z.string().trim().min(1).max(100),
   modelId: z.string().trim().min(1).max(200).nullable(),

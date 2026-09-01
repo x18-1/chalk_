@@ -1,0 +1,1 @@
+ALTER TABLE "agent_settings" ADD COLUMN "memory_injection_enabled" boolean DEFAULT true NOT NULL;

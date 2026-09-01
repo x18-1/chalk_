@@ -55,6 +55,10 @@ type MessageTool = {
   chalkboard?: SceneView;
 };
 
+type MessageSegment =
+  | { kind: "text"; text: string }
+  | { kind: "tool"; tool: MessageTool };
+
 type Message = {
   id: string;
   role: Role;
@@ -63,6 +67,7 @@ type Message = {
   attachment?: string;
   thinking?: "running";
   tools?: MessageTool[];
+  segments: MessageSegment[];
   runStatus?: "aborted" | "failed";
 };
 
@@ -167,6 +172,43 @@ function mergeTools(current: MessageTool[] = [], incoming: MessageTool[]) {
   return merged;
 }
 
+function appendMessageText(message: Message, text: string) {
+  if (!text) return message;
+  const segments = [...message.segments];
+  const last = segments.at(-1);
+  if (last?.kind === "text") {
+    segments[segments.length - 1] = { kind: "text", text: `${last.text}${text}` };
+  } else {
+    segments.push({ kind: "text", text });
+  }
+  const separator = message.text && last?.kind !== "text" ? "\n\n" : "";
+  return { ...message, text: `${message.text}${separator}${text}`, segments };
+}
+
+function appendCompletedAssistantText(message: Message, text: string) {
+  if (!text) return message;
+  const last = message.segments.at(-1);
+  if (last?.kind === "text") {
+    if (last.text === text) return message;
+    if (text.startsWith(last.text)) return appendMessageText(message, text.slice(last.text.length));
+  }
+  // message_completed repeats the text already emitted through text_delta. Do
+  // not duplicate it, but retain a completed message when a provider omitted
+  // streaming deltas.
+  if (message.text.endsWith(text)) return message;
+  return appendMessageText(message, text);
+}
+
+function mergeMessageTool(message: Message, incoming: MessageTool) {
+  const tools = mergeTools(message.tools, [incoming]);
+  const tool = tools.find((candidate) => candidate.toolCallId === incoming.toolCallId) ?? incoming;
+  const segments = [...message.segments];
+  const index = segments.findIndex((segment) => segment.kind === "tool" && segment.tool.toolCallId === incoming.toolCallId);
+  if (index < 0) segments.push({ kind: "tool", tool });
+  else segments[index] = { kind: "tool", tool };
+  return { ...message, tools, segments };
+}
+
 function temporaryConversationTitle(message: string) {
   const trimmed = message.trim();
   const firstSentence = trimmed.split(/[。！？!?\r\n]/, 1)[0]?.trim();
@@ -184,11 +226,11 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
         role: "student",
         text: messageText(raw.content),
         time: formatMessageTime(raw.timestamp),
+        segments: [],
       });
       return;
     }
     if (raw.role === "assistant") {
-      const text = messageText(raw.content).trim();
       if (!currentTutor) {
         currentTutor = {
           id: `${conversationId}-${String(raw.timestamp ?? index)}`,
@@ -196,11 +238,20 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
           text: "",
           time: formatMessageTime(raw.timestamp),
           tools: [],
+          segments: [],
         };
         parsed.push(currentTutor);
       }
-      if (text) currentTutor.text = [currentTutor.text, text].filter(Boolean).join("\n\n");
-      currentTutor.tools = mergeTools(currentTutor.tools, toolCalls(raw.content));
+      const blocks = Array.isArray(raw.content) ? raw.content : [{ type: "text", text: raw.content }];
+      for (const block of blocks) {
+        const value = objectValue(block);
+        if (value?.type === "text" && typeof value.text === "string") {
+          currentTutor = appendMessageText(currentTutor, value.text);
+        }
+        const [tool] = toolCalls([block]);
+        if (tool) currentTutor = mergeMessageTool(currentTutor, tool);
+      }
+      parsed[parsed.length - 1] = currentTutor;
       if (raw.stopReason === "aborted" || raw.stopReason === "error") {
         currentTutor.runStatus = raw.stopReason === "aborted" ? "aborted" : "failed";
       }
@@ -214,20 +265,22 @@ function historyMessages(conversationId: string, rawMessages: Array<Record<strin
           text: "",
           time: formatMessageTime(raw.timestamp),
           tools: [],
+          segments: [],
         };
         parsed.push(currentTutor);
       }
       const toolName = typeof raw.toolName === "string" ? raw.toolName : "tool";
-        currentTutor.tools = mergeTools(currentTutor.tools, [{
+      currentTutor = mergeMessageTool(currentTutor, {
         toolCallId: raw.toolCallId,
         toolName,
         label: toolLabel(toolName),
         state: isStudentRejectedTool(raw.content)
           ? "rejected"
           : raw.isError === true ? "error" : "complete",
-          result: raw.isError === true ? undefined : toolResultText(raw.content),
-          chalkboard: chalkboardDetails(raw.details),
-        }]);
+        result: raw.isError === true ? undefined : toolResultText(raw.content),
+        chalkboard: chalkboardDetails(raw.details),
+      });
+      parsed[parsed.length - 1] = currentTutor;
     }
   });
   return parsed;
@@ -630,7 +683,7 @@ export default function ChatPage() {
     setConversationFailure(conversationId, undefined);
     const now = new Date();
     const time = now.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-    const studentMessage: Message = { id: `student-${Date.now()}`, role: "student", text, time, attachment: attachedFile?.name };
+    const studentMessage: Message = { id: `student-${Date.now()}`, role: "student", text, time, attachment: attachedFile?.name, segments: [] };
     updateConversationMessages(conversationId, (current) => [...current, studentMessage]);
     setDraft("");
     setAttachedFile(null);
@@ -642,16 +695,16 @@ export default function ChatPage() {
       text: "",
       time,
       tools: [],
+      segments: [],
     }]);
     const controller = new AbortController();
     runControllersRef.current.set(conversationId, controller);
     try {
       await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
-        if (type === "text_delta") updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
-          ...message,
-          text: `${message.text}${String(data.delta ?? "")}`,
-          thinking: undefined,
-        } : message));
+        if (type === "text_delta") updateConversationMessages(conversationId, (current) => current.map((message) => {
+          if (message.id !== tutorId) return message;
+          return { ...appendMessageText(message, String(data.delta ?? "")), thinking: undefined };
+        }));
         if (type === "thinking_delta") updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId && !message.text
           ? { ...message, thinking: "running" }
           : message));
@@ -659,25 +712,26 @@ export default function ChatPage() {
           const toolCallId = String(data.toolCallId ?? "");
           const toolName = String(data.toolName ?? "tool");
           flushSync(() => {
-            updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
-              ...message,
-              tools: mergeTools(message.tools, [{
+            updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? mergeMessageTool(message, {
                 toolCallId,
                 toolName,
                 label: type === "tool_pending" ? String(data.label ?? toolLabel(toolName)) : toolLabel(toolName),
                 state: type === "tool_pending" ? "approval" : "running",
-              }]),
-            } : message));
+              }) : message));
           });
         }
         if (type === "tool_updated") {
           const update = data.update;
           if (update && typeof update === "object" && "details" in update && update.details && typeof update.details === "object" && "type" in update.details && update.details.type === "subagent_running") {
             const toolCallId = String(data.toolCallId ?? "");
-            updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
-              ...message,
-              tools: (message.tools ?? []).map((tool) => tool.toolCallId === toolCallId ? { ...tool, state: "running" } : tool),
-            } : message));
+            updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId
+              ? mergeMessageTool(message, {
+                  toolCallId,
+                  toolName: message.tools?.find((tool) => tool.toolCallId === toolCallId)?.toolName ?? "tool",
+                  label: message.tools?.find((tool) => tool.toolCallId === toolCallId)?.label ?? "工具",
+                  state: "running",
+                })
+              : message));
           }
         }
         if (type === "tool_finished") {
@@ -687,30 +741,30 @@ export default function ChatPage() {
           const resultText = toolResultText(result?.content);
           const rejected = rejectedToolCallsRef.current.get(conversationId)?.has(toolCallId) === true
             || isStudentRejectedTool(result?.content);
-          updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
-            ...message,
-            tools: mergeTools(message.tools, [{
+          updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? mergeMessageTool(message, {
               toolCallId,
               toolName,
               label: message.tools?.find((tool) => tool.toolCallId === toolCallId)?.label ?? toolLabel(toolName),
               state: rejected ? "rejected" : data.isError ? "error" : "complete",
               result: data.isError || rejected ? undefined : resultText,
               chalkboard: chalkboardDetails(result?.details),
-            }]),
-          } : message));
+            }) : message));
           rejectedToolCallsRef.current.get(conversationId)?.delete(toolCallId);
         }
         if (type === "message_completed" && data.message?.role === "assistant") {
           const completedMessage = data.message;
-          updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? {
-            ...message,
-            text: messageText(completedMessage.content) || message.text,
-            thinking: undefined,
-            tools: mergeTools(message.tools, toolCalls(completedMessage.content)),
-            runStatus: completedMessage.stopReason === "aborted"
-              ? "aborted"
-              : completedMessage.stopReason === "error" ? "failed" : message.runStatus,
-          } : message));
+          updateConversationMessages(conversationId, (current) => current.map((message) => {
+            if (message.id !== tutorId) return message;
+            let next = appendCompletedAssistantText(message, messageText(completedMessage.content));
+            for (const tool of toolCalls(completedMessage.content)) next = mergeMessageTool(next, tool);
+            return {
+              ...next,
+              thinking: undefined,
+              runStatus: completedMessage.stopReason === "aborted"
+                ? "aborted"
+                : completedMessage.stopReason === "error" ? "failed" : next.runStatus,
+            };
+          }));
         }
         if (type === "error") {
           updateConversationMessages(conversationId, (current) => current.map((message) => message.id === tutorId ? { ...message, runStatus: "failed" } : message));
@@ -1041,6 +1095,10 @@ function MessageBubble({
   onDecideTool: (toolCallId: string, approved: boolean) => void;
 }) {
   if (message.role === "student") return <div className={styles.studentMessage}><div className={styles.studentBubble}>{message.attachment && <div className={styles.attachmentPreview}><FileText size={14} /><span>{message.attachment}</span></div>}<p>{message.text}</p></div><time>{message.time}</time></div>;
+  const segments = message.segments.length ? message.segments : [
+    ...(message.tools ?? []).map((tool): MessageSegment => ({ kind: "tool", tool })),
+    ...(message.text ? [{ kind: "text", text: message.text } satisfies MessageSegment] : []),
+  ];
   return <div className={styles.tutorMessage}>
     <div className={styles.messageAuthor}>
       <span className={styles.tutorAvatar}>C</span><strong>Chalk</strong>
@@ -1048,20 +1106,22 @@ function MessageBubble({
       {message.runStatus && <span className={`${styles.runStatus} ${styles[`run_${message.runStatus}`]}`}>{message.runStatus === "aborted" ? "已停止" : "未完成"}</span>}
     </div>
     {(pending || message.thinking === "running") && <div className={styles.thinkingLine}><LoaderCircle size={15} className={styles.spin} />Thinking…</div>}
-    {!!message.tools?.length && <div className={styles.messageTools}>{message.tools.map((tool) => <ToolActivity
-      key={tool.toolCallId}
-      tool={tool}
-      onApprove={() => onDecideTool(tool.toolCallId, true)}
-      onDeny={() => onDecideTool(tool.toolCallId, false)}
-    />)}</div>}
-    {message.tools?.map((tool) => tool.chalkboard ? <InlineChalkboard key={`${tool.toolCallId}-chalkboard`} scene={tool.chalkboard} /> : null)}
-    {message.text && <div className={styles.tutorCopy}><ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex]}
-      components={{
-        table: ({ children }) => <div className={styles.tableScroll} role="region" aria-label="表格内容" tabIndex={0}><table>{children}</table></div>,
-      }}
-    >{message.text}</ReactMarkdown></div>}
+    {segments.map((segment, index) => segment.kind === "tool"
+      ? <div key={`tool-${segment.tool.toolCallId}-${index}`} className={styles.messageTools}>
+          <ToolActivity
+            tool={segment.tool}
+            onApprove={() => onDecideTool(segment.tool.toolCallId, true)}
+            onDeny={() => onDecideTool(segment.tool.toolCallId, false)}
+          />
+          {segment.tool.chalkboard ? <InlineChalkboard scene={segment.tool.chalkboard} /> : null}
+        </div>
+      : <div key={`text-${index}`} className={styles.tutorCopy}><ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex]}
+          components={{
+            table: ({ children }) => <div className={styles.tableScroll} role="region" aria-label="表格内容" tabIndex={0}><table>{children}</table></div>,
+          }}
+        >{segment.text}</ReactMarkdown></div>)}
   </div>;
 }
 

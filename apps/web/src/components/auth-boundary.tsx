@@ -7,7 +7,7 @@ import { LoaderCircle, RotateCw } from "lucide-react";
 import { ApiRequestError, authApi } from "../api";
 import styles from "./auth-boundary.module.css";
 
-const protectedPrefixes = ["/chat", "/chats", "/chalkboard", "/observability", "/admin"];
+const protectedPrefixes = ["/chat", "/chats", "/chalkboard", "/observability", "/admin", "/memory"];
 
 export function AuthBoundary({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

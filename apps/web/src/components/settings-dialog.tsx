@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   AudioLines,
+  Archive,
   BrainCircuit,
+  Check,
   Eye,
   Globe2,
   ImageIcon,
   KeyRound,
   PlugZap,
   Plus,
+  Pencil,
   RefreshCw,
+  RotateCcw,
   Save,
   Server,
   Trash2,
@@ -29,11 +33,12 @@ import {
   type SkillDetails,
   type Tool,
 } from "../api";
+import { memoryApi, type MemoryEntry } from "../api";
 import styles from "./app-sidebar.module.css";
 import { MediaProviderSettings } from "./media-provider-settings";
 import { SecretInput } from "./secret-input";
 
-type SettingsTab = "api" | "skills" | "mcp" | "tools";
+type SettingsTab = "api" | "skills" | "mcp" | "tools" | "memory";
 type ApiSubtab = "models" | "voice" | "image" | "video" | "search";
 
 type McpDraft = {
@@ -96,6 +101,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [diagnostics, setDiagnostics] = useState<Array<{ message: string; code: string }>>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [memoryInjectionEnabled, setMemoryInjectionEnabled] = useState(true);
+  const [showArchivedMemory, setShowArchivedMemory] = useState(false);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryEditing, setMemoryEditing] = useState<string | null>(null);
+  const [memoryDraft, setMemoryDraft] = useState("");
   const [providerId, setProviderId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -137,6 +148,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       setDiagnostics(data.diagnostics ?? []);
       setMcpServers(data.servers);
       setTools(data.tools);
+      setMemoryInjectionEnabled(data.memoryInjectionEnabled);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载工作区配置失败");
     } finally {
@@ -172,6 +184,59 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       });
     return () => { cancelled = true; };
   }, [providerId]);
+
+  useEffect(() => {
+    if (tab !== "memory") return;
+    setMemoryLoading(true);
+    setError(null);
+    void memoryApi.list({ layer: "L3", includeArchived: showArchivedMemory })
+      .then((result) => setMemoryEntries(result.entries))
+      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "加载学习记忆失败"))
+      .finally(() => setMemoryLoading(false));
+  }, [tab, showArchivedMemory]);
+
+  async function updateMemory(id: string, input: { text?: string; status?: "active" | "archived" }) {
+    try {
+      const result = await memoryApi.update(id, input);
+      setMemoryEntries((current) => showArchivedMemory || input.status !== "archived"
+        ? current.map((entry) => entry.id === id ? result.entry : entry)
+        : current.filter((entry) => entry.id !== id));
+      setMemoryEditing(null);
+      setNotice(input.status ? (input.status === "archived" ? "记忆已归档" : "记忆已恢复") : "记忆已更新");
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "更新学习记忆失败");
+    }
+  }
+
+  async function toggleMemoryInjection() {
+    const next = !memoryInjectionEnabled;
+    setBusy("memory-injection");
+    setError(null);
+    try {
+      const result = await settingsApi.setMemoryEnabled(next);
+      setMemoryInjectionEnabled(result.memoryInjectionEnabled);
+      setNotice(next ? "已开启记忆注入" : "已关闭记忆注入");
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "更新记忆设置失败");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function updateMemoryConsolidation() {
+    setBusy("memory-update");
+    setError(null);
+    try {
+      const result = await memoryApi.consolidate();
+      const refreshed = await memoryApi.list({ layer: "L3", includeArchived: showArchivedMemory });
+      setMemoryEntries(refreshed.entries);
+      setNotice(`记忆已更新：处理 ${result.run.processed} 条活动，新增 ${result.run.added} 条记忆`);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "更新学习记忆失败");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function saveApiSettings(event: FormEvent) {
     event.preventDefault();
@@ -456,6 +521,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <SettingsTabButton active={tab === "skills"} icon={<BrainCircuit size={16} />} label="Skills" onClick={() => setTab("skills")} />
             <SettingsTabButton active={tab === "mcp"} icon={<Server size={16} />} label="MCP" onClick={() => setTab("mcp")} />
             <SettingsTabButton active={tab === "tools"} icon={<Wrench size={16} />} label="Tools" onClick={() => setTab("tools")} />
+            <SettingsTabButton active={tab === "memory"} icon={<BrainCircuit size={16} />} label="记忆" onClick={() => setTab("memory")} />
           </nav>
           <div className={styles.settingsContent}>
             {loading && <p>正在加载工作区配置…</p>}
@@ -465,6 +531,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             {!loading && tab === "skills" && <SkillsSettings skills={skills} diagnostics={diagnostics} busy={busy} draft={skillDraft} detail={skillDetail} detailLoading={skillDetailLoading} onDraftChange={(draft) => { setSkillDraft(draft); if (draft) setSkillDetail(null); }} onSave={saveUserSkill} onToggle={toggleSkill} onEdit={editUserSkill} onDelete={deleteUserSkill} onView={viewSkill} onCloseDetail={() => setSkillDetail(null)} />}
             {!loading && tab === "mcp" && <McpSettings servers={mcpServers} draft={mcpDraft} busy={busy} onStartNew={() => setMcpDraft(emptyMcpDraft)} onEdit={(server) => setMcpDraft(serverToDraft(server))} onDraftChange={setMcpDraft} onSave={saveMcp} onCancel={() => setMcpDraft(null)} onToggle={toggleMcp} onTest={testMcp} onDelete={deleteMcp} />}
             {!loading && tab === "tools" && <ToolsSettings tools={tools} busy={busy} onUpdate={updateTool} />}
+            {tab === "memory" && <MemorySettings entries={memoryEntries} loading={memoryLoading} memoryInjectionEnabled={memoryInjectionEnabled} memoryInjectionBusy={busy === "memory-injection"} memoryUpdateBusy={busy === "memory-update"} onToggleMemoryInjection={() => void toggleMemoryInjection()} onUpdateMemory={() => void updateMemoryConsolidation()} showArchived={showArchivedMemory} onToggleArchived={() => setShowArchivedMemory((value) => !value)} editingId={memoryEditing} draft={memoryDraft} onBeginEdit={(entry) => { setMemoryEditing(entry.id); setMemoryDraft(entry.text); }} onDraftChange={setMemoryDraft} onCancelEdit={() => setMemoryEditing(null)} onSave={(id) => updateMemory(id, { text: memoryDraft.trim() })} onArchive={(id, status) => updateMemory(id, { status })} />}
           </div>
         </div>
       </section>
@@ -665,6 +732,55 @@ function ToolsSettings({ tools, busy, onUpdate }: { tools: Tool[]; busy: string 
     const effectText = tool.effects.join("、");
     return <div className={styles.settingsRow} key={tool.name}><span className={styles.settingsRowIcon}><Wrench size={15} /></span><span className={styles.settingsRowCopy}><strong>{tool.label}</strong><small>{tool.description}</small><span className={styles.settingsMeta}>{tool.source} · {effectText} · {tool.executionMode === "parallel" ? "可并行" : "串行"} · {limitText}</span></span><span className={styles.settingsActions}><select className={styles.approvalSelect} aria-label={`${tool.label} 审批策略`} value={tool.approval} onChange={(event) => void onUpdate(tool, { approval: event.target.value as Tool["approval"] })} disabled={busy === `tool:${tool.name}`}><option value="default">默认</option><option value="always">总是询问</option><option value="never" disabled={approvalLocked}>不询问</option></select><button className={`${styles.settingsSwitch} ${tool.enabled ? styles.settingsSwitchOn : ''}`} type="button" role="switch" aria-checked={tool.enabled} aria-label={`${tool.label}${tool.enabled ? "已启用" : "已停用"}`} disabled={busy === `tool:${tool.name}`} onClick={() => void onUpdate(tool, { enabled: !tool.enabled })}><span /></button></span></div>;
   }) : <p className={styles.emptySettings}>当前没有可用工具。</p>}</div></div>;
+}
+
+const memorySlots = ["profile", "preferences", "scope", "recent"] as const;
+const memorySlotLabels: Record<(typeof memorySlots)[number], string> = {
+  profile: "关于你",
+  preferences: "学习偏好",
+  scope: "学习范围",
+  recent: "最近学习",
+};
+
+function MemorySettings(props: {
+  entries: MemoryEntry[];
+  loading: boolean;
+  memoryInjectionEnabled: boolean;
+  memoryInjectionBusy: boolean;
+  memoryUpdateBusy: boolean;
+  onToggleMemoryInjection: () => void;
+  onUpdateMemory: () => void;
+  showArchived: boolean;
+  onToggleArchived: () => void;
+  editingId: string | null;
+  draft: string;
+  onBeginEdit: (entry: MemoryEntry) => void;
+  onDraftChange: (value: string) => void;
+  onCancelEdit: () => void;
+  onSave: (id: string) => void;
+  onArchive: (id: string, status: "active" | "archived") => void;
+}) {
+  const grouped = Object.fromEntries(memorySlots.map((slot) => [slot, props.entries.filter((entry) => entry.slot === slot)])) as Record<(typeof memorySlots)[number], MemoryEntry[]>;
+  return <div>
+    <div className={styles.settingsTitle}>
+      <div><h3>学习记忆</h3><p>查看和修改 Chalk 为你整理的长期学习偏好与上下文。</p></div>
+      <button className={`${styles.settingsSwitch} ${props.memoryInjectionEnabled ? styles.settingsSwitchOn : ""}`} type="button" role="switch" aria-checked={props.memoryInjectionEnabled} aria-label="自动注入学习记忆" onClick={props.onToggleMemoryInjection} disabled={props.memoryInjectionBusy}><span /></button>
+      <button className={styles.secondaryButton} type="button" onClick={props.onUpdateMemory} disabled={props.memoryUpdateBusy || props.loading}><RefreshCw size={14} className={props.memoryUpdateBusy ? styles.spin : ""} />{props.memoryUpdateBusy ? "更新中…" : "立即 Update"}</button>
+      <button className={styles.secondaryButton} type="button" onClick={props.onToggleArchived}>{props.showArchived ? "隐藏已归档" : "查看已归档"}</button>
+    </div>
+    <p className={styles.memoryHint}>{props.memoryInjectionEnabled ? "已开启：每次对话都会将 active L3 记忆注入教学上下文。" : "已关闭：记忆仍会保存，但不会自动提供给 Agent。"}</p>
+    {props.loading ? <p className={styles.emptySettings}>正在加载学习记忆…</p> : <div className={styles.settingsList}>
+      {memorySlots.map((slot) => <section key={slot} className={styles.memorySection}>
+        <div className={styles.memorySectionHeader}><strong>{memorySlotLabels[slot]}</strong><span>{grouped[slot].length}</span></div>
+        {grouped[slot].length ? grouped[slot].map((entry) => <div className={`${styles.settingsRow} ${entry.status === "archived" ? styles.memoryArchived : ""}`} key={entry.id}>
+          {props.editingId === entry.id
+            ? <div className={styles.memoryEditor}><textarea value={props.draft} maxLength={240} autoFocus onChange={(event) => props.onDraftChange(event.target.value)} /><div className={styles.settingsActions}><button className={styles.textButton} type="button" onClick={props.onCancelEdit}>取消</button><button className={styles.saveButton} type="button" disabled={!props.draft.trim()} onClick={() => props.onSave(entry.id)}><Check size={14} />保存</button></div></div>
+            : <><span className={styles.settingsRowIcon}><BrainCircuit size={15} /></span><span className={styles.settingsRowCopy}><strong>{entry.text}</strong><small>更新于 {new Date(entry.updatedAt).toLocaleDateString("zh-CN")} · 来源 {entry.refs.length} 条{entry.status === "archived" ? " · 已归档" : ""}</small></span><span className={styles.settingsActions}><button className={styles.iconActionButton} type="button" aria-label="编辑记忆" title="编辑" onClick={() => props.onBeginEdit(entry)}><Pencil size={14} /></button>{entry.status === "archived" ? <button className={styles.iconActionButton} type="button" aria-label="恢复记忆" title="恢复" onClick={() => props.onArchive(entry.id, "active")}><RotateCcw size={14} /></button> : <button className={styles.iconActionButton} type="button" aria-label="归档记忆" title="归档" onClick={() => props.onArchive(entry.id, "archived")}><Archive size={14} /></button>}</span></>}
+        </div>) : <p className={styles.emptySettings}>还没有内容</p>}
+      </section>)}
+    </div>}
+    {!props.loading && <p className={styles.memoryFootnote}><RotateCcw size={14} />记忆只用于帮助教学，不代表对知识掌握度的判定。</p>}
+  </div>;
 }
 
 function serverToDraft(server: McpServer): McpDraft {

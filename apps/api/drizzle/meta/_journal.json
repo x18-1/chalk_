@@ -246,6 +246,20 @@
       "when": 1788197165118,
       "tag": "0034_heavy_elektra",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788234374396,
+      "tag": "0035_third_liz_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788239647713,
+      "tag": "0036_black_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }

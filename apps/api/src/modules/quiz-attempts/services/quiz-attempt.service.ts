@@ -4,6 +4,7 @@ import type { Database } from '../../../db/client';
 import { createQuizAttemptsDal } from '../../../db/dal';
 import { ApiError } from '../../../http/errors';
 import type { SaveQuizAttemptInput } from '../schemas';
+import type { MemoryService } from '../../memory/services/memory.service';
 
 type QuizResult = {
   questionId: string;
@@ -15,7 +16,7 @@ type QuizResult = {
 export class QuizAttemptService {
   private readonly attempts;
 
-  constructor(db: Database) {
+  constructor(db: Database, private readonly memory?: MemoryService) {
     this.attempts = createQuizAttemptsDal(db);
   }
 
@@ -50,6 +51,11 @@ export class QuizAttemptService {
         'QUIZ_ATTEMPT_CONFLICT',
       );
     }
+    await this.memory?.appendEvent(userId, {
+      surface: 'quiz', kind: 'attempt_submitted',
+      payload: { learningSessionId, sceneId, score: result.row.score, maxScore: result.row.maxScore, results: result.row.results },
+      sourceType: 'quiz_attempt', sourceId: result.row.id,
+    }).catch(() => undefined);
     return { quizAttempt: projectQuizAttempt(result.row), created: result.created };
   }
 }

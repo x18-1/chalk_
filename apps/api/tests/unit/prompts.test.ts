@@ -33,9 +33,20 @@ describe('Prompt module interface', () => {
 
   it('keeps every execution template structurally paired with its Chinese review copy', () => {
     expect(validatePromptRegistry()).toEqual({
-      promptCount: 17,
+      promptCount: 18,
       snippetCount: 7,
     });
+  });
+
+  it('builds the detailed memory-consolidation zero-shot prompt in English', () => {
+    const prompt = buildPrompt(PROMPT_IDS.MEMORY_CONSOLIDATION, {});
+
+    expect(prompt.system).toContain('L1-to-L2 event pass');
+    expect(prompt.system).toContain('exact discriminator key `op` (never `operation`)');
+    expect(prompt.system).toContain('return exactly `[]`');
+    expect(prompt.system).toContain('Do not skip a layer');
+    expect(prompt.system).not.toContain('你是 Chalk');
+    expect(prompt.system).not.toMatch(/\{\{[^}]+\}\}/);
   });
 
   it('keeps the Subagent system prompt static and free of session identifiers', () => {

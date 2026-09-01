@@ -108,6 +108,7 @@ Chalkboard 渲染器或课堂运行时。
 | `rect` / `w` / `h` | `shape` / `width` / `height` |
 | `shape: "roundedRect"` / `background` | 标准圆角路径 / `fill` |
 | `shape: "circle"` | 标准圆形路径 |
+| `shape: "ellipse"` / `shape: "oval"` | 标准椭圆路径 |
 | `arrow` / `from` / `to` | 带箭头标记的标准 `line` |
 | 画布 `background: "#…"` | 标准 `background: { color: "#…" }` |
 
