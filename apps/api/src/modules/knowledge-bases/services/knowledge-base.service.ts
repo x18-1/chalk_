@@ -137,7 +137,7 @@ export class KnowledgeBaseService {
         throw new ApiError(400, 'Uploaded file type does not match the reservation', 'UPLOAD_CONTENT_TYPE_MISMATCH');
       }
     }
-    if (document.status === 'indexing' || document.status === 'pending') return this.publicDocument(document);
+    if (document.status === 'indexing') return this.publicDocument(document);
     if (document.status === 'ready' && !options?.reindex) return this.publicDocument(document);
     if (document.status === 'ready' && options?.reindex) {
       try {
