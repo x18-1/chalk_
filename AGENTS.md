@@ -21,11 +21,11 @@
 
 以下决定已确认，不要在未询问的情况下偏离：
 
-- 全栈 TypeScript。后端（认证、CRUD、业务逻辑、数据访问）同样在 TS，不引入 Python。
+- Chalk 业务后端（认证、CRUD、业务逻辑、数据访问）使用 TypeScript。LightRAG 是明确例外：允许独立的 Python 在线 retrieval sidecar 负责 LightRAG 原生索引/查询；它不得承载 Chalk 业务、认证或 owner 授权。TypeScript API 必须先完成授权，再通过受控内部接口调用 sidecar。
 - 通用 Agent 运行时使用 `@earendil-works/pi-agent-core`，版本锁定，不用 `^`。Chalkboard
   课堂多 Agent 讨论按 [ADR 0001](docs/adr/0001-langgraph-for-classroom-discussion.md) 使用锁定版本的
   TypeScript LangGraph 编排；模型与凭据仍走现有 `@earendil-works/pi-ai` Provider 层。
-- 几何渲染使用 `manim-web`，版本锁定。几何约束层自建，不绑渲染器的对象模型。
+- 几何渲染默认使用 GeoGebra Classic，Geometry Agent 的 Stage 2 输出受控 GeoGebra 命令脚本，由 TypeScript 宿主逐条执行；GeoGebra 原生负责 Slider、路径和依赖更新。`manim-web` 仅作为迁移期遗留/可选动画适配器保留，几何约束层不得绑定渲染器对象模型。
 - 数据库 Postgres + Drizzle。
 - 第一批学科只做数学。
 
