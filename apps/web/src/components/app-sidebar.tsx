@@ -10,6 +10,7 @@ import {
   ChevronUp,
   CircleHelp,
   ListFilter,
+  LoaderCircle,
   LogOut,
   MessageCircle,
   MoreHorizontal,
@@ -54,11 +55,12 @@ export const defaultSidebarConversations: SidebarConversation[] = [
 const conversationGroupOrder: ConversationGroup[] = ["今天", "昨天", "过去 7 天", "过去 30 天"];
 
 type AppSidebarProps = {
-  activeSection?: "new" | "chats" | "chalkboard" | "knowledge-bases";
+  activeSection?: "new" | "chats" | "chalkboard" | "memory";
   /** Which records belong in the contextual history rail on this surface. */
   historyMode?: "chat" | "chalkboard" | "all";
   conversations?: SidebarConversation[];
   selectedConversationId?: string;
+  runningConversationIds?: ReadonlySet<string>;
   onNewConversation?: () => void;
   onSelectConversation?: (id: string) => void;
   onRenameConversation?: (id: string, title: string) => void;
@@ -78,6 +80,7 @@ export function AppSidebar({
   historyMode = "chat",
   conversations: controlledConversations,
   selectedConversationId,
+  runningConversationIds,
   onNewConversation,
   onSelectConversation,
   onRenameConversation,
@@ -213,7 +216,7 @@ export function AppSidebar({
             {renamingConversationId === conversation.id
               ? <input className={styles.conversationRename} value={renameValue} autoFocus aria-label="重命名会话" onChange={(event) => setRenameValue(event.target.value)} onBlur={() => commitRenameConversation(conversation.id)} onKeyDown={(event) => { if (event.key === "Enter") commitRenameConversation(conversation.id); if (event.key === "Escape") { setRenamingConversationId(null); setRenameValue(""); } }} />
               : onSelectConversation
-                ? <button className={styles.conversationSelect} type="button" aria-current={selectedConversationId === conversation.id ? "page" : undefined} onClick={() => selectConversation(conversation.id)}><strong>{conversation.title}</strong></button>
+                ? <button className={styles.conversationSelect} type="button" aria-current={selectedConversationId === conversation.id ? "page" : undefined} onClick={() => selectConversation(conversation.id)}><strong>{conversation.title}</strong>{runningConversationIds?.has(conversation.id) && <small className={styles.conversationRunning}><LoaderCircle size={11} />正在回答</small>}</button>
                 : <Link className={styles.conversationSelect} href={`/chat?conversation=${conversation.id}`}><strong>{conversation.title}</strong></Link>}
             <button data-sidebar-menu className={styles.conversationMenu} type="button" aria-label={`${conversation.title} 的更多操作`} title="更多操作" aria-expanded={openConversationMenu === conversation.id} onClick={(event) => toggleConversationMenu(conversation.id, event.currentTarget)}><MoreHorizontal size={15} /></button>
             {openConversationMenu === conversation.id && conversationMenuPosition && <div data-sidebar-menu className={styles.conversationMenuPopover} style={conversationMenuPosition} role="menu"><button type="button" role="menuitem" onClick={() => startRenameConversation(conversation)}><Pencil size={14} />重命名</button><button type="button" role="menuitem" onClick={() => { setOpenConversationMenu(null); setConversationMenuPosition(null); setPendingDeleteId(conversation.id); }}><Trash2 size={14} />删除</button></div>}

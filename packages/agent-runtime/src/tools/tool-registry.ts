@@ -5,6 +5,7 @@ import type {
 } from "@earendil-works/pi-agent-core";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { Static, TSchema } from "typebox";
+import { Value } from "typebox/value";
 import type { TelemetryContext } from "@earendil-works/pi-telemetry";
 
 export type ToolSource = "builtin" | "chalk" | "mcp" | "subagent";
@@ -35,6 +36,14 @@ export type ToolErrorCode =
   | "read_unsupported_resource"
   | "read_line_too_large"
   | "read_resource_too_large"
+  | "skill_not_found"
+  | "skill_disabled"
+  | "skill_model_invocation_disabled"
+  | "skill_reference_invalid"
+  | "skill_reference_not_found"
+  | "skill_definition_invalid"
+  | "skill_name_conflict"
+  | "tool_call_conflict"
   | "execution_failed";
 
 export const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
@@ -147,6 +156,8 @@ export interface RuntimeTool<
     | boolean
     | ApprovalPredicate<TParameters>;
   executionMode?: "sequential" | "parallel";
+  /** Optional compatibility shim applied before Agent Runtime schema validation. */
+  prepareArguments?: (args: unknown) => Static<TParameters>;
   execute(
     args: Static<TParameters>,
     context: RuntimeToolContext,
@@ -214,6 +225,9 @@ function normalizeTool(tool: RuntimeTool<any>): NormalizedTool {
   if (tool.approvalPolicy === "conditional" && typeof tool.requiresApproval !== "function") {
     invalidDefinition(`Tool ${tool.name} requires an approval predicate for a conditional policy`);
   }
+  if (tool.approvalPolicy === "none" && typeof tool.requiresApproval === "function") {
+    invalidDefinition(`Tool ${tool.name} cannot declare an approval predicate while its policy is none`);
+  }
   if (typeof tool.defaultEnabled !== "boolean") {
     invalidDefinition(`Tool ${tool.name} must declare defaultEnabled`);
   }
@@ -236,7 +250,7 @@ function normalizeTool(tool: RuntimeTool<any>): NormalizedTool {
   return {
     ...tool,
     limits: normalizeLimits(tool),
-    executionMode: tool.executionMode ?? "parallel",
+    executionMode: tool.executionMode ?? "sequential",
   };
 }
 
@@ -318,18 +332,55 @@ function limitUpdate<T>(
   return bounded.truncated ? { ...update, content: bounded.content } : update;
 }
 
+function stableSerialize(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
+  }
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`);
+  return `{${entries.join(",")}}`;
+}
+
+type ToolCallExecution = {
+  fingerprint: string;
+  promise: Promise<AgentToolResult<unknown>>;
+};
+
 function toAgentTool(
   tool: NormalizedTool,
   options: CreateAgentToolsOptions,
+  executions: Map<string, ToolCallExecution>,
 ): AgentTool {
   return {
     name: tool.name,
     label: tool.label,
     description: tool.description,
     parameters: tool.parameters,
+    ...(tool.prepareArguments ? { prepareArguments: tool.prepareArguments } : {}),
     executionMode: tool.executionMode,
     async execute(toolCallId, args, signal, onUpdate) {
-      try {
+      const fingerprint = `${tool.name}:${stableSerialize(args)}`;
+      const existing = executions.get(toolCallId);
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) {
+          const conflict = new ToolExecutionError(
+            "tool_call_conflict",
+            `Tool call id ${toolCallId} was reused with different arguments`,
+          );
+          options.errorChannel?.record({ toolCallId, toolName: tool.name, code: conflict.code });
+          throw conflict;
+        }
+        return existing.promise;
+      }
+
+      const promise = (async () => {
+        try {
+        if (!Value.Check(tool.parameters, args)) {
+          throw new ToolExecutionError("invalid_arguments", `Tool ${tool.name} received invalid arguments`);
+        }
         if (signal?.aborted) {
           throw new ToolExecutionError("cancelled", "Tool execution was cancelled");
         }
@@ -402,16 +453,20 @@ function toAgentTool(
           : undefined;
         const timedOut = new Promise<never>((_, reject) => {
           timeout = setTimeout(() => {
-            controller.abort();
-            reject(new ToolExecutionError("timed_out", `Tool ${tool.name} timed out`));
+            const error = new ToolExecutionError("timed_out", `Tool ${tool.name} timed out`);
+            controller.abort(error);
+            reject(error);
           }, tool.limits.timeoutMs);
         });
         const update = (partialResult: AgentToolResult<unknown>) => {
           onUpdate?.(limitUpdate(partialResult, tool.limits.maxUpdateCharacters));
         };
         const parentAbort = () => {
-          controller.abort();
-          rejectCancelled?.(new ToolExecutionError("cancelled", "Tool execution was cancelled"));
+          const error = signal?.reason instanceof ToolExecutionError
+            ? signal.reason
+            : new ToolExecutionError("cancelled", "Tool execution was cancelled");
+          controller.abort(error);
+          rejectCancelled?.(error);
         };
         signal?.addEventListener("abort", parentAbort, { once: true });
         if (signal?.aborted) parentAbort();
@@ -460,19 +515,26 @@ function toAgentTool(
           }
         },
         );
-      } catch (error) {
-        const normalized = error instanceof ToolExecutionError
-          ? error
-          : new ToolExecutionError("execution_failed", `Tool ${tool.name} failed`, error);
-        options.errorChannel?.record({ toolCallId, toolName: tool.name, code: normalized.code });
-        throw normalized;
-      }
+        } catch (error) {
+          const normalized = error instanceof ToolExecutionError
+            ? error
+            : new ToolExecutionError("execution_failed", `Tool ${tool.name} failed`, error);
+          options.errorChannel?.record({ toolCallId, toolName: tool.name, code: normalized.code });
+          throw normalized;
+        }
+      })();
+      executions.set(toolCallId, { fingerprint, promise });
+      return promise;
     },
   };
 }
 
 export class ToolRegistry {
   private readonly tools = new Map<string, NormalizedTool>();
+  // A registry normally lives for the lifetime of one Agent runtime. Keeping
+  // this cache on the registry (instead of recreating it for every Pi adapter)
+  // makes toolCallId idempotency survive adapter/snapshot recreation.
+  private readonly executions = new Map<string, ToolCallExecution>();
 
   constructor(tools: readonly RuntimeTool<any>[] = []) {
     for (const tool of tools) this.register(tool);
@@ -505,8 +567,10 @@ export class ToolRegistry {
     return Array.from(this.tools.values())
       .filter(
         (tool) =>
-          !options.enabledToolNames || options.enabledToolNames.has(tool.name),
+          options.enabledToolNames
+            ? options.enabledToolNames.has(tool.name)
+            : tool.defaultEnabled,
       )
-      .map((tool) => toAgentTool(tool, options));
+      .map((tool) => toAgentTool(tool, options, this.executions));
   }
 }

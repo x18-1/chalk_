@@ -47,6 +47,17 @@ export function createAgentSettingsDal(db: Database) {
       return rows[0]!;
     },
 
+    async setMemoryInjectionEnabled(userId: string, enabled: boolean) {
+      requireUserId(userId);
+      const changes = { memoryInjectionEnabled: enabled, updatedAt: new Date() };
+      const rows = await db
+        .insert(agentSettings)
+        .values({ userId, memoryInjectionEnabled: enabled })
+        .onConflictDoUpdate({ target: agentSettings.userId, set: changes })
+        .returning();
+      return rows[0]!;
+    },
+
     async setCapabilities(userId: string, input: {
       image?: { providerId: string; modelId: string | null } | null;
       video?: { providerId: string; modelId: string | null; durationSeconds: number; resolution: '720p' | '1080p' } | null;

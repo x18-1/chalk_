@@ -4,40 +4,74 @@ import {
   loadUserSkills,
 } from '../../../agent/runtime-manager';
 import type { Database } from '../../../db/client';
-import { createSkillSettingsDal, createToolSettingsDal } from '../../../db/dal';
+import { createSkillSettingsDal, createToolSettingsDal, createUserSkillsDal } from '../../../db/dal';
 import { ApiError } from '../../../http/errors';
 import type { SkillSettingInput, ToolSettingInput } from '../schemas';
 
 export class RuntimeConfigurationService {
   private readonly skillSettings;
   private readonly toolSettings;
+  private readonly db;
 
   constructor(db: Database) {
+    this.db = db;
     this.skillSettings = createSkillSettingsDal(db);
     this.toolSettings = createToolSettingsDal(db);
   }
 
   async listSkills(userId: string) {
-    const [{ snapshot }, settings] = await Promise.all([
+    const [{ snapshot, enabledSkillNames }, userSkills] = await Promise.all([
       loadUserSkills(userId),
-      this.skillSettings.list(userId),
+      createUserSkillsDal(this.db).list(userId),
     ]);
-    const overrides = new Map(
-      settings.map((setting) => [setting.skillName, setting.enabled]),
-    );
+    const userSkillsByName = new Map(userSkills.map((skill) => [skill.name, skill]));
     return {
       skills: snapshot.skills.map((skill) => ({
         ...skill,
-        enabled: overrides.get(skill.name) ?? true,
+        ...(userSkillsByName.get(skill.name)
+          ? (() => {
+              const userSkill = userSkillsByName.get(skill.name)!;
+              return { userSkillId: userSkill.id, version: userSkill.version, contentHash: userSkill.contentHash, references: Object.keys((userSkill.references as Record<string, string> | null) ?? {}) };
+            })()
+          : {}),
+        enabled: enabledSkillNames.has(skill.name),
       })),
       diagnostics: snapshot.diagnostics,
     };
   }
 
+  async getSkill(userId: string, name: string) {
+    const { registry, snapshot, enabledSkillNames } = await loadUserSkills(userId);
+    const summary = snapshot.skills.find((skill) => skill.name === name);
+    if (!summary) throw new ApiError(404, 'Skill not found', 'SKILL_NOT_FOUND');
+    const details = registry.inspect(name);
+    return {
+      skill: {
+        ...details,
+        enabled: enabledSkillNames.has(name),
+      },
+    };
+  }
+
   async setSkill(userId: string, input: SkillSettingInput) {
     const { snapshot } = await loadUserSkills(userId);
-    if (!snapshot.skills.some((skill) => skill.name === input.skillName)) {
+    const skill = snapshot.skills.find((candidate) => candidate.name === input.skillName);
+    if (!skill) {
       throw new ApiError(404, 'Skill not found', 'SKILL_NOT_FOUND');
+    }
+    if (skill.source.scope === 'user') {
+      const userSkills = createUserSkillsDal(this.db);
+      const owned = (await userSkills.list(userId)).find((candidate) => candidate.name === input.skillName);
+      if (!owned) throw new ApiError(404, 'Skill not found', 'SKILL_NOT_FOUND');
+      const updated = await userSkills.update(userId, owned.id, { enabled: input.enabled });
+      await closeUserRuntimes(userId);
+      return {
+        setting: {
+          skillName: updated.name,
+          enabled: updated.enabled,
+          updatedAt: updated.updatedAt,
+        },
+      };
     }
     const setting = await this.skillSettings.setEnabled(
       userId,

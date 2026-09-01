@@ -18,20 +18,21 @@ import { ToolRegistry } from "../../src/tools/tool-registry";
 const temporaryDirectories: string[] = [];
 const fixturePath = resolve("tests/fixtures/mcp-server.mjs");
 
-async function createFixtureManager(options?: { callTimeoutMs?: number }) {
+async function createFixtureManager(options?: { callTimeoutMs?: number; enableResources?: boolean }) {
   const directory = await mkdtemp(join(tmpdir(), "chalk-mcp-test-"));
   temporaryDirectories.push(directory);
   const exitFile = join(directory, "fixture-exited");
+  const callFile = join(directory, "fixture-calls");
   const manager = new McpManager([{ 
     id: "fixture",
     name: "fixture",
     transport: "stdio",
     command: process.execPath,
     args: [fixturePath],
-    env: { MCP_FIXTURE_EXIT_FILE: exitFile },
+    env: { MCP_FIXTURE_EXIT_FILE: exitFile, MCP_FIXTURE_CALL_FILE: callFile },
     enabled: true,
   }], options);
-  return { manager, exitFile };
+  return { manager, exitFile, callFile };
 }
 
 afterEach(async () => {
@@ -44,13 +45,14 @@ afterEach(async () => {
 
 describe("McpManager", () => {
   it("discovers and invokes a real local MCP tool", async () => {
-    const { manager } = await createFixtureManager();
+    const { manager } = await createFixtureManager({ enableResources: true });
     try {
       const discovered = await manager.connect("fixture");
       expect(discovered).toContainEqual(expect.objectContaining({
         name: "mcp__fixture__echo_math",
         source: "mcp",
-        requiresApproval: false,
+        effects: ["read", "write", "network"],
+        requiresApproval: true,
       }));
 
       const [tool] = manager.tools(new Set(["fixture"]));
@@ -70,7 +72,7 @@ describe("McpManager", () => {
   });
 
   it("reads a text resource through the MCP client", async () => {
-    const { manager } = await createFixtureManager();
+    const { manager } = await createFixtureManager({ enableResources: true });
     try {
       const result = await manager.readResource(
         "fixture",
@@ -87,7 +89,7 @@ describe("McpManager", () => {
   });
 
   it("discovers resources through the proxy search", async () => {
-    const { manager } = await createFixtureManager();
+    const { manager } = await createFixtureManager({ enableResources: true });
     try {
       const [proxy] = manager.proxyTools();
       const result = await proxy!.execute(
@@ -101,7 +103,7 @@ describe("McpManager", () => {
     }
   });
 
-  it("reconnects a previously discovered read-only tool after disconnect", async () => {
+  it("reconnects before sending a stale direct tool call", async () => {
     const { manager } = await createFixtureManager();
     try {
       await manager.connect("fixture");
@@ -114,6 +116,39 @@ describe("McpManager", () => {
       );
       expect(result.content).toEqual([{ type: "text", text: "2 + 3 = 5" }]);
       expect(manager.statuses()[0]).toMatchObject({ state: "connected", toolCount: 1 });
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("never retries an MCP Tool call after its outcome becomes uncertain", async () => {
+    const { manager, callFile } = await createFixtureManager();
+    try {
+      await manager.connect("fixture");
+      const [tool] = manager.tools();
+
+      await expect(tool!.execute(
+        { left: 2, right: 3, failAfterRecord: true },
+        { ownerId: "student-1", sessionId: "session-1" },
+      )).rejects.toThrow(/reported a failure/);
+      await expect(readFile(callFile, "utf8")).resolves.toBe("called\n");
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it("decides proxy approval locally without connecting", async () => {
+    const { manager } = await createFixtureManager();
+    try {
+      const [proxy] = manager.proxyTools();
+      expect(typeof proxy!.requiresApproval).toBe("function");
+      const predicate = proxy!.requiresApproval as Exclude<typeof proxy.requiresApproval, boolean | undefined>;
+      const context = { ownerId: "student-1", sessionId: "session-1" };
+
+      expect(predicate({ action: "search" }, context)).toBe(false);
+      expect(predicate({ action: "describe", tool: "echo_math" }, context)).toBe(false);
+      expect(predicate({ action: "call", tool: "echo_math", arguments: {} }, context)).toBe(true);
+      expect(manager.statuses()[0]).toMatchObject({ state: "disconnected", toolCount: 0 });
     } finally {
       await manager.close();
     }
@@ -137,6 +172,7 @@ describe("McpManager", () => {
       const registry = new ToolRegistry(manager.proxyTools());
       const tools = registry.createAgentTools({
         context: { ownerId: "student-1", sessionId: "mcp-agent-session" },
+        approval: { request: async () => ({ approved: true }) },
       });
       const sessions = createJsonlSessionRepository({
         sessionsRoot: join(directory, "sessions"),

@@ -2,6 +2,7 @@ export const PROMPT_IDS = {
   CHAT_MAIN: 'chat-main',
   CHAT_SUBAGENT: 'chat-subagent',
   CONVERSATION_TITLE: 'conversation-title',
+  MEMORY_CONSOLIDATION: 'memory-consolidation',
   CLASSROOM_OUTLINE: 'classroom-outline',
   CLASSROOM_AGENT_PROFILES: 'classroom-agent-profiles',
   CLASSROOM_SLIDE_CONTENT: 'classroom-slide-content',
@@ -24,11 +25,9 @@ export type PromptVariables = {
   [PROMPT_IDS.CHAT_MAIN]: {
     skillsPrompt: string;
   };
-  [PROMPT_IDS.CHAT_SUBAGENT]: {
-    focusLine: string;
-    parentSessionId: string;
-  };
+  [PROMPT_IDS.CHAT_SUBAGENT]: Record<string, never>;
   [PROMPT_IDS.CONVERSATION_TITLE]: Record<string, never>;
+  [PROMPT_IDS.MEMORY_CONSOLIDATION]: Record<string, never>;
   [PROMPT_IDS.CLASSROOM_OUTLINE]: {
     requirement: string;
     pdfContent: string;
@@ -175,7 +174,7 @@ export type PromptVariables = {
 
 type PromptDefinition<Id extends PromptId = PromptId> = {
   id: Id;
-  variables: readonly (keyof PromptVariables[Id] & string)[];
+  variables: readonly (keyof PromptVariables[Extract<Id, keyof PromptVariables>] & string)[];
   user: boolean;
   provenance?: {
     sourceRepository: string;
@@ -199,11 +198,16 @@ export const promptRegistry = {
   },
   [PROMPT_IDS.CHAT_SUBAGENT]: {
     id: PROMPT_IDS.CHAT_SUBAGENT,
-    variables: ['focusLine', 'parentSessionId'],
+    variables: [],
     user: false,
   },
   [PROMPT_IDS.CONVERSATION_TITLE]: {
     id: PROMPT_IDS.CONVERSATION_TITLE,
+    variables: [],
+    user: false,
+  },
+  [PROMPT_IDS.MEMORY_CONSOLIDATION]: {
+    id: PROMPT_IDS.MEMORY_CONSOLIDATION,
     variables: [],
     user: false,
   },

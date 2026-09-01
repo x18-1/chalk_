@@ -237,12 +237,31 @@
 .activity_complete { color: var(--chalk-success); }.activity_running { color: var(--chalk-info); }.activity_approval { color: var(--chalk-warning); }.activity_error { color: var(--chalk-danger); }
 .messageTools { padding: 1px 0 10px 29px; }
 .messageTools .toolActivity + .toolActivity { margin-top: 8px; border-top: 1px solid var(--chalk-border-light); }
+.inlineChalkboard { padding: 14px 0 18px 29px; margin: 0; }
+.inlineChalkboard figcaption { display: flex; padding: 0 0 8px; align-items: baseline; gap: 8px; color: var(--chalk-ink-soft); font-size: 12px; font-weight: 600; }
+.inlineChalkboard figcaption span { color: var(--chalk-clay-hover); font-size: 9px; font-weight: 700; letter-spacing: .08em; }
+.inlineChalkboard :global(.slideCanvas) { width: 100%; overflow: hidden; border: 1px solid var(--chalk-border); border-radius: 10px; box-shadow: 0 1px 2px rgba(43, 41, 38, 0.04), 0 8px 24px rgba(43, 41, 38, 0.045); }
+.inlineSceneUnsupported { padding: 18px; color: var(--chalk-stone); font-size: 12px; line-height: 1.6; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border); border-radius: 10px; }
+.inlineQuiz { padding: 18px 20px; color: var(--chalk-ink); background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 10px; box-shadow: var(--chalk-shadow-working); }
+.inlineSceneIntro { display: flex; padding-bottom: 12px; align-items: baseline; gap: 9px; border-bottom: 1px solid var(--chalk-border-light); }
+.inlineSceneIntro span { color: var(--chalk-clay-hover); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.inlineSceneIntro strong { font-size: 14px; font-weight: 600; }
+.inlineSceneIntro small { margin-left: auto; color: var(--chalk-stone); font-size: 11px; }
+.inlineQuestion { padding: 15px 0 13px; border-bottom: 1px solid var(--chalk-border-light); }
+.inlineQuestion:last-child { border-bottom: 0; }
+.inlineQuestionNumber { color: var(--chalk-stone); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; letter-spacing: .06em; }
+.inlineQuestion p { margin: 7px 0 9px; font-size: 13px; font-weight: 600; line-height: 1.65; }
+.inlineQuestion ul { display: grid; padding: 0; margin: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; list-style: none; }
+.inlineQuestion li { display: flex; min-height: 34px; padding: 7px 9px; align-items: center; gap: 8px; color: var(--chalk-ink-soft); font-size: 12px; background: var(--chalk-paper-soft); border: 1px solid var(--chalk-border-light); border-radius: 6px; }
+.inlineQuestion li span { display: grid; width: 19px; height: 19px; flex: none; color: var(--chalk-clay-hover); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; place-items: center; border: 1px solid var(--chalk-border); border-radius: 4px; }
+.inlineInteractive { min-height: 260px; overflow: hidden; background: var(--chalk-paper); border: 1px solid var(--chalk-border); border-radius: 10px; box-shadow: var(--chalk-shadow-working); }
+.inlineInteractive iframe { display: block; width: 100%; height: 420px; border: 0; background: #fff; }
 .toolActivity { display: flex; align-items: flex-start; gap: 9px; padding: 11px 0 0; }
 .toolIcon { display: grid; width: 25px; height: 25px; flex: none; color: var(--chalk-info); place-items: center; background: #eaf2f2; border-radius: 6px; }
 .tool_complete .toolIcon { color: var(--chalk-success); background: #eaf0e9; }.tool_error .toolIcon { color: var(--chalk-danger); background: #f8e9e6; }.tool_rejected .toolIcon { color: var(--chalk-stone); background: var(--chalk-paper-soft); }.tool_approval .toolIcon { color: var(--chalk-warning); background: #fbf0dc; }
 .toolCopy { min-width: 0; }
-.toolCopy strong { display: block; min-width: 0; overflow: hidden; color: var(--chalk-ink); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.toolCopy p { margin: 3px 0 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.55; }
+.toolCopy > strong { display: inline; min-width: 0; overflow: hidden; color: var(--chalk-ink); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.toolCopy > p { display: inline; margin: 0 0 0 6px; color: var(--chalk-stone); font-size: 11px; line-height: 1.55; }
 .toolResult { margin-top: 6px; color: var(--chalk-stone); font-size: 10px; }
 .toolResult summary { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; font-weight: 600; list-style: none; border-radius: 4px; }
 .toolResult summary:focus-visible { outline: 2px solid var(--chalk-clay); outline-offset: 2px; }
@@ -251,7 +270,7 @@
 .toolResult p { max-width: 58ch; max-height: 7.5em; padding: 6px 8px; overflow: auto; overflow-wrap: anywhere; color: var(--chalk-ink-soft); background: var(--chalk-paper-soft); border-radius: 5px; white-space: pre-wrap; }
 .toolLink { padding: 0; margin-top: 7px; color: var(--chalk-clay-hover); font-size: 10px; font-weight: 600; cursor: pointer; background: transparent; border: 0; }
 .toolLink:hover { color: var(--chalk-ink); }
-.approvalActions { gap: 6px; margin-top: 9px; }
+.approvalActions { display: flex; gap: 6px; margin-top: 9px; }
 .approveButton, .denyButton { display: inline-flex; height: 27px; padding: 0 8px; align-items: center; gap: 4px; font-size: 10px; cursor: pointer; border-radius: 5px; }
 .approveButton { color: var(--chalk-paper); background: var(--chalk-ink); border: 1px solid var(--chalk-ink); }.approveButton:hover { background: var(--chalk-clay-hover); border-color: var(--chalk-clay-hover); }
 .denyButton { color: var(--chalk-ink-soft); background: transparent; border: 1px solid var(--chalk-border); }.denyButton:hover { background: var(--chalk-paper); }

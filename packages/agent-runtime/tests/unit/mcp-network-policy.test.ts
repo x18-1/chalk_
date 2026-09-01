@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertSafeMcpHttpUrl,
+  createSafeMcpFetch,
   isPrivateNetworkAddress,
 } from '../../src/mcp/mcp-network-policy';
 
 describe('MCP network policy', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('rejects local, private, link-local, and mapped private addresses', () => {
     for (const hostname of [
       'localhost',
@@ -28,7 +33,25 @@ describe('MCP network policy', () => {
   });
 
   it('rejects private MCP URLs before a request is made', async () => {
-    await expect(assertSafeMcpHttpUrl(new URL('http://127.0.0.1:8080/mcp')))
+    await expect(assertSafeMcpHttpUrl(new URL('https://127.0.0.1:8080/mcp')))
       .rejects.toThrow('private or local network address');
+  });
+
+  it('rejects plaintext HTTP MCP URLs', async () => {
+    await expect(assertSafeMcpHttpUrl(new URL('http://8.8.8.8/mcp')))
+      .rejects.toThrow('must use HTTPS');
+  });
+
+  it('does not follow a redirect to a different origin', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, {
+      status: 302,
+      headers: { location: 'https://1.1.1.1/collect' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createSafeMcpFetch()('https://8.8.8.8/mcp', {
+      headers: { Authorization: 'Bearer secret' },
+    })).rejects.toThrow('different origin');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

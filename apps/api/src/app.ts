@@ -15,6 +15,7 @@ import { registerConfigurationRoutes } from './modules/configuration/routes';
 import { ProviderConfigurationService } from './modules/configuration/services/provider-configuration.service';
 import { RuntimeConfigurationService } from './modules/configuration/services/runtime-configuration.service';
 import { CapabilityConfigurationService } from './modules/configuration/services/capability-configuration.service';
+import { SkillStoreService } from './modules/configuration/services/skill-store.service';
 import { registerMcpRoutes } from './modules/mcp/routes';
 import { McpServerService } from './modules/mcp/services/mcp-server.service';
 import { registerTelemetryRoutes } from './modules/telemetry/routes';
@@ -54,10 +55,12 @@ import {
 } from './modules/classroom-discussions/services/classroom-discussion.service';
 import type { ClassroomDiscussionModel } from './modules/classroom-discussions/services/classroom-discussion.graph';
 import { piClassroomDiscussionModel } from './providers/llm/classroom-discussion-model';
-import { registerKnowledgeBaseRoutes } from './modules/knowledge-bases/routes';
-import { KnowledgeBaseService, type KnowledgeObjectStorage } from './modules/knowledge-bases/services/knowledge-base.service';
-import { createRagSidecarClient, type RagSidecarClient } from './modules/knowledge-bases/rag-sidecar-client';
-import { s3UploadObjectStorage } from './storage/s3';
+import { registerMemoryRoutes } from './modules/memory/routes';
+import { MemoryService } from './modules/memory/services/memory.service';
+import { MemoryConsolidationService } from './modules/memory/services/memory-consolidation.service';
+import type { MemoryConsolidationModel } from './modules/memory/services/memory-consolidation.service';
+import { piMemoryConsolidationModel } from './providers/llm/memory-consolidation-model';
+import { MemoryConsolidationWorker } from './modules/memory/services/memory-consolidation.worker';
 
 export type BuildApiOptions = {
   config?: ApiConfig;
@@ -70,6 +73,7 @@ export type BuildApiOptions = {
   classroomMediaGenerator?: import('./modules/classroom-generation/services/classroom-generation.service').ClassroomMediaGenerator;
   classroomGenerationWorker?: ClassroomGenerationWorkerOptions;
   classroomDiscussionModel?: ClassroomDiscussionModel;
+  memoryConsolidationModel?: MemoryConsolidationModel;
 };
 
 export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyInstance> {
@@ -124,6 +128,12 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
 
   const authService = new AuthService(db, config);
   const auth = new AuthModule(authService, config.sessionCookie);
+  const memory = new MemoryService(db);
+  const memoryConsolidation = new MemoryConsolidationService(memory, options.memoryConsolidationModel ?? piMemoryConsolidationModel);
+  const memoryWorker = new MemoryConsolidationWorker(memory, memoryConsolidation);
+  registerMemoryRoutes(app, auth, memory, memoryConsolidation);
+  memoryWorker.start();
+  app.addHook('onClose', async () => memoryWorker.stop());
   registerAuthRoutes(app, auth, authService);
   const knowledgeBases = new KnowledgeBaseService(
     db,
@@ -135,7 +145,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     }),
   );
   registerChatRoutes(app, auth, new ChatService(db, {
-    knowledgeBaseQueryer: knowledgeBases,
+    memory,
     onSessionCleanupError(error, sessionId) {
       app.log.warn({ err: error, sessionId }, 'Unable to delete JSONL session');
     },
@@ -146,6 +156,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     new ProviderConfigurationService(db),
     new RuntimeConfigurationService(db),
     new CapabilityConfigurationService(db, options.mediaEnvironment),
+    new SkillStoreService(db),
   );
   registerMcpRoutes(app, auth, new McpServerService(db));
   registerTelemetryRoutes(app, auth, new TelemetryQueryService(db));
@@ -164,7 +175,7 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     new ClassroomService(db, options.classroomObjectStorage ?? s3ClassroomObjectStorage),
   );
   registerLearningSessionRoutes(app, auth, new LearningSessionService(db));
-  registerQuizAttemptRoutes(app, auth, new QuizAttemptService(db));
+  registerQuizAttemptRoutes(app, auth, new QuizAttemptService(db, memory));
   const classroomDiscussions = new ClassroomDiscussionService(
     db,
     options.classroomDiscussionModel ?? piClassroomDiscussionModel,

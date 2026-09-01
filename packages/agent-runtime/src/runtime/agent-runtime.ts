@@ -216,6 +216,12 @@ export class AgentRuntime {
     });
   }
 
+  /** Update the system prompt used by the next turn without recreating the runtime. */
+  setSystemPrompt(systemPrompt: string) {
+    if (this.running) throw new Error("Cannot update system prompt during an active run");
+    this.agent.state.systemPrompt = systemPrompt;
+  }
+
   async run(
     message: string,
     listener?: RuntimeEventListener,

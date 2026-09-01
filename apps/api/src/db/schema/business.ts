@@ -106,6 +106,7 @@ export const agentSettings = pgTable(
     defaultProviderId: text('default_provider_id'),
     defaultModelId: text('default_model_id'),
     defaultThinkingLevel: text('default_thinking_level').default('off').notNull(),
+    memoryInjectionEnabled: boolean('memory_injection_enabled').default(true).notNull(),
     defaultImageProviderId: text('default_image_provider_id'),
     defaultImageModelId: text('default_image_model_id'),
     defaultVideoProviderId: text('default_video_provider_id'),

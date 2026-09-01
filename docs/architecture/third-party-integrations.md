@@ -94,6 +94,8 @@ API 必须拥有：
 - 外部调用的产品配额、审计和成本归属；
 - 外部资源关闭、超时和进程退出清理。
 
+LightRAG 调用例外：API 在完成用户认证、owner 校验、配额和审计后，才可通过内部服务身份调用 Python LightRAG sidecar。sidecar 返回的 answer 和 references 必须经过 API 的结构校验与安全投影；浏览器不得直接访问 sidecar。
+
 ## 5. Provider 与其他基础设施的实现
 
 Provider 的接口应表达 Chalk 实际需要的能力，而不是完整复制供应商 SDK。不同 Provider 能力不共用一个 `generate` 接口：Pi LLM 的单次或流式调用、视频的异步任务、TTS 的音频结果和 PDF 的解析结果分别定义自己的输入输出。
@@ -103,6 +105,8 @@ LightRAG sidecar 不是 Chalk 业务 Provider，而是独立 Python 运行时 ad
 Service 通过明确的依赖调用 Provider。供应商 Provider 不创建全局数据库客户端、不读取 Fastify request、不查询用户数据，也不保存 API key。LLM 目录中的 `DrizzleCredentialStore` 是 Pi `CredentialStore` 与 Chalk 数据库之间的内部 adapter，并不负责第三方请求。需要测试时，Service 可以注入受控的 fake Provider，Provider 自身通过 HTTP mock 或协议 fixture 验证供应商请求。
 
 S3/MinIO、JSONL session repository、MCP client 等不是 Provider。它们仍按自己的职责放在 `apps/api/src/storage`、`packages/agent-runtime` 或对应模块中，不能因为都调用了第三方 SDK 就合并到 `providers/`。
+
+LightRAG sidecar 同样不是 Chalk 业务 Provider：它是独立的 Python 运行时 adapter，通过版本化内部协议提供索引和查询能力。它不得读取 Chalk 数据库、凭据表或认证上下文；需要 LLM/embedding 时使用受控模型代理或短期凭据。
 
 上传模块在 `UploadService` 与对象存储之间定义窄接口；`apps/api/src/storage/s3.ts` 提供生产 adapter，HTTP 集成测试注入 fake。该接口只表达预签名上传、读取对象元数据和生成公开 URL，不暴露完整 S3 SDK。
 
@@ -128,13 +132,19 @@ apps/api:
 
 MCP 连接失败必须显式失败，不能静默返回空工具集合并继续假装连接成功。stdio 子进程和网络连接必须在 runtime 关闭时释放。
 
-stdio MCP 会启动 API 主机上的本地进程，因此只有管理员可以创建、查看、测试、修改和删除 stdio 配置；runtime 装配时也会再次校验 owner 角色，避免历史配置绕过路由限制。SSE/Streamable HTTP 配置仍按 owner 隔离。
+产品设置只开放 HTTPS Streamable HTTP。底层 stdio/SSE adapter 仅用于管理员兼容和确定性测试，
+不属于普通 owner 的产品能力面；正式开放 stdio 前必须另行设计 worker/sandbox 与命令 allowlist。
 
-SSE/Streamable HTTP 的 MCP URL 在 API 入口拒绝 localhost、私网、loopback、link-local 和其他保留地址；runtime 的自定义 fetch 会对每次请求再次做 DNS 解析检查，并禁用自动重定向。该策略降低 SSRF 风险，但部署环境仍应配置网络出口 ACL；DNS 解析与实际连接之间的竞态不能仅靠应用层完全消除。
+Streamable HTTP 的 MCP URL 在 API 入口拒绝 localhost、私网、loopback、link-local 和其他保留地址；
+runtime 的自定义 fetch 会对每次请求及有限 redirect 逐跳做 DNS 解析检查。该策略降低 SSRF 风险，
+但当前检查结果没有固定到实际 socket，因此不宣称抵御检查与连接之间的恶意 DNS rebinding；部署
+环境仍必须配置网络出口 ACL。需要完整防御时应使用保留 TLS hostname 校验的 IP-pinning connector。
 
-MCP 的只读 tool 和 Resource 读取可以在连接失效后执行一次有限重连；写入 tool 不自动重试，避免重复副作用。MCP Resource 通过 API 的统一 `read_resource` facade 暴露，远端内容仍需 owner、媒体类型、大小和 snapshot 处理。
+MCP Tool 调用不自动重试，避免未知副作用被重复执行。底层 Resource adapter 只供显式 fixture
+测试；生产 v1 不注册 `read_mcp_resource`，也不把 Resource 合并进 proxy 搜索结果。
 
-连接初始化会按 Server capabilities 发现 `tools/list` 和 `resources/list`，并消费 MCP 返回的 `nextCursor` 直到列表结束。MCP proxy 的 `search` 结果同时包含工具和 Resource；Resource 结果使用 `<server-id>/<resource-uri>` 作为 `read_resource` 的引用，不能直接把远端 URI 当作新的 Agent 工具。
+连接初始化按 Server capabilities 发现有界的 `tools/list`，并消费 `nextCursor` 直到列表结束或达到
+页数/数量上限。Resources 只有测试显式开启底层开关后才发现，不属于生产 Agent 能力面。
 
 ## 8. Chalkboard 边界
 

@@ -7,6 +7,9 @@
 # Third-party reference repositories
 .reference/
 
+# Local temporary material
+/temp/
+
 # Local Git linked worktrees
 /.worktree/
 
@@ -18,6 +21,7 @@ dist/
 build/
 .next/
 out/
+temp/
 *.tsbuildinfo
 test-results/
 playwright-report/

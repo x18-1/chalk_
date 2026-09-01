@@ -33,6 +33,36 @@ function createTool(requiresApproval: RuntimeTool<typeof parameters>["requiresAp
 }
 
 describe("ToolRegistry", () => {
+  it("defaults unspecified tool execution to sequential", () => {
+    const [tool] = new ToolRegistry([createTool(false)]).createAgentTools({
+      context: { ownerId: "student-1", sessionId: "session-1" },
+    });
+
+    expect(tool?.executionMode).toBe("sequential");
+  });
+
+  it("uses one manifest for settings summaries and Pi tool injection", () => {
+    const registry = new ToolRegistry([
+      createTool(false),
+      {
+        ...createTool(false),
+        name: "disabled_tool",
+        defaultEnabled: false,
+      },
+    ]);
+
+    const allInjected = registry.createAgentTools({
+      context: { ownerId: "student-1", sessionId: "session-1" },
+    });
+    const enabledInjected = registry.createAgentTools({
+      context: { ownerId: "student-1", sessionId: "session-1" },
+      enabledToolNames: new Set(["test_tool"]),
+    });
+
+    expect(new Set(allInjected.map((tool) => tool.name))).toEqual(new Set(["test_tool"]));
+    expect(enabledInjected.map((tool) => tool.name)).toEqual(["test_tool"]);
+  });
+
   it("fails closed and emits a pending update before approval", async () => {
     const request = vi.fn(async (_request, _signal, onPending) => {
       onPending?.();
@@ -205,5 +235,25 @@ describe("ToolRegistry", () => {
       toolName: "test_tool",
       code: "execution_failed",
     });
+  });
+
+  it("validates arguments at the runtime wrapper boundary", async () => {
+    const execute = vi.fn(async () => ({
+      content: [{ type: "text" as const, text: "should not run" }],
+      details: undefined,
+    }));
+    const registry = new ToolRegistry([{
+      ...createTool(false),
+      effects: ["read" as const],
+      approvalPolicy: "none" as const,
+      execute,
+    }]);
+    const [tool] = registry.createAgentTools({
+      context: { ownerId: "student-1", sessionId: "session-1" },
+    });
+
+    await expect(tool!.execute("call-invalid", { value: 42 } as never))
+      .rejects.toMatchObject({ code: "invalid_arguments" });
+    expect(execute).not.toHaveBeenCalled();
   });
 });

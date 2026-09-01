@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createReadResourceTool, createResourceReader, type ResourceReadAdapter } from '../../src/agent/tools/read/read-resource';
+import {
+  createReadResourceTool,
+  createResourceReader,
+  type ResourceReadAdapter,
+} from '../../../src/agent/tools/read/read-resource';
 
 const context = { ownerId: 'student-1', sessionId: 'session-1', conversationId: 'conversation-1' };
 
@@ -19,7 +23,7 @@ function adapter(kind: string, text = '第一行\n第二行\n'): ResourceReadAda
   };
 }
 
-describe('read_resource', () => {
+describe('read_resource tool feature', () => {
   it('routes a resource to its adapter and keeps the resource identity in details', async () => {
     const read = vi.fn(adapter('upload').read);
     const reader = createResourceReader([{ kind: 'upload', read }]);
@@ -38,7 +42,7 @@ describe('read_resource', () => {
     const read = vi.fn(adapter('upload').read);
     const tool = createReadResourceTool(createResourceReader([{ kind: 'upload', read }]), 'test-secret');
 
-    await expect(tool.execute({ resource: { kind: 'web_page', id: 'result-1' } }, context))
+    await expect(tool.execute({ resource: { kind: 'web_page', id: 'result-1' } } as never, context))
       .rejects.toMatchObject({ code: 'read_unsupported_resource' });
     expect(read).not.toHaveBeenCalled();
   });

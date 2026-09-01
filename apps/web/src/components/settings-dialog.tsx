@@ -3,14 +3,18 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   AudioLines,
+  Archive,
   BrainCircuit,
-  Database,
+  Check,
+  Eye,
   Globe2,
   ImageIcon,
   KeyRound,
   PlugZap,
   Plus,
+  Pencil,
   RefreshCw,
+  RotateCcw,
   Save,
   Server,
   Trash2,
@@ -27,23 +31,22 @@ import {
   type Provider,
   type RagSettings as RagSettingsData,
   type Skill,
+  type SkillDetails,
   type Tool,
 } from "../api";
+import { memoryApi, type MemoryEntry } from "../api";
 import styles from "./app-sidebar.module.css";
 import { MediaProviderSettings } from "./media-provider-settings";
 import { SecretInput } from "./secret-input";
 
-type SettingsTab = "api" | "skills" | "mcp" | "tools";
-type ApiSubtab = "models" | "rag" | "voice" | "image" | "video" | "search";
+type SettingsTab = "api" | "skills" | "mcp" | "tools" | "memory";
+type ApiSubtab = "models" | "voice" | "image" | "video" | "search";
 
 type McpDraft = {
   id?: string;
   name: string;
-  transport: McpServer["transport"];
-  command: string;
   url: string;
-  args: string;
-  env: string;
+  bearerToken: string;
   enabled: boolean;
 };
 
@@ -53,6 +56,15 @@ type CustomProviderDraft = {
   baseUrl: string;
   models: CustomModel[];
   apiKey: string;
+};
+
+type UserSkillDraft = {
+  id?: string;
+  name: string;
+  description: string;
+  content: string;
+  version: string;
+  references: string;
 };
 
 const emptyCustomProviderDraft: CustomProviderDraft = {
@@ -76,11 +88,8 @@ function newCustomModel(): CustomModel {
 
 const emptyMcpDraft: McpDraft = {
   name: "",
-  transport: "stdio",
-  command: "",
   url: "",
-  args: "",
-  env: "",
+  bearerToken: "",
   enabled: true,
 };
 
@@ -93,7 +102,12 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [diagnostics, setDiagnostics] = useState<Array<{ message: string; code: string }>>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
-  const [ragSettings, setRagSettings] = useState<RagSettingsData | null>(null);
+  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [memoryInjectionEnabled, setMemoryInjectionEnabled] = useState(true);
+  const [showArchivedMemory, setShowArchivedMemory] = useState(false);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryEditing, setMemoryEditing] = useState<string | null>(null);
+  const [memoryDraft, setMemoryDraft] = useState("");
   const [providerId, setProviderId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -104,6 +118,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [skillDraft, setSkillDraft] = useState<UserSkillDraft | null>(null);
+  const [skillDetail, setSkillDetail] = useState<SkillDetails | null>(null);
+  const [skillDetailLoading, setSkillDetailLoading] = useState<string | null>(null);
 
   useEffect(() => {
     dialogRef.current?.focus();
@@ -132,7 +149,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       setDiagnostics(data.diagnostics ?? []);
       setMcpServers(data.servers);
       setTools(data.tools);
-      setRagSettings(await settingsApi.rag());
+      setMemoryInjectionEnabled(data.memoryInjectionEnabled);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "加载工作区配置失败");
     } finally {
@@ -168,6 +185,59 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       });
     return () => { cancelled = true; };
   }, [providerId]);
+
+  useEffect(() => {
+    if (tab !== "memory") return;
+    setMemoryLoading(true);
+    setError(null);
+    void memoryApi.list({ layer: "L3", includeArchived: showArchivedMemory })
+      .then((result) => setMemoryEntries(result.entries))
+      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "加载学习记忆失败"))
+      .finally(() => setMemoryLoading(false));
+  }, [tab, showArchivedMemory]);
+
+  async function updateMemory(id: string, input: { text?: string; status?: "active" | "archived" }) {
+    try {
+      const result = await memoryApi.update(id, input);
+      setMemoryEntries((current) => showArchivedMemory || input.status !== "archived"
+        ? current.map((entry) => entry.id === id ? result.entry : entry)
+        : current.filter((entry) => entry.id !== id));
+      setMemoryEditing(null);
+      setNotice(input.status ? (input.status === "archived" ? "记忆已归档" : "记忆已恢复") : "记忆已更新");
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "更新学习记忆失败");
+    }
+  }
+
+  async function toggleMemoryInjection() {
+    const next = !memoryInjectionEnabled;
+    setBusy("memory-injection");
+    setError(null);
+    try {
+      const result = await settingsApi.setMemoryEnabled(next);
+      setMemoryInjectionEnabled(result.memoryInjectionEnabled);
+      setNotice(next ? "已开启记忆注入" : "已关闭记忆注入");
+    } catch (toggleError) {
+      setError(toggleError instanceof Error ? toggleError.message : "更新记忆设置失败");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function updateMemoryConsolidation() {
+    setBusy("memory-update");
+    setError(null);
+    try {
+      const result = await memoryApi.consolidate();
+      const refreshed = await memoryApi.list({ layer: "L3", includeArchived: showArchivedMemory });
+      setMemoryEntries(refreshed.entries);
+      setNotice(`记忆已更新：处理 ${result.run.processed} 条活动，新增 ${result.run.added} 条记忆`);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "更新学习记忆失败");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function saveApiSettings(event: FormEvent) {
     event.preventDefault();
@@ -296,24 +366,88 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function saveUserSkill(event: FormEvent) {
+    event.preventDefault();
+    if (!skillDraft) return;
+    setBusy('user-skill');
+    setError(null);
+    try {
+      const references: Record<string, string> = {};
+      for (const line of skillDraft.references.split('\n')) {
+        const separator = line.indexOf('::');
+        if (separator <= 0) continue;
+        const path = line.slice(0, separator).trim();
+        if (path) references[path] = line.slice(separator + 2);
+      }
+      const input = { name: skillDraft.name.trim(), description: skillDraft.description.trim(), content: skillDraft.content, version: skillDraft.version.trim() || '1.0.0', references };
+      const response = skillDraft.id
+        ? await settingsApi.updateUserSkill(skillDraft.id, input)
+        : await settingsApi.createUserSkill(input);
+      setSkillDraft(null);
+      setNotice(skillDraft.id ? 'Skill 已更新' : 'Skill 已创建');
+      await loadSettings();
+      void response;
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '保存 Skill 失败');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteUserSkill(skill: Skill) {
+    const id = skill.source.id.startsWith('user-skill-') ? skill.source.id.slice('user-skill-'.length) : undefined;
+    if (!id || !window.confirm(`确定删除 Skill「${skill.name}」吗？`)) return;
+    setBusy(`delete-skill:${id}`);
+    try {
+      await settingsApi.deleteUserSkill(id);
+      setSkills((current) => current.filter((item) => item.name !== skill.name));
+      setNotice('Skill 已删除');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '删除 Skill 失败');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function editUserSkill(skill: Skill) {
+    const id = skill.source.id.startsWith('user-skill-') ? skill.source.id.slice('user-skill-'.length) : undefined;
+    if (!id) return;
+    setSkillDetail(null);
+    setBusy(`edit-skill:${id}`);
+    try {
+      const { skill: full } = await settingsApi.getUserSkill(id);
+      setSkillDraft({ id, name: full.name, description: full.description, content: full.content, version: full.version, references: Object.entries(full.references ?? {}).map(([path, content]) => `${path}::${content}`).join('\n') });
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '读取 Skill 失败');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function viewSkill(skill: Skill) {
+    setSkillDetailLoading(skill.name);
+    setError(null);
+    try {
+      const { skill: details } = await settingsApi.getSkill(skill.name);
+      setSkillDetail(details);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '读取 Skill 失败');
+    } finally {
+      setSkillDetailLoading(null);
+    }
+  }
+
   async function saveMcp(event: FormEvent) {
     event.preventDefault();
     if (!mcpDraft) return;
     setBusy("mcp");
     try {
-      const env = Object.fromEntries(mcpDraft.env.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
-        const index = line.indexOf("=");
-        return index > 0 ? [line.slice(0, index).trim(), line.slice(index + 1)] : [line, ""];
-      }));
       const payload = {
         name: mcpDraft.name,
-        transport: mcpDraft.transport,
+        transport: "http",
         enabled: mcpDraft.enabled,
-        ...(mcpDraft.transport === "stdio" ? {
-          command: mcpDraft.command,
-          args: mcpDraft.args.split("\n").map((value) => value.trim()).filter(Boolean),
-        } : { url: mcpDraft.url }),
-        ...(Object.keys(env).length ? { env } : {}),
+        url: mcpDraft.url,
+        ...(mcpDraft.bearerToken.trim() ? { bearerToken: mcpDraft.bearerToken.trim() } : {}),
       };
       const data = await settingsApi.saveMcp(payload, mcpDraft.id);
       setMcpServers((current) => mcpDraft.id ? current.map((server) => server.id === data.server.id ? data.server : server) : [data.server, ...current]);
@@ -388,15 +522,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <SettingsTabButton active={tab === "skills"} icon={<BrainCircuit size={16} />} label="Skills" onClick={() => setTab("skills")} />
             <SettingsTabButton active={tab === "mcp"} icon={<Server size={16} />} label="MCP" onClick={() => setTab("mcp")} />
             <SettingsTabButton active={tab === "tools"} icon={<Wrench size={16} />} label="Tools" onClick={() => setTab("tools")} />
+            <SettingsTabButton active={tab === "memory"} icon={<BrainCircuit size={16} />} label="记忆" onClick={() => setTab("memory")} />
           </nav>
           <div className={styles.settingsContent}>
             {loading && <p>正在加载工作区配置…</p>}
             {error && <div className={styles.settingsAlert} role="alert"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="关闭错误"><X size={14} /></button></div>}
             {notice && <div className={styles.settingsNotice} role="status"><span>{notice}</span><button type="button" onClick={() => setNotice(null)} aria-label="关闭提示"><X size={14} /></button></div>}
-            {!loading && tab === "api" && <ApiSettings providers={providers} models={models} modelsLoading={modelsLoading} modelsError={modelsError} ragSettings={ragSettings} providerId={providerId} apiKey={apiKey} customDraft={customDraft} busy={busy} setProviderId={(value) => { setProviderId(value); setApiKey(""); setCustomDraft(null); }} setApiKey={setApiKey} setCustomDraft={setCustomDraft} onSave={saveApiSettings} onRemoveCredential={removeCredential} onTestConnection={testProviderConnection} onSaveCustom={saveCustomProvider} onDeleteCustom={deleteCustomProvider} />}
-            {!loading && tab === "skills" && <SkillsSettings skills={skills} diagnostics={diagnostics} busy={busy} onToggle={toggleSkill} />}
+            {!loading && tab === "api" && <ApiSettings providers={providers} models={models} modelsLoading={modelsLoading} modelsError={modelsError} providerId={providerId} apiKey={apiKey} customDraft={customDraft} busy={busy} setProviderId={(value) => { setProviderId(value); setApiKey(""); setCustomDraft(null); }} setApiKey={setApiKey} setCustomDraft={setCustomDraft} onSave={saveApiSettings} onRemoveCredential={removeCredential} onTestConnection={testProviderConnection} onSaveCustom={saveCustomProvider} onDeleteCustom={deleteCustomProvider} />}
+            {!loading && tab === "skills" && <SkillsSettings skills={skills} diagnostics={diagnostics} busy={busy} draft={skillDraft} detail={skillDetail} detailLoading={skillDetailLoading} onDraftChange={(draft) => { setSkillDraft(draft); if (draft) setSkillDetail(null); }} onSave={saveUserSkill} onToggle={toggleSkill} onEdit={editUserSkill} onDelete={deleteUserSkill} onView={viewSkill} onCloseDetail={() => setSkillDetail(null)} />}
             {!loading && tab === "mcp" && <McpSettings servers={mcpServers} draft={mcpDraft} busy={busy} onStartNew={() => setMcpDraft(emptyMcpDraft)} onEdit={(server) => setMcpDraft(serverToDraft(server))} onDraftChange={setMcpDraft} onSave={saveMcp} onCancel={() => setMcpDraft(null)} onToggle={toggleMcp} onTest={testMcp} onDelete={deleteMcp} />}
             {!loading && tab === "tools" && <ToolsSettings tools={tools} busy={busy} onUpdate={updateTool} />}
+            {tab === "memory" && <MemorySettings entries={memoryEntries} loading={memoryLoading} memoryInjectionEnabled={memoryInjectionEnabled} memoryInjectionBusy={busy === "memory-injection"} memoryUpdateBusy={busy === "memory-update"} onToggleMemoryInjection={() => void toggleMemoryInjection()} onUpdateMemory={() => void updateMemoryConsolidation()} showArchived={showArchivedMemory} onToggleArchived={() => setShowArchivedMemory((value) => !value)} editingId={memoryEditing} draft={memoryDraft} onBeginEdit={(entry) => { setMemoryEditing(entry.id); setMemoryDraft(entry.text); }} onDraftChange={setMemoryDraft} onCancelEdit={() => setMemoryEditing(null)} onSave={(id) => updateMemory(id, { text: memoryDraft.trim() })} onArchive={(id, status) => updateMemory(id, { status })} />}
           </div>
         </div>
       </section>
@@ -566,12 +702,63 @@ function ModelFact({ label, value }: { label: string; value: string }) {
   return <span className={styles.providerModelFact}><small>{label}</small><strong>{value}</strong></span>;
 }
 
-function SkillsSettings({ skills, diagnostics, busy, onToggle }: { skills: Skill[]; diagnostics: Array<{ message: string; code: string }>; busy: string | null; onToggle: (skill: Skill) => Promise<void> }) {
-  return <div><div className={styles.settingsTitle}><div><h3>Skills</h3><p>启停已加载的能力；下一轮对话会使用最新配置。</p></div></div><div className={styles.settingsList}>{skills.length ? skills.map((skill) => <div className={styles.settingsRow} key={skill.name}><span className={styles.settingsRowIcon}><BrainCircuit size={15} /></span><span className={styles.settingsRowCopy}><strong>{skill.name}</strong><small>{skill.description} · {skill.source.label}</small></span><button className={styles.rowStatusButton} type="button" disabled={busy === `skill:${skill.name}`} onClick={() => void onToggle(skill)}>{busy === `skill:${skill.name}` ? "保存中…" : skill.enabled ? "已启用" : "已停用"}</button></div>) : <p className={styles.emptySettings}>当前没有加载到 Skill。</p>}</div>{diagnostics.length > 0 && <div className={styles.settingsDiagnostics}><strong>加载诊断</strong>{diagnostics.map((diagnostic, index) => <p key={`${diagnostic.code}-${index}`}>{diagnostic.code} · {diagnostic.message}</p>)}</div>}</div>;
+function SkillsSettings({ skills, diagnostics, busy, draft, detail, detailLoading, onDraftChange, onSave, onToggle, onEdit, onDelete, onView, onCloseDetail }: {
+  skills: Skill[];
+  diagnostics: Array<{ message: string; code: string }>;
+  busy: string | null;
+  draft: UserSkillDraft | null;
+  detail: SkillDetails | null;
+  detailLoading: string | null;
+  onDraftChange: (draft: UserSkillDraft | null) => void;
+  onSave: (event: FormEvent) => Promise<void>;
+  onToggle: (skill: Skill) => Promise<void>;
+  onEdit: (skill: Skill) => Promise<void>;
+  onDelete: (skill: Skill) => Promise<void>;
+  onView: (skill: Skill) => Promise<void>;
+  onCloseDetail: () => void;
+}) {
+  return <div>
+    <div className={styles.settingsTitle}>
+      <div><h3>Skills</h3><p>内置 Skill 和你的 Skill 共用一个目录；停用后下一轮对话生效。</p></div>
+      <button className={styles.secondaryButton} type="button" onClick={() => onDraftChange({ name: '', description: '', content: '', version: '1.0.0', references: '' })}><Plus size={14} />新建 Skill</button>
+    </div>
+    {draft && <form className={styles.mcpEditor} onSubmit={onSave}>
+      <div className={styles.inlineSettingsGrid}>
+        <label className={styles.settingsField}><span>名称</span><input value={draft.name} onChange={(event) => onDraftChange({ ...draft, name: event.target.value })} pattern="[a-z0-9][a-z0-9-]{0,63}" required disabled={Boolean(draft.id)} /></label>
+        <label className={styles.settingsField}><span>版本</span><input value={draft.version} onChange={(event) => onDraftChange({ ...draft, version: event.target.value })} maxLength={64} required /></label>
+      </div>
+      <label className={styles.settingsField}><span>用途描述</span><input value={draft.description} onChange={(event) => onDraftChange({ ...draft, description: event.target.value })} maxLength={500} required /></label>
+      <label className={styles.settingsField}><span>SKILL.md 正文</span><textarea value={draft.content} onChange={(event) => onDraftChange({ ...draft, content: event.target.value })} rows={8} maxLength={65536} placeholder="写给 Agent 的指导文本；不会执行其中的命令。" required /></label>
+      <label className={styles.settingsField}><span>References（每行：references/file.md::内容）</span><textarea value={draft.references} onChange={(event) => onDraftChange({ ...draft, references: event.target.value })} rows={3} maxLength={65536} placeholder="references/guide.md::补充说明" /></label>
+      <div className={styles.settingsFooter}><span /><span className={styles.settingsActions}><button className={styles.textButton} type="button" onClick={() => onDraftChange(null)}>取消</button><button className={styles.saveButton} type="submit" disabled={busy === 'user-skill'}><Save size={14} />{busy === 'user-skill' ? '保存中…' : '保存 Skill'}</button></span></div>
+    </form>}
+    {detail && <article className={styles.skillDetail} aria-live="polite">
+      <header className={styles.skillDetailHeader}>
+        <div><div className={styles.skillDetailTitle}><h4>{detail.name}</h4><span className={`${styles.skillSourceBadge} ${detail.source.scope === 'builtin' ? styles.skillSourceBadgeBuiltin : styles.skillSourceBadgeUser}`}>{detail.source.scope === 'builtin' ? '内置' : '我的'}</span></div><p>{detail.description}</p></div>
+        <button className={styles.iconActionButton} type="button" aria-label="关闭 Skill 详情" title="关闭" onClick={onCloseDetail}><X size={14} /></button>
+      </header>
+      <pre className={styles.skillDetailContent}>{detail.content}</pre>
+      {Object.keys(detail.references).length > 0 && <details className={styles.skillReferences}><summary>References（{Object.keys(detail.references).length}）</summary>{Object.entries(detail.references).map(([path, content]) => <section key={path}><strong>{path}</strong><pre>{content}</pre></section>)}</details>}
+    </article>}
+    <div className={styles.settingsList}>{skills.length ? skills.map((skill) => {
+      const isUserSkill = skill.source.scope === 'user' || skill.source.id.startsWith('user-skill-');
+      const userId = skill.source.id.startsWith('user-skill-') ? skill.source.id.slice('user-skill-'.length) : undefined;
+      return <div className={styles.settingsRow} key={skill.name}>
+        <span className={styles.settingsRowIcon}><BrainCircuit size={15} /></span>
+        <span className={styles.settingsRowCopy}><span className={styles.settingsRowName}><strong>{skill.name}</strong><span className={`${styles.skillSourceBadge} ${isUserSkill ? styles.skillSourceBadgeUser : styles.skillSourceBadgeBuiltin}`}>{isUserSkill ? '我的' : '内置'}</span></span><small>{skill.description}</small>{skill.version && <span className={styles.settingsMeta}>v{skill.version}</span>}</span>
+        <span className={styles.settingsActions}>
+          <button className={`${styles.settingsSwitch} ${skill.enabled ? styles.settingsSwitchOn : ''}`} type="button" role="switch" aria-checked={skill.enabled} aria-label={`${skill.name}${skill.enabled ? '已启用' : '已停用'}`} disabled={busy === `skill:${skill.name}`} onClick={() => void onToggle(skill)}><span /></button>
+          <button className={styles.iconActionButton} type="button" aria-label={`查看 ${skill.name}`} title="查看内容" onClick={() => void onView(skill)} disabled={detailLoading === skill.name}><Eye size={14} className={detailLoading === skill.name ? styles.spin : ''} /></button>
+          {isUserSkill && userId && <><button className={styles.iconActionButton} type="button" aria-label={`编辑 ${skill.name}`} title="编辑" onClick={() => void onEdit(skill)} disabled={busy === `edit-skill:${userId}`}><Wrench size={14} /></button><button className={styles.iconActionButton} type="button" aria-label={`删除 ${skill.name}`} title="删除" onClick={() => void onDelete(skill)} disabled={busy === `delete-skill:${userId}`}><Trash2 size={14} /></button></>}
+        </span>
+      </div>;
+    }) : <p className={styles.emptySettings}>当前没有加载到 Skill。</p>}</div>
+    {diagnostics.length > 0 && <div className={styles.settingsDiagnostics}><strong>加载诊断</strong>{diagnostics.map((diagnostic, index) => <p key={`${diagnostic.code}-${index}`}>{diagnostic.code} · {diagnostic.message}</p>)}</div>}
+  </div>;
 }
 
 function McpSettings(props: { servers: McpServer[]; draft: McpDraft | null; busy: string | null; onStartNew: () => void; onEdit: (server: McpServer) => void; onDraftChange: (draft: McpDraft | null) => void; onSave: (event: FormEvent) => Promise<void>; onCancel: () => void; onToggle: (server: McpServer) => Promise<void>; onTest: (server: McpServer) => Promise<void>; onDelete: (server: McpServer) => Promise<void> }) {
-  return <div><div className={styles.settingsTitle}><div><h3>MCP 连接</h3><p>连接按需建立；写入型工具默认会等待你的批准。</p></div><button className={styles.secondaryButton} type="button" onClick={props.onStartNew}><Plus size={14} />添加</button></div>{props.draft && <form className={styles.mcpEditor} onSubmit={props.onSave}><div className={styles.inlineSettingsGrid}><label className={styles.settingsField}><span>名称</span><input value={props.draft.name} onChange={(event) => props.onDraftChange({ ...props.draft!, name: event.target.value })} required /></label><label className={styles.settingsField}><span>传输</span><select value={props.draft.transport} onChange={(event) => props.onDraftChange({ ...props.draft!, transport: event.target.value as McpServer["transport"] })}><option value="stdio">stdio</option><option value="sse">SSE</option><option value="http">Streamable HTTP</option></select></label></div>{props.draft.transport === "stdio" ? <><label className={styles.settingsField}><span>命令</span><input value={props.draft.command} onChange={(event) => props.onDraftChange({ ...props.draft!, command: event.target.value })} placeholder="例如 npx" required /></label><label className={styles.settingsField}><span>参数，每行一个</span><textarea value={props.draft.args} onChange={(event) => props.onDraftChange({ ...props.draft!, args: event.target.value })} rows={2} /></label></> : <label className={styles.settingsField}><span>URL</span><input type="url" value={props.draft.url} onChange={(event) => props.onDraftChange({ ...props.draft!, url: event.target.value })} required /></label>}<label className={styles.settingsField}><span>环境变量，每行 KEY=VALUE</span><textarea value={props.draft.env} onChange={(event) => props.onDraftChange({ ...props.draft!, env: event.target.value })} rows={2} /></label><div className={styles.settingsFooter}><span /><span className={styles.settingsActions}><button className={styles.textButton} type="button" onClick={props.onCancel}>取消</button><button className={styles.saveButton} type="submit" disabled={props.busy === "mcp"}><Save size={14} />保存</button></span></div></form>}<div className={styles.settingsList}>{props.servers.length ? props.servers.map((server) => <div className={styles.settingsRow} key={server.id}><span className={styles.settingsRowIcon}><Server size={15} /></span><span className={styles.settingsRowCopy}><strong>{server.name}</strong><small>{server.transport.toUpperCase()} · {server.configuredEnv ? "已保存环境变量" : "无环境变量"}</small></span><span className={styles.settingsActions}><button className={styles.iconActionButton} type="button" aria-label={`测试 ${server.name}`} title="测试连接" onClick={() => void props.onTest(server)} disabled={props.busy === `test:${server.id}`}><RefreshCw size={14} className={props.busy === `test:${server.id}` ? styles.spin : ""} /></button><button className={styles.rowStatusButton} type="button" onClick={() => void props.onToggle(server)} disabled={props.busy === `mcp:${server.id}`}>{server.enabled ? "已启用" : "已停用"}</button><button className={styles.iconActionButton} type="button" aria-label={`编辑 ${server.name}`} title="编辑" onClick={() => props.onEdit(server)}><Wrench size={14} /></button><button className={styles.iconActionButton} type="button" aria-label={`删除 ${server.name}`} title="删除" onClick={() => void props.onDelete(server)}><Trash2 size={14} /></button></span></div>) : <p className={styles.emptySettings}>还没有 MCP 连接。</p>}</div></div>;
+  return <div><div className={styles.settingsTitle}><div><h3>MCP 连接</h3><p>只连接 HTTPS 服务；每次调用远程工具前都会请求批准。</p></div><button className={styles.secondaryButton} type="button" onClick={props.onStartNew}><Plus size={14} />添加</button></div>{props.draft && <form className={styles.mcpEditor} onSubmit={props.onSave}><label className={styles.settingsField}><span>名称</span><input value={props.draft.name} onChange={(event) => props.onDraftChange({ ...props.draft!, name: event.target.value })} maxLength={100} required /></label><label className={styles.settingsField}><span>Streamable HTTP 地址</span><input type="url" inputMode="url" value={props.draft.url} onChange={(event) => props.onDraftChange({ ...props.draft!, url: event.target.value })} placeholder="https://example.com/mcp" pattern="https://.*" required /></label><div className={styles.settingsField}><label htmlFor="mcp-bearer-token">Bearer Token{props.draft.id ? "（留空则保留原值）" : "（可选）"}</label><SecretInput id="mcp-bearer-token" secretLabel=" Bearer Token" value={props.draft.bearerToken} onChange={(event) => props.onDraftChange({ ...props.draft!, bearerToken: event.target.value })} autoComplete="new-password" maxLength={4096} /></div><div className={styles.settingsFooter}><span /><span className={styles.settingsActions}><button className={styles.textButton} type="button" onClick={props.onCancel}>取消</button><button className={styles.saveButton} type="submit" disabled={props.busy === "mcp"}><Save size={14} />保存</button></span></div></form>}<div className={styles.settingsList}>{props.servers.length ? props.servers.map((server) => <div className={styles.settingsRow} key={server.id}><span className={styles.settingsRowIcon}><Server size={15} /></span><span className={styles.settingsRowCopy}><strong>{server.name}</strong><small>HTTPS · {server.configuredBearer ? "已配置 Bearer Token" : "无认证"}</small></span><span className={styles.settingsActions}><button className={styles.iconActionButton} type="button" aria-label={`测试 ${server.name}`} title="测试连接" onClick={() => void props.onTest(server)} disabled={props.busy === `test:${server.id}`}><RefreshCw size={14} className={props.busy === `test:${server.id}` ? styles.spin : ""} /></button><button className={styles.rowStatusButton} type="button" onClick={() => void props.onToggle(server)} disabled={props.busy === `mcp:${server.id}`}>{server.enabled ? "已启用" : "已停用"}</button><button className={styles.iconActionButton} type="button" aria-label={`编辑 ${server.name}`} title="编辑" onClick={() => props.onEdit(server)}><Wrench size={14} /></button><button className={styles.iconActionButton} type="button" aria-label={`删除 ${server.name}`} title="删除" onClick={() => void props.onDelete(server)}><Trash2 size={14} /></button></span></div>) : <p className={styles.emptySettings}>还没有 MCP 连接。</p>}</div></div>;
 }
 
 function ToolsSettings({ tools, busy, onUpdate }: { tools: Tool[]; busy: string | null; onUpdate: (tool: Tool, patch: Partial<Pick<Tool, "enabled" | "approval">>) => Promise<void> }) {
@@ -579,19 +766,65 @@ function ToolsSettings({ tools, busy, onUpdate }: { tools: Tool[]; busy: string 
     const approvalLocked = tool.approvalPolicy !== "none";
     const limitText = `${Math.round(tool.limits.timeoutMs / 1000)} 秒 · ${tool.limits.maxResultCharacters.toLocaleString()} 字符上限`;
     const effectText = tool.effects.join("、");
-    return <div className={styles.settingsRow} key={tool.name}><span className={styles.settingsRowIcon}><Wrench size={15} /></span><span className={styles.settingsRowCopy}><strong>{tool.label}</strong><small>{tool.description} · {tool.source} · {effectText} · {tool.executionMode === "parallel" ? "可并行" : "串行"} · {limitText}</small></span><span className={styles.settingsActions}><select className={styles.approvalSelect} aria-label={`${tool.label} 审批策略`} value={tool.approval} onChange={(event) => void onUpdate(tool, { approval: event.target.value as Tool["approval"] })} disabled={busy === `tool:${tool.name}`}><option value="default">默认审批</option><option value="always">始终询问</option><option value="never" disabled={approvalLocked}>不询问{approvalLocked ? "（平台禁止）" : ""}</option></select><button className={styles.rowStatusButton} type="button" disabled={busy === `tool:${tool.name}`} onClick={() => void onUpdate(tool, { enabled: !tool.enabled })}>{tool.enabled ? "已启用" : "已停用"}</button></span></div>;
+    return <div className={styles.settingsRow} key={tool.name}><span className={styles.settingsRowIcon}><Wrench size={15} /></span><span className={styles.settingsRowCopy}><strong>{tool.label}</strong><small>{tool.description}</small><span className={styles.settingsMeta}>{tool.source} · {effectText} · {tool.executionMode === "parallel" ? "可并行" : "串行"} · {limitText}</span></span><span className={styles.settingsActions}><select className={styles.approvalSelect} aria-label={`${tool.label} 审批策略`} value={tool.approval} onChange={(event) => void onUpdate(tool, { approval: event.target.value as Tool["approval"] })} disabled={busy === `tool:${tool.name}`}><option value="default">默认</option><option value="always">总是询问</option><option value="never" disabled={approvalLocked}>不询问</option></select><button className={`${styles.settingsSwitch} ${tool.enabled ? styles.settingsSwitchOn : ''}`} type="button" role="switch" aria-checked={tool.enabled} aria-label={`${tool.label}${tool.enabled ? "已启用" : "已停用"}`} disabled={busy === `tool:${tool.name}`} onClick={() => void onUpdate(tool, { enabled: !tool.enabled })}><span /></button></span></div>;
   }) : <p className={styles.emptySettings}>当前没有可用工具。</p>}</div></div>;
+}
+
+const memorySlots = ["profile", "preferences", "scope", "recent"] as const;
+const memorySlotLabels: Record<(typeof memorySlots)[number], string> = {
+  profile: "关于你",
+  preferences: "学习偏好",
+  scope: "学习范围",
+  recent: "最近学习",
+};
+
+function MemorySettings(props: {
+  entries: MemoryEntry[];
+  loading: boolean;
+  memoryInjectionEnabled: boolean;
+  memoryInjectionBusy: boolean;
+  memoryUpdateBusy: boolean;
+  onToggleMemoryInjection: () => void;
+  onUpdateMemory: () => void;
+  showArchived: boolean;
+  onToggleArchived: () => void;
+  editingId: string | null;
+  draft: string;
+  onBeginEdit: (entry: MemoryEntry) => void;
+  onDraftChange: (value: string) => void;
+  onCancelEdit: () => void;
+  onSave: (id: string) => void;
+  onArchive: (id: string, status: "active" | "archived") => void;
+}) {
+  const grouped = Object.fromEntries(memorySlots.map((slot) => [slot, props.entries.filter((entry) => entry.slot === slot)])) as Record<(typeof memorySlots)[number], MemoryEntry[]>;
+  return <div>
+    <div className={styles.settingsTitle}>
+      <div><h3>学习记忆</h3><p>查看和修改 Chalk 为你整理的长期学习偏好与上下文。</p></div>
+      <button className={`${styles.settingsSwitch} ${props.memoryInjectionEnabled ? styles.settingsSwitchOn : ""}`} type="button" role="switch" aria-checked={props.memoryInjectionEnabled} aria-label="自动注入学习记忆" onClick={props.onToggleMemoryInjection} disabled={props.memoryInjectionBusy}><span /></button>
+      <button className={styles.secondaryButton} type="button" onClick={props.onUpdateMemory} disabled={props.memoryUpdateBusy || props.loading}><RefreshCw size={14} className={props.memoryUpdateBusy ? styles.spin : ""} />{props.memoryUpdateBusy ? "更新中…" : "立即 Update"}</button>
+      <button className={styles.secondaryButton} type="button" onClick={props.onToggleArchived}>{props.showArchived ? "隐藏已归档" : "查看已归档"}</button>
+    </div>
+    <p className={styles.memoryHint}>{props.memoryInjectionEnabled ? "已开启：每次对话都会将 active L3 记忆注入教学上下文。" : "已关闭：记忆仍会保存，但不会自动提供给 Agent。"}</p>
+    {props.loading ? <p className={styles.emptySettings}>正在加载学习记忆…</p> : <div className={styles.settingsList}>
+      {memorySlots.map((slot) => <section key={slot} className={styles.memorySection}>
+        <div className={styles.memorySectionHeader}><strong>{memorySlotLabels[slot]}</strong><span>{grouped[slot].length}</span></div>
+        {grouped[slot].length ? grouped[slot].map((entry) => <div className={`${styles.settingsRow} ${entry.status === "archived" ? styles.memoryArchived : ""}`} key={entry.id}>
+          {props.editingId === entry.id
+            ? <div className={styles.memoryEditor}><textarea value={props.draft} maxLength={240} autoFocus onChange={(event) => props.onDraftChange(event.target.value)} /><div className={styles.settingsActions}><button className={styles.textButton} type="button" onClick={props.onCancelEdit}>取消</button><button className={styles.saveButton} type="button" disabled={!props.draft.trim()} onClick={() => props.onSave(entry.id)}><Check size={14} />保存</button></div></div>
+            : <><span className={styles.settingsRowIcon}><BrainCircuit size={15} /></span><span className={styles.settingsRowCopy}><strong>{entry.text}</strong><small>更新于 {new Date(entry.updatedAt).toLocaleDateString("zh-CN")} · 来源 {entry.refs.length} 条{entry.status === "archived" ? " · 已归档" : ""}</small></span><span className={styles.settingsActions}><button className={styles.iconActionButton} type="button" aria-label="编辑记忆" title="编辑" onClick={() => props.onBeginEdit(entry)}><Pencil size={14} /></button>{entry.status === "archived" ? <button className={styles.iconActionButton} type="button" aria-label="恢复记忆" title="恢复" onClick={() => props.onArchive(entry.id, "active")}><RotateCcw size={14} /></button> : <button className={styles.iconActionButton} type="button" aria-label="归档记忆" title="归档" onClick={() => props.onArchive(entry.id, "archived")}><Archive size={14} /></button>}</span></>}
+        </div>) : <p className={styles.emptySettings}>还没有内容</p>}
+      </section>)}
+    </div>}
+    {!props.loading && <p className={styles.memoryFootnote}><RotateCcw size={14} />记忆只用于帮助教学，不代表对知识掌握度的判定。</p>}
+  </div>;
 }
 
 function serverToDraft(server: McpServer): McpDraft {
   return {
     id: server.id,
     name: server.name,
-    transport: server.transport,
-    command: server.command ?? "",
-    url: server.url ?? "",
-    args: Array.isArray(server.args) ? server.args.join("\n") : "",
-    env: "",
+    url: server.url,
+    bearerToken: "",
     enabled: server.enabled,
   };
 }

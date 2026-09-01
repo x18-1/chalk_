@@ -7,8 +7,8 @@
 
 ## 1. 总原则
 
-1. **Chalk 业务后端全 TypeScript。** 认证、业务编排、Agent、DSL 校验、几何、证据账本和数据访问全部在 TS 一侧。LightRAG 是明确的基础设施例外。
-2. **LightRAG 使用独立 Python 在线 retrieval sidecar。** Python 只实现 LightRAG 的索引与原生查询；TypeScript API 先完成授权、配额和审计，再通过受控内部接口调用。见第 10 节和 [ADR 0003](../adr/0003-python-lightrag-retrieval-sidecar.md)。
+1. **Chalk 业务后端全 TypeScript。** 认证、业务编排、Agent、DSL 校验、几何、证据账本和数据访问全部在 TS 一侧。LightRAG 是明确的基础设施例外，不改变业务后端的语言边界。
+2. **LightRAG 使用独立 Python 在线 retrieval sidecar。** Python 只实现 LightRAG 的索引与原生查询，不承载 Chalk 业务、认证或 owner 授权；TypeScript API 先完成授权、配额和审计，再通过受控内部接口调用。见第 10 节和 [ADR 0003](../adr/0003-python-lightrag-retrieval-sidecar.md)。
 3. **确定性引擎决定「能不能过」，LLM 决定「怎么表达」。** 掌握判定、几何校验、结构 lint 全部是确定性代码，LLM 不持有否决权。
 4. **eval 与功能同期建设。** 系统产出质量（讲解、判题、几何构造）不靠人工抽查。
 
@@ -24,10 +24,10 @@
 | 课堂播放运行时 | `@chalk/chalkboard` TypeScript runtime | V3 已使用 `Scene -> Action` 游标、播放/暂停与 Discussion bridge；目前不引入 XState |
 | 数据库 | Postgres + Drizzle | 证据表 append-only；课件 JSONB；课程图关系表 |
 | 任务队列 | pg-boss（或 Graphile Worker） | 课件编译是分钟级任务。用 Postgres 省掉 Redis |
-| 数学插件的几何渲染 / 动画 | **manim-web** | TypeScript，版本锁定；它是候选数学 Domain Plugin 的渲染能力，不是 Teaching Kernel |
-| 数学插件的几何约束层 | **自建** | 不绑定 manim-web 对象模型；具体插件边界在 V5 规格确定 |
-| 数学排版 | KaTeX | manim-web 内部也用它 |
-| 校验 | **Zod + TypeBox** | Chalk 业务结构、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。LightRAG sidecar 协议由 Zod 生成 JSON Schema，Python 侧使用对应 Pydantic 模型 |
+| 数学插件的几何渲染 / 交互 | **GeoGebra Classic** | Geometry Agent 默认输出受控命令脚本；TypeScript 宿主逐条执行并报告命令级错误，GeoGebra 原生维护 Slider 与依赖更新 |
+| 数学插件的几何约束层 | **GeoGebra 原生 + 自建校验** | 脚本 schema、保留名称、依赖和安全校验在 TS；不绑定渲染器对象模型 |
+| 数学排版 | KaTeX | 题目 Markdown/数学文本在展示层渲染 |
+| 校验 | **Zod + TypeBox** | Chalk 业务结构、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。业务 schema 是主来源，工具边界通过明确 adapter 对接。LightRAG sidecar 的跨语言协议由 Zod 生成 JSON Schema，Python 侧使用对应的 Pydantic 模型 |
 | 测试 | Vitest + Playwright + LLM eval | 见第 6 节 |
 | 观测 | pi-telemetry + OpenTelemetry | 见第 5 节 |
 
@@ -54,7 +54,7 @@ LLM tool arguments
 | | 原因 |
 |---|---|
 | fork OpenMAIC | 核心对象不同（它以 `Stage` 为中心，我们以学习者与证据为中心）；Chalk 只对固定参考提交的 Scene/Action 、生成链路和讨论能力做有边界迁移。PPTX/MP4 导出、PBL v2、Partners 等都不需要 |
-| GeoGebra | `evalCommand()` 只返回成功/失败，无结构化错误；宽松解释器可能把错误表达式解释成另一种合法对象 |
+| 直接生成渲染器代码 | 模型难以稳定表达几何约束；Geometry Agent 统一输出 GeoGebra 命令并由宿主逐条执行 |
 | Python 做主后端 | 跨语言边界会切入 Chalk 业务主链路；DSL 校验器会被迫写两遍。**不允许 Python 承载 Chalk 业务后端；仅允许 LightRAG 独立 sidecar 例外** |
 
 ## 3. Agent 运行时：pi-agent 与课堂讨论 LangGraph
@@ -114,7 +114,13 @@ override 锁定 LangGraph 的 checkpoint/sdk 传递依赖组合；版本原因�
 
 本节记录已确认的几何技术约束，不把几何定义为 Chalkboard 产品本体。插件协议与首个数学插件在 V5 开始前另行定义；首个插件不预先锁定为几何。
 
-### manim-web
+### GeoGebra（Geometry Agent 默认）
+
+Geometry Agent 的 Stage 2 使用旧 Geo2Geo v2 的命令式风格：`MODE: 2D/3D`、一行一条命令、依赖顺序定义对象，并通过 `submit_geogebra_script` 工具提交。宿主在浏览器中创建 Classic applet，逐条调用 GeoGebra API；每条命令都记录序号、原文和成功/失败状态，失败时向页面和后续修复流程返回命令级诊断。API key 只存在于运行时环境，不写入 artifact 或日志。
+
+GeoGebra 原生对象模型用于 Slider、路径动点、函数/圆锥曲线、Segment/Line/Ray、交点和派生对象，因此拖动 Slider 或路径点时依赖对象会自动更新。Prompt 明确禁止把普通连接画成 Ray、用无关固定坐标替代曲线上的点，以及用多交点列表赋给单点；视口命令保证大圆、椭圆和抛物线完整可见。
+
+### manim-web（迁移期遗留）
 
 `0.3.24`（2026-07-13 更新，2026-02 首发），MIT，TypeScript，Vite + Vitest + Playwright 工具链，452 stars / 613 commits。提供 browser / React / Vue 入口。
 
@@ -127,7 +133,7 @@ override 锁定 LangGraph 的 checkpoint/sdk 传递依赖组合；版本原因�
 
 ### 几何 Agent 与约束层
 
-manim-web 是动画引擎，**不管理几何约束**。`Draggable` 让点能拖，但拖动 A 之后派生对象（BC 中点、垂足、交点）不会自动重算 —— 那需要依赖图和拓扑排序的更新顺序。
+manim-web 仍锁定在现有 package 中，作为迁移期兼容和未来教学动画适配器保留；它是动画引擎，**不管理几何约束**。`Draggable` 让点能拖，但拖动 A 之后派生对象不会自动重算，因此不再作为 Geometry Agent 默认渲染目标。
 
 若 V5 选择几何作为参考插件，几何 Agent 负责生成受限几何 DSL，约束计算与渲染适配归该 Domain Plugin 所有，Teaching Kernel 只负责挂载活动与消费结果。下列仅是候选内部结构：
 
@@ -138,13 +144,13 @@ packages/<math-domain-plugin>/src/internal/geometry/
   ├─ 派生对象求值器        中点 / 交点 / 垂线 / 平行线 / 角平分线 / 圆上点
   ├─ 退化检测              三点共线时「交点」不存在等
   ├─ 后置条件校验          CI 中可断言 "DE == AD"
-  └─ → manim-web 适配层    薄，渲染器可替换
+  └─ → GeoGebra / manim-web 适配层    薄，渲染器可替换
 ```
 
 设计约束：
 
-- 约束层**不绑 manim-web 的对象模型**。它是核心资产，渲染器是消耗品
-- manim-web 版本号**锁死**，不用 `^`（`0.3.x`、上线 6 个月、README 无 limitations 章节、无浏览器支持矩阵、无与上游 Manim 的覆盖度对比）
+- 约束与校验层**不绑渲染器对象模型**。GeoGebra 是当前默认渲染器，manim-web 仅是兼容适配器
+- manim-web 版本号仍**锁死**，不用 `^`；只有重新启用动画适配器时才维护其覆盖度验证
 - 几何正确性必须能进 CI
 
 ### LLM 接口：生成受限 DSL，不生成渲染代码
@@ -268,27 +274,31 @@ LLM Provider 统一使用 `@earendil-works/pi-ai`。`apps/api/src/providers/llm/
 
    不通则后续所有几何教学功能都是空的。
 
-2. **manim-web 的实际覆盖度**：README 无 limitations 章节，需实测 2D 几何教学所需图元与动画是否齐全
+2. **GeoGebra 浏览器 API 的错误结构化能力**：`evalCommand()` 本身返回布尔值，需继续验证 `setErrorHandler`、`exists`、`getObjectType` 在锁定 Classic applet 版本中的兼容性
 3. **MCP 适配的具体形态**：接口位置先留出
 4. **学生操作事件的回传契约**：`Draggable` 事件 → 证据账本 + AI 观察输入的数据形状
 5. **pi-telemetry 与教学语义事件的结合方式**：是否足以承载 UI 状态驱动
 
 ## 10. Python 的位置（LightRAG 例外）
 
-Chalk 业务后端仍然全为 TypeScript。首期 RAG 只使用 LightRAG，并允许一个独立的 Python 在线 retrieval sidecar；它不负责 Chalk 认证、owner 授权、业务状态机或证据账本。
+Chalk 业务后端仍然全为 TypeScript。经确认，首期 RAG 只使用 LightRAG，并允许一个独立的 Python 在线 retrieval sidecar：它负责 LightRAG 的文档解析、索引、embedding、图/向量检索和查询合成；它不负责 Chalk 认证、owner 授权、业务状态机或证据账本。
 
 ### 调用链
 
 ```text
 Web → TypeScript API
        ├─ 认证、owner 校验、配额、审计
+       ├─ 解析 knowledgeBaseId / indexVersionId
        └─ 内部认证调用 Python LightRAG sidecar
                 └─ answer + structured references
 ```
 
-### 引入时必须遵守
+### 必须遵守
 
 1. **仅限内部接口**：sidecar 不暴露给浏览器或公网；API 使用服务身份、网络策略和超时/取消控制调用它。
-2. **schema 单一来源**：Zod 定义 → 生成 JSON Schema → Pydantic 模型，禁止两边手写同一结构。
-3. **凭据隔离**：Python 不读取 Chalk 凭据表；LLM/embedding 使用受控模型代理或短期凭据。
-4. **证据账本和 DSL 校验永不跨界**，始终留在 TS。
+2. **权限只在 TypeScript 强制**：所有 KB、文档、索引版本和审计查询仍通过带 `userId` 的 DAL；Python 不接受客户端 `userId` 作为授权依据。
+3. **窄接口与单一 schema 来源**：TypeScript 用 Zod 定义 `RagQueryRequest` / `RagQueryResponse`，生成 JSON Schema；Python 用生成的 Pydantic 模型，禁止两边手写同一业务结构。
+4. **凭据最小暴露**：Python 不读取 Chalk 凭据数据库，不记录 API key/Cookie/token；LightRAG 所需 LLM/embedding 调用使用受控模型代理或短期凭据。
+5. **数据与版本隔离**：原始文件和 LightRAG workspace 放在受控对象存储；Postgres 保存 KB、job、index version 和 citation 元数据；sidecar 仅按授权的 `indexVersionId` 读取。
+6. **可恢复与可观测**：索引构建仍通过队列、lease、heartbeat、幂等 job 和不可变版本完成；在线查询记录 trace、版本、模式、延迟、错误和引用 ID。
+7. **证据账本和 DSL 校验永不跨界**：LightRAG 返回的自然语言 answer 不能直接写入学生掌握度；TypeScript 负责引用投影和教学证据记录。

@@ -40,7 +40,7 @@
 ### Phase C：API 工具装配一致性
 
 - [x] 让公开工具清单和 runtime 注入共用同一个 registry 装配路径。
-- [x] 明确 Subagent 是内部能力：默认关闭且不进入公开设置清单。
+- [x] Subagent 默认关闭但进入公开设置清单，owner 可手动开启且不能关闭强制审批。
 - [x] 重新检查默认启用策略，避免新工具无配置即自动开放。
 - [x] API service 拒绝违反平台底线的工具设置。
 - [ ] 保持所有业务 Tool 的 owner 校验位于 DAL/Service，不下沉到通用 runtime。

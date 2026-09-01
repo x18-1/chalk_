@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 
 import { httpUrlSchema } from '../../http/validation';
@@ -14,6 +15,10 @@ export const modelSelectionSchema = z.object({
   modelId: z.string().min(1).max(200),
   thinkingLevel: z.enum(MODEL_THINKING_LEVELS),
 });
+
+export const memorySettingsSchema = z.object({
+  enabled: z.boolean(),
+}).strict();
 
 const mediaSelectionSchema = z.object({
   providerId: z.string().trim().min(1).max(100),
@@ -77,6 +82,56 @@ export const skillSettingSchema = z.object({
   skillName: z.string().min(1).max(64),
   enabled: z.boolean(),
 });
+export const skillNameParamsSchema = z.object({ name: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/) });
+
+const MAX_USER_SKILL_REFERENCES = 32;
+const MAX_USER_SKILL_REFERENCES_BYTES = 512 * 1024;
+const userSkillReferencePathSchema = z.string().max(256).refine((path) => {
+  const segments = path.split('/');
+  return segments[0] === 'references'
+    && segments.length >= 2
+    && segments.every((segment) => Boolean(segment) && segment !== '.' && segment !== '..' && /^[A-Za-z0-9._-]+$/.test(segment));
+}, 'Reference path must identify a file within references/ without dot segments');
+const userSkillReferencesSchema = z.record(
+  userSkillReferencePathSchema,
+  z.string().max(64 * 1024),
+).superRefine((references, context) => {
+  const entries = Object.entries(references);
+  if (entries.length > MAX_USER_SKILL_REFERENCES) {
+    context.addIssue({
+      code: 'custom',
+      message: `A user Skill can contain at most ${MAX_USER_SKILL_REFERENCES} references`,
+    });
+  }
+  const totalBytes = entries.reduce(
+    (total, [path, content]) => total + Buffer.byteLength(path) + Buffer.byteLength(content),
+    0,
+  );
+  if (totalBytes > MAX_USER_SKILL_REFERENCES_BYTES) {
+    context.addIssue({
+      code: 'custom',
+      message: `User Skill references can contain at most ${MAX_USER_SKILL_REFERENCES_BYTES} bytes in total`,
+    });
+  }
+});
+const userSkillFields = {
+  name: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
+  description: z.string().trim().min(1).max(500),
+  content: z.string().min(1).max(64 * 1024),
+  references: userSkillReferencesSchema,
+  version: z.string().trim().min(1).max(64),
+  enabled: z.boolean(),
+};
+
+export const userSkillCreateSchema = z.object({
+  ...userSkillFields,
+  references: userSkillReferencesSchema.default({}),
+  version: userSkillFields.version.default('1.0.0'),
+  enabled: userSkillFields.enabled.default(true),
+}).strict();
+
+export const userSkillUpdateSchema = z.object(userSkillFields).partial().strict();
+export const userSkillParamsSchema = z.object({ id: z.string().uuid() });
 
 export const toolSettingSchema = z.object({
   toolName: z.string().min(1).max(200),
@@ -111,5 +166,7 @@ export type CustomProviderInput = z.infer<typeof customProviderSchema>;
 export type CustomProviderUpdateInput = z.infer<typeof customProviderUpdateSchema>;
 export type CapabilitySettingsInput = z.infer<typeof capabilitySettingsSchema>;
 export type SkillSettingInput = z.infer<typeof skillSettingSchema>;
+export type UserSkillCreateInput = z.infer<typeof userSkillCreateSchema>;
+export type UserSkillUpdateInput = z.infer<typeof userSkillUpdateSchema>;
 export type ToolSettingInput = z.infer<typeof toolSettingSchema>;
 export type RagSettingsInput = z.infer<typeof ragSettingsSchema>;

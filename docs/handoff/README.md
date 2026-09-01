@@ -36,7 +36,18 @@
 - 分支合并或停止开发后，将文档状态改为 `Historical`，保留最终结果和后续入口；
 - 已稳定的结论必须回写权威文档，不能长期只留在 handoff。
 
-当前活跃记录：无。Chalkboard 后续版本等待主分支 Memory、Tools 与 Chat 生成 Scene 能力合并后再建立新 handoff。
+当前活跃记录：
+
+- [memory-system.md](memory-system.md) — `feat/memory-system` 的 DeepTutor 风格学习记忆实现与验证现场
+
+Chalkboard 后续版本等待主分支 Memory、Tools 与 Chat 生成 Scene 能力合并后再建立新的 handoff。
+
+当前基线记录：
+
+- [handoff_8-28.md](handoff_8-28.md) — V3 合并后的 `main` 基线、平台先决工作、验证现场与 V4–V6 接手顺序
+
+本文是主分支快照，不代表已经启动 V4。新的功能 worktree 建立后，应创建对应 handoff，并将本快照
+转为 `Historical`。
 
 历史记录：
 

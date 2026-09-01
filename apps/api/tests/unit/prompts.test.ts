@@ -14,6 +14,8 @@ describe('Prompt module interface', () => {
     });
 
     expect(prompt.system).toContain('You are Chalk, a patient and rigorous mathematics teacher.');
+    expect(prompt.system).toContain('Call `read_skill` with an enabled Skill name');
+    expect(prompt.system).toContain('do not construct absolute paths');
     expect(prompt.system).toContain('<available_skills>geometry</available_skills>');
     expect(prompt.system).not.toContain('你是 Chalk');
     expect(prompt.revision).toMatch(/^[a-f0-9]{64}$/);
@@ -31,9 +33,28 @@ describe('Prompt module interface', () => {
 
   it('keeps every execution template structurally paired with its Chinese review copy', () => {
     expect(validatePromptRegistry()).toEqual({
-      promptCount: 17,
+      promptCount: 18,
       snippetCount: 7,
     });
+  });
+
+  it('builds the detailed memory-consolidation zero-shot prompt in English', () => {
+    const prompt = buildPrompt(PROMPT_IDS.MEMORY_CONSOLIDATION, {});
+
+    expect(prompt.system).toContain('L1-to-L2 event pass');
+    expect(prompt.system).toContain('exact discriminator key `op` (never `operation`)');
+    expect(prompt.system).toContain('return exactly `[]`');
+    expect(prompt.system).toContain('Do not skip a layer');
+    expect(prompt.system).not.toContain('你是 Chalk');
+    expect(prompt.system).not.toMatch(/\{\{[^}]+\}\}/);
+  });
+
+  it('keeps the Subagent system prompt static and free of session identifiers', () => {
+    const prompt = buildPrompt(PROMPT_IDS.CHAT_SUBAGENT, {});
+
+    expect(prompt.system).toContain('You have no tools');
+    expect(prompt.system).not.toContain('Parent session');
+    expect(prompt.system).not.toMatch(/\{\{[^}]+\}\}/);
   });
 
   it('preserves the OpenMAIC Director prompt and records the speech-only participant adaptation', () => {

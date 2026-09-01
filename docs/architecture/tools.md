@@ -39,7 +39,7 @@ Tool 的执行复杂度集中在 `packages/agent-runtime` 的 Tool 模块中。�
 - 当前用户和 conversation/session 上下文；
 - 工具实现及其业务 adapter；
 - 用户可配置的启停和审批偏好；
-- owner 校验、配额、审计持久化和产品角色策略；
+- owner 校验、执行限制、审计持久化和产品角色策略；本阶段不提供账户级 quota service；
 - 工具清单的公开投影。
 
 ### Tool 实现负责
@@ -63,12 +63,16 @@ Tool 的执行复杂度集中在 `packages/agent-runtime` 的 Tool 模块中。�
 | `effects` | 只读、修改数据、网络访问、进程执行、产生费用等副作用声明 |
 | `approvalPolicy` | 工具声明的平台最低审批要求，调用方不能降低它 |
 | `limits` | 默认/最大超时、文本结果预算和必要的调用限制 |
-| `executionMode` | `sequential` 或 `parallel`；有共享状态或副作用的工具必须串行 |
+| `executionMode` | `sequential` 或 `parallel`；省略时默认串行，有共享状态或副作用的工具必须串行 |
 | `execute` | 只接收已校验参数、运行上下文、取消信号和增量更新回调 |
 
 实现还要求显式声明 `defaultEnabled`。它决定没有用户覆盖时工具是否进入下一次 runtime；它不是审批策略，也不代表工具已经连接成功。`ToolSummary` 会同时返回解析后的 `limits` 和 `executionMode`，设置页和实际 runtime 必须消费同一份摘要。
 
 其中 `effects` 和 `approvalPolicy` 是安全事实，不是 UI 偏好。用户设置只能在平台允许的范围内增加审批或关闭工具，不能关闭平台强制审批。
+
+`parallel` 必须显式声明，只适用于相互独立、没有共享可变状态的安全只读调用。Registry 不根据
+`effects` 自动推断并行。第一阶段只采用 Pi 的 sequential/parallel 语义，不建设优先级队列、
+依赖图、批次调度器、资源池或持久化执行队列。
 
 ## 4. 执行生命周期
 
@@ -150,7 +154,7 @@ Read 工具还可以返回资源专属稳定码：`read_cursor_invalid`、`read_
 - 不支持的 source/effects/execution mode；
 - 超过平台硬上限的 timeout/result budget。
 
-工具清单必须来自同一个 registry：设置页展示的工具、策略配置校验的工具和实际注入 Agent 的工具不能由三套不同装配逻辑产生。当前 `run_subagent` 已装配进主 runtime，但尚未进入公开设置清单；在它公开前，平台将其视为内部能力并保持 `defaultEnabled: false`。
+工具清单必须来自同一个稳定目录：设置页展示的工具、策略配置校验的工具和实际注入 Agent 的工具不能产生行为分叉。`run_subagent` 的稳定摘要与 runtime Tool 使用同一定义；它进入设置清单但保持 `defaultEnabled: false`，手动开启后下一个 runtime 生效。
 
 ## 9. 观测要求
 
@@ -164,14 +168,20 @@ Telemetry 不得通过匹配错误字符串来判断状态。参数脱敏、审�
 
 - 稳定工具 ID、版本和迁移；
 - 参数字段级脱敏和审批摘要；
-- 每用户/每会话配额和成本预算；
+- 账户级 quota/计费预算（本阶段明确不实现；若未来需要，另立 ADR 与持久化服务）；
 - 幂等键与重复调用检测；
+- 独立 Tool output schema；
+- Run 内动态 Tool 加载与复杂批次调度；
 - 工具安装、来源签名和供应链信任；
 - 多实例执行队列和可恢复调用。
 
+当前 Registry 仅在自身生命周期内按 `toolCallId` 合并相同参数的重入调用，并对同一 id 的不同
+参数 fail closed。该内存保护不跨 Runtime 或 API 进程，不构成 exactly-once、崩溃恢复或
+持久化 Job；这些能力不是新增 Tool 的第一阶段门禁。
+
 ## 11. Read 工具与继续读取
 
-`read_resource` 是 Agent 可见的统一 Read 工具。它接收 `{ resource: { kind, id } }`，内部通过 `ResourceReadAdapter` 路由到具体资源类型。当前注册 `upload` 和 `mcp_resource` 两类 adapter：上传文本通过 MinIO/S3 Range 请求按字节读取；MCP Resource 通过 `<server-id>/<resource-uri>` 引用，并由 MCP client 读取远端文本后复用同一套分页和 snapshot 校验。MCP 连接初始化会发现 `resources/list` 并处理分页，proxy `search` 返回 Resource 的 `id`，因此模型不需要猜测 URI。
+`read_resource` 负责 Chalk 上传资源，`read_mcp_resource` 专门负责 MCP Resource；两者都使用有界文本读取和签名 continuation cursor，但不会在一个 schema 中混用资源来源。MCP Resource 通过 `<server-id>/<resource-uri>` 引用，并由 MCP client 读取远端文本后复用分页和 snapshot 校验。MCP 连接初始化会发现 `resources/list` 并处理分页，proxy `search` 返回 Resource 的 `id`，因此模型不需要猜测 URI。
 
 Skill 使用独立的 `read_skill` 工具，不接受文件路径，只接受已加载 Skill 的名称。工具仅允许读取当前用户已启用且允许模型调用的 Skill，并把 `SKILL.md` 正文作为受限文本结果返回；停用、未加载或 `disable-model-invocation: true` 的 Skill 均 fail closed。Skill 摘要仍通过 system prompt 渐进披露，避免启动时把所有正文塞入上下文。API 只把应用内置 `skills` 目录及其真实路径下的子目录标记为 trusted；其他 `SKILLS_DIRS` 来源不会进入 Agent。
 
@@ -179,4 +189,4 @@ Skill 使用独立的 `read_skill` 工具，不接受文件路径，只接受已
 
 Read 结果的 `details` 至少包含：资源 ID、文件名、起止行、起止字节、`hasMore`，以及在还有内容时的 opaque continuation cursor。cursor 由服务端签名，并绑定 owner、conversation、资源 ID、资源 snapshot、下一字节位置和过期时间。下一次调用只能把 cursor 原样交回工具，不能由模型修改。
 
-当前 Read 只支持 `upload` 和 `mcp_resource` 的文本内容；MCP 协议的 `resources/read` 没有 byte-range 参数，因此远端单个文本资源先限制为 2 MiB，并以内容 hash 作为 snapshot。知识库检索不复用 `read_resource`：Chat 挂载知识库后，API 为该 runtime 闭包注入唯一的 `search_knowledge_base` 工具，工具内部执行 owner 校验并调用 LightRAG sidecar，返回带文档名、页码/段落和 chunk 的结构化引用。PDF、图片、blob 和知识库 chunk/Web 正文的读取仍需要各自的解码或 Provider adapter，不能把二进制字节直接伪装成文本。后续新增资源类型只增加 adapter，不增加新的 Agent 可见 `read_xxx` 工具。继续读取时如果对象或远端资源 snapshot 发生变化，工具返回 `read_snapshot_changed`，要求重新开始读取。
+当前两个 Read 工具只支持文本内容；MCP 协议的 `resources/read` 没有 byte-range 参数，因此远端单个文本资源先限制为 2 MiB，并以内容 hash 作为 snapshot。PDF、图片、blob 和知识库 chunk/Web 正文需要各自的解码或 Provider adapter，不能把二进制字节直接伪装成文本。继续读取时如果对象或远端资源 snapshot 发生变化，工具返回 `read_snapshot_changed`，要求重新开始读取。

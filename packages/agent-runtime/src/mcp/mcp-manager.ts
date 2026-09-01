@@ -6,13 +6,14 @@ import type {
   CallToolResult,
   ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import type { TextContent } from "@earendil-works/pi-ai";
 import { Type, type Static, type TSchema } from "typebox";
 
 import {
   DEFAULT_TOOL_RESULT_CHARACTERS,
   DEFAULT_TOOL_TIMEOUT_MS,
   DEFAULT_TOOL_UPDATE_CHARACTERS,
+  ToolExecutionError,
   type RuntimeTool,
   type ToolSummary,
 } from "../tools/tool-registry";
@@ -25,6 +26,8 @@ export type McpServerConfig = {
   command?: string;
   args?: readonly string[];
   url?: string;
+  /** Optional HTTP headers (for example an owner-scoped bearer token). */
+  headers?: Readonly<Record<string, string>>;
   env?: Readonly<Record<string, string>>;
   enabled: boolean;
 };
@@ -41,6 +44,8 @@ export type McpServerStatus = {
 export type McpManagerOptions = {
   connectTimeoutMs?: number;
   callTimeoutMs?: number;
+  /** MCP Resources are deferred from the product-facing v1 surface. */
+  enableResources?: boolean;
 };
 
 type RemoteTool = Awaited<ReturnType<Client["listTools"]>>["tools"][number];
@@ -68,6 +73,14 @@ const proxyParameters = Type.Object({
   arguments: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 
+const MAX_STRUCTURED_CONTENT = 32_000;
+const MAX_REMOTE_RESULT_TEXT = 32_000;
+const MAX_REMOTE_DESCRIPTION = 2_000;
+const MAX_REMOTE_SCHEMA = 32_000;
+const MAX_DISCOVERY_PAGES = 10;
+const MAX_DISCOVERED_TOOLS = 200;
+const MAX_DISCOVERED_RESOURCES = 200;
+
 type ProxyParameters = Static<typeof proxyParameters>;
 
 function safeName(value: string, length = 48) {
@@ -89,8 +102,8 @@ function transportFor(config: McpServerConfig) {
 
   if (!config.url) throw new Error(`MCP server ${config.name} requires a URL`);
   const url = new URL(config.url);
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`MCP server ${config.name} must use HTTP or HTTPS`);
+  if (url.protocol !== "https:") {
+    throw new Error(`MCP server ${config.name} must use HTTPS`);
   }
   if (url.username || url.password) {
     throw new Error(`MCP server ${config.name} URL must not contain credentials`);
@@ -100,35 +113,77 @@ function transportFor(config: McpServerConfig) {
   if (config.transport === "sse") {
     return new SSEClientTransport(url, {
       fetch: safeFetch,
-      eventSourceInit: { fetch: safeFetch },
+      ...(config.headers ? { requestInit: { headers: { ...config.headers } } } : {}),
+      eventSourceInit: {
+        fetch: safeFetch,
+        ...(config.headers ? { headers: { ...config.headers } } : {}),
+      },
     });
   }
-  return new StreamableHTTPClientTransport(url, { fetch: safeFetch });
+  return new StreamableHTTPClientTransport(url, {
+    fetch: safeFetch,
+    ...(config.headers ? { requestInit: { headers: { ...config.headers } } } : {}),
+  });
 }
 
 function resultContent(
   content: CallToolResult["content"],
-): Array<TextContent | ImageContent> {
-  const result: Array<TextContent | ImageContent> = [];
+): TextContent[] {
+  const result: TextContent[] = [];
+  let remaining = MAX_REMOTE_RESULT_TEXT;
+  const append = (text: string) => {
+    if (remaining <= 0) return;
+    if (text.length <= remaining) {
+      result.push({ type: "text", text });
+      remaining -= text.length;
+      return;
+    }
+    const marker = "\n[MCP text truncated]".slice(0, remaining);
+    const prefixLength = Math.max(0, remaining - marker.length);
+    result.push({ type: "text", text: text.slice(0, prefixLength) + marker });
+    remaining = 0;
+  };
   for (const item of content) {
     if (item.type === "text") {
-      result.push({ type: "text", text: item.text });
+      append(item.text);
       continue;
     }
     if (item.type === "image") {
-      result.push({ type: "image", data: item.data, mimeType: item.mimeType });
+      append("[MCP image omitted from the v1 result surface]");
       continue;
     }
     if (item.type === "resource" && "text" in item.resource) {
-      result.push({ type: "text", text: item.resource.text });
+      append(item.resource.text);
       continue;
     }
-    result.push({
-      type: "text",
-      text: `[MCP ${item.type} result omitted from model context]`,
-    });
+    append(`[MCP ${item.type} result omitted from model context]`);
   }
   return result;
+}
+
+function boundedStructuredContent(value: unknown) {
+  if (value === undefined) return undefined;
+  let encoded: string;
+  try { encoded = JSON.stringify(value); } catch { return { omitted: true, reason: "unserializable" }; }
+  if (encoded.length <= MAX_STRUCTURED_CONTENT) return value;
+  return { omitted: true, reason: "result_too_large", originalCharacters: encoded.length };
+}
+
+function boundedRemoteText(value: string | undefined) {
+  if (value === undefined || value.length <= MAX_REMOTE_DESCRIPTION) return value;
+  return `${value.slice(0, MAX_REMOTE_DESCRIPTION)}\n[MCP metadata truncated]`;
+}
+
+function assertBoundedSchema(tool: RemoteTool) {
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(tool.inputSchema);
+  } catch (error) {
+    throw new Error(`MCP tool ${tool.name} returned an invalid input schema`, { cause: error });
+  }
+  if (!tool.name || tool.name.length > 200 || encoded.length > MAX_REMOTE_SCHEMA) {
+    throw new Error(`MCP tool ${tool.name || "<unnamed>"} exceeds the discovery limits`);
+  }
 }
 
 function toolSummary(tool: RuntimeTool): ToolSummary {
@@ -146,7 +201,7 @@ function toolSummary(tool: RuntimeTool): ToolSummary {
       maxUpdateCharacters: tool.limits?.maxUpdateCharacters ?? DEFAULT_TOOL_UPDATE_CHARACTERS,
     },
     defaultEnabled: tool.defaultEnabled,
-    executionMode: tool.executionMode ?? "parallel",
+    executionMode: tool.executionMode ?? "sequential",
     requiresApproval: !readOnly,
   };
 }
@@ -164,15 +219,17 @@ function toRuntimeTool(
   const name = `mcp__${safeName(config.name)}__${safeName(tool.name)}`;
   return {
     name,
-    label: tool.title ?? tool.name,
-    description: tool.description ?? `Tool from MCP server ${config.name}`,
+    label: boundedRemoteText(tool.title) ?? tool.name,
+    description: boundedRemoteText(tool.description) ?? `Tool from MCP server ${config.name}`,
     parameters: tool.inputSchema as TSchema,
     source: "mcp",
-    effects: tool.annotations?.readOnlyHint === true ? ["read", "network"] : ["write", "network"],
-    approvalPolicy: tool.annotations?.readOnlyHint === true ? "none" : "required",
+    // A remote readOnlyHint is display metadata only. It cannot narrow the
+    // local capability classification or influence approval/execution rules.
+    effects: ["read", "write", "network"],
+    approvalPolicy: "required",
     defaultEnabled: true,
-    requiresApproval: tool.annotations?.readOnlyHint !== true,
-    executionMode: tool.annotations?.readOnlyHint === true ? "parallel" : "sequential",
+    requiresApproval: true,
+    executionMode: "sequential",
     async execute(args, _context, signal) {
       const result = await call(config.id, tool.name, args as Record<string, unknown>, signal);
       return {
@@ -180,7 +237,7 @@ function toRuntimeTool(
         details: {
           serverId: config.id,
           toolName: tool.name,
-          structuredContent: result.structuredContent,
+          structuredContent: boundedStructuredContent(result.structuredContent),
         },
       };
     },
@@ -190,8 +247,8 @@ function toRuntimeTool(
 function publicRemoteTool(tool: RemoteTool) {
   return {
     name: tool.name,
-    title: tool.title,
-    description: tool.description,
+    title: boundedRemoteText(tool.title),
+    description: boundedRemoteText(tool.description),
     readOnly: tool.annotations?.readOnlyHint === true,
   };
 }
@@ -199,10 +256,10 @@ function publicRemoteTool(tool: RemoteTool) {
 function publicRemoteResource(config: McpServerConfig, resource: RemoteResource) {
   return {
     type: "resource" as const,
-    name: resource.name,
+    name: boundedRemoteText(resource.name),
     uri: resource.uri,
     id: `${config.id}/${resource.uri}`,
-    description: resource.description,
+    description: boundedRemoteText(resource.description),
     mimeType: resource.mimeType,
   };
 }
@@ -211,6 +268,7 @@ export class McpManager {
   private readonly connections = new Map<string, Connection>();
   private readonly connectTimeoutMs: number;
   private readonly callTimeoutMs: number;
+  private readonly enableResources: boolean;
 
   constructor(
     configs: readonly McpServerConfig[] = [],
@@ -218,6 +276,7 @@ export class McpManager {
   ) {
     this.connectTimeoutMs = options.connectTimeoutMs ?? 10_000;
     this.callTimeoutMs = options.callTimeoutMs ?? 30_000;
+    this.enableResources = options.enableResources ?? false;
     for (const config of configs) this.register(config);
   }
 
@@ -324,9 +383,15 @@ export class McpManager {
     uri: string,
     signal?: AbortSignal,
   ): Promise<ReadResourceResult> {
-    return this.withReadOnlyReconnect(serverId, signal, async (connection) => {
+    return this.withResourceReconnect(serverId, signal, async (connection) => {
       if (!connection.client) {
         throw new Error(`MCP server ${connection.config.name} is not connected`);
+      }
+      if (!connection.remoteResources.some((resource) => resource.uri === uri)) {
+        throw new ToolExecutionError(
+          "read_access_denied",
+          `MCP resource ${uri} was not discovered for server ${connection.config.name}`,
+        );
       }
       return connection.client.readResource(
         { uri },
@@ -361,7 +426,7 @@ export class McpManager {
       const listed = client.getServerCapabilities()?.tools
         ? await this.listAllTools(client, requestOptions)
         : [];
-      const listedResources = client.getServerCapabilities()?.resources
+      const listedResources = this.enableResources && client.getServerCapabilities()?.resources
         ? await this.listAllResources(client, requestOptions)
         : [];
       if (generation !== connection.generation) {
@@ -418,8 +483,17 @@ export class McpManager {
     const tools: RemoteTool[] = [];
     const cursors = new Set<string>();
     let cursor: string | undefined;
+    let pageCount = 0;
     do {
+      pageCount += 1;
+      if (pageCount > MAX_DISCOVERY_PAGES) {
+        throw new Error(`MCP tools discovery exceeded ${MAX_DISCOVERY_PAGES} pages`);
+      }
       const page = await client.listTools(cursor ? { cursor } : undefined, options);
+      if (tools.length + page.tools.length > MAX_DISCOVERED_TOOLS) {
+        throw new Error(`MCP tools discovery exceeded ${MAX_DISCOVERED_TOOLS} tools`);
+      }
+      for (const tool of page.tools) assertBoundedSchema(tool);
       tools.push(...page.tools);
       cursor = page.nextCursor;
       if (cursor && cursors.has(cursor)) {
@@ -437,8 +511,19 @@ export class McpManager {
     const resources: RemoteResource[] = [];
     const cursors = new Set<string>();
     let cursor: string | undefined;
+    let pageCount = 0;
     do {
+      pageCount += 1;
+      if (pageCount > MAX_DISCOVERY_PAGES) {
+        throw new Error(`MCP resources discovery exceeded ${MAX_DISCOVERY_PAGES} pages`);
+      }
       const page = await client.listResources(cursor ? { cursor } : undefined, options);
+      if (resources.length + page.resources.length > MAX_DISCOVERED_RESOURCES) {
+        throw new Error(`MCP resources discovery exceeded ${MAX_DISCOVERED_RESOURCES} resources`);
+      }
+      if (page.resources.some((resource) => !resource.uri || resource.uri.length > 2_048)) {
+        throw new Error("MCP resource metadata exceeds the discovery limits");
+      }
       resources.push(...page.resources);
       cursor = page.nextCursor;
       if (cursor && cursors.has(cursor)) {
@@ -458,14 +543,21 @@ export class McpManager {
     const connection = await this.connected(serverId, signal);
     const remote = connection.remoteTools.find((tool) => tool.name === toolName);
     if (!remote) throw new Error(`MCP tool ${toolName} was not found`);
-    return this.withReadOnlyReconnect(serverId, signal, async (current) => {
-      if (!current.client) throw new Error(`MCP server ${current.config.name} is not connected`);
-      return (await current.client.callTool(
-        { name: toolName, arguments: args },
-        undefined,
-        { timeout: this.callTimeoutMs, ...(signal ? { signal } : {}) },
-      )) as CallToolResult;
-    }, remote.annotations?.readOnlyHint === true);
+    if (!connection.client) throw new Error(`MCP server ${connection.config.name} is not connected`);
+    // A remote readOnlyHint is untrusted and cannot make an uncertain call safe
+    // to retry. Each approved MCP Tool call is sent at most once.
+    const result = (await connection.client.callTool(
+      { name: toolName, arguments: args },
+      undefined,
+      { timeout: this.callTimeoutMs, ...(signal ? { signal } : {}) },
+    )) as CallToolResult;
+    if (result.isError) {
+      throw new ToolExecutionError(
+        "execution_failed",
+        `MCP tool ${toolName} reported a failure`,
+      );
+    }
+    return result;
   }
 
   private async connected(serverId: string, signal?: AbortSignal) {
@@ -477,17 +569,16 @@ export class McpManager {
     return connection;
   }
 
-  private async withReadOnlyReconnect<T>(
+  private async withResourceReconnect<T>(
     serverId: string,
     signal: AbortSignal | undefined,
     operation: (connection: Connection) => Promise<T>,
-    retryReadOnly = true,
   ): Promise<T> {
     const connection = await this.connected(serverId, signal);
     try {
       return await operation(connection);
     } catch (error) {
-      if (!retryReadOnly || signal?.aborted || /abort|timeout|timed out/i.test(error instanceof Error ? error.message : String(error))) {
+      if (signal?.aborted || /abort|timeout|timed out/i.test(error instanceof Error ? error.message : String(error))) {
         throw error;
       }
       await this.disconnect(serverId);
@@ -502,24 +593,25 @@ export class McpManager {
       name: `mcp__${safeName(config.name, 32)}__${safeName(config.id, 8)}`,
       label: `MCP · ${config.name}`,
       description:
-        `按需搜索、查看并调用 ${config.name} 提供的 MCP 工具，或发现它提供的 Resource。` +
-        "先用 search 查找；工具再用 describe 和 call，Resource 使用返回的 id 调用 read_resource。",
+        `按需搜索、查看并调用 ${config.name} 提供的 MCP 工具。` +
+        "先用 search 查找，再用 describe 查看参数，最后仅在需要时使用 call。",
       parameters: proxyParameters,
       source: "mcp",
-      effects: ["network"],
+      effects: ["read", "write", "network"],
       approvalPolicy: "conditional",
       defaultEnabled: true,
       executionMode: "sequential",
-      requiresApproval: async (args: ProxyParameters, _context, signal) => {
-        if (args.action !== "call") return false;
-        await this.connect(config.id, signal);
-        const remote = connection.remoteTools.find(
-          (tool) => tool.name === args.tool,
-        );
-        if (!remote) throw new Error(`MCP tool ${args.tool ?? ""} was not found`);
-        return remote.annotations?.readOnlyHint !== true;
-      },
+      // Approval predicates must be local and side-effect free. Discovery is
+      // covered by the user's enabled server grant; every remote call asks.
+      requiresApproval: (args: ProxyParameters) => args.action === "call",
       execute: async (args: ProxyParameters, _context, signal) => {
+        if ((args.action === "describe" || args.action === "call") && !args.tool?.trim()) {
+          throw new ToolExecutionError("invalid_arguments", `${args.action} requires a tool name`);
+        }
+        if (args.action === "call" && args.arguments !== undefined &&
+          (!args.arguments || typeof args.arguments !== "object" || Array.isArray(args.arguments))) {
+          throw new ToolExecutionError("invalid_arguments", "MCP call arguments must be an object");
+        }
         await this.connect(config.id, signal);
 
         if (args.action === "search") {
@@ -566,7 +658,7 @@ export class McpManager {
                 type: "text",
                 text: JSON.stringify({
                   ...publicRemoteTool(remote),
-                  inputSchema: remote.inputSchema,
+                  inputSchema: boundedStructuredContent(remote.inputSchema),
                 }),
               },
             ],
@@ -586,7 +678,7 @@ export class McpManager {
             serverId: config.id,
             action: "call",
             toolName: remote.name,
-            structuredContent: result.structuredContent,
+            structuredContent: boundedStructuredContent(result.structuredContent),
           },
         };
       },

@@ -84,7 +84,7 @@ function prepare(template: string, variables: Record<string, unknown>, language:
 
 export function buildPrompt<Id extends PromptId>(
   promptId: Id,
-  variables: PromptVariables[Id],
+  variables: PromptVariables[Extract<Id, keyof PromptVariables>],
 ): BuiltPrompt {
   const definition = promptRegistry[promptId];
   if (!definition) throw new Error(`Unknown prompt: ${promptId}`);

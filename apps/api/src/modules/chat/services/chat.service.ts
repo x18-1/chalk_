@@ -22,7 +22,7 @@ import {
 } from '../../../providers/llm/model-catalog';
 import { readUploadedObject } from '../../../storage/s3';
 import { PROMPT_IDS, buildPrompt } from '../../../prompts';
-import type { KnowledgeBaseQueryer } from '../../../agent/tools/knowledge-base-search';
+import type { MemoryService } from '../../memory/services/memory.service';
 
 export type ChatStreamInput = {
   message: string;
@@ -57,14 +57,26 @@ function generatedTitle(content: Array<{ type: string; text?: string }>) {
   return raw.length >= 2 ? raw.slice(0, 40) : null;
 }
 
+function boundedMessagePayload(message: unknown) {
+  if (!message || typeof message !== 'object') return null;
+  const candidate = message as { role?: unknown; content?: unknown };
+  const content = Array.isArray(candidate.content)
+    ? candidate.content.filter((part): part is { type?: unknown; text?: unknown } => !!part && typeof part === 'object')
+      .filter((part) => part.type === 'text' && typeof part.text === 'string')
+      .map((part) => part.text as string).join('')
+    : typeof candidate.content === 'string' ? candidate.content : '';
+  return { role: typeof candidate.role === 'string' ? candidate.role : 'assistant', content: content.slice(0, 8_000) };
+}
+
 type ChatServiceOptions = {
   onSessionCleanupError?: (error: unknown, sessionId: string) => void;
-  knowledgeBaseQueryer?: KnowledgeBaseQueryer;
+  memory?: MemoryService;
 };
 
 export class ChatService {
   private readonly conversations;
   private readonly attachments;
+  private readonly memory?: MemoryService;
 
   constructor(
     db: Database,
@@ -72,6 +84,7 @@ export class ChatService {
   ) {
     this.conversations = createConversationsDal(db);
     this.attachments = createAttachmentsDal(db);
+    this.memory = options.memory;
   }
 
   listConversations(userId: string, limit: number, offset: number) {
@@ -237,7 +250,30 @@ export class ChatService {
 
     return {
       abort: () => entry.runtime.abort(),
-      start: (listener) => entry.runtime.run(prompt, listener, images),
+      start: async (listener) => {
+        if (this.memory) {
+          const memoryPrompt = await this.memory.promptContext(userId).catch(() => '');
+          entry.runtime.setSystemPrompt(memoryPrompt ? `${entry.systemPrompt}\n\n${memoryPrompt}` : entry.systemPrompt);
+        }
+        await this.memory?.appendEvent(userId, {
+          surface: 'chat',
+          kind: 'message',
+          payload: { role: 'user', content: input.message, conversationId },
+          sourceType: 'conversation',
+          sourceId: conversationId,
+        }).catch(() => undefined);
+        const result = await entry.runtime.run(prompt, listener, images);
+        if (result.status === 'completed') {
+          await this.memory?.appendEvent(userId, {
+            surface: 'chat',
+            kind: 'response',
+            payload: { message: boundedMessagePayload(result.message), conversationId },
+            sourceType: 'conversation',
+            sourceId: conversationId,
+          }).catch(() => undefined);
+        }
+        return result;
+      },
       complete: async () => {
         await this.conversations.update(userId, conversationId, {});
       },
