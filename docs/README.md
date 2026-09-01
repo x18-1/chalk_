@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-28
+> 最后核验：2026-08-31
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -41,6 +41,7 @@
 | Chalkboard V3 课堂讨论 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Accepted；V3 第二个纵向切片 |
 | 课堂讨论 LangGraph 决策 | [adr/0001-langgraph-for-classroom-discussion.md](adr/0001-langgraph-for-classroom-discussion.md) | Accepted |
 | Chalkboard 教学内核与领域插件边界 | [adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md](adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md) | Accepted；保持 `Scene -> Action`，Beat/Checkpoint 暂不引入 |
+| Python LightRAG 在线检索 sidecar | [adr/0003-python-lightrag-retrieval-sidecar.md](adr/0003-python-lightrag-retrieval-sidecar.md) | Accepted；LightRAG-only，Python 仅负责受控内部索引/查询，TS 负责业务与授权 |
 | Chalkboard V3–V6 路线 | [plan/chalkboard-roadmap.md](plan/chalkboard-roadmap.md) | Accepted；V4 可观测性/安全，V5 数学插件，V6 单课学习闭环；均等待主分支 Memory/Tools/Chat 生成 Scene 合并 |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
@@ -58,6 +59,7 @@
 | Agent 平台首批集成计划 | [plan/plan-agent-platform-integration.md](plan/plan-agent-platform-integration.md) | Historical；Context7、Skills 和 Subagent 首批接线已完成，最终边界见各 Accepted Spec |
 | Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
 | Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
+| 主分支最新交接 | [handoff/handoff_8-28.md](handoff/handoff_8-28.md) | Accepted；V3 合并后的 `main` 基线、平台先决工作与接手入口 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
 | Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Historical；V3 课堂运行时、渐进式生成、多 Agent 讨论、AI Live Chalkboard 与 Chromium 门禁已完成 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
@@ -97,7 +99,10 @@ docs/
 | 主题 | 文档 | 状态 |
 |---|---|---|
 | Agent 长期记忆（OpenClaw、Hermes、DeepTutor、TencentDB） | [researsh/agent-memory-systems-research.md](researsh/agent-memory-systems-research.md) | Draft；基于固定版本的一手源码/文档 |
+| DeepTutor 三层记忆系统（本地 v1.6.2 快照） | [researsh/2026-08-31-deeptutor-memory-system-research.md](researsh/2026-08-31-deeptutor-memory-system-research.md) | Draft；源码、README 与许可证核验，含 Chalk Postgres/Drizzle 应用蓝图 |
+| DeepTutor LightRAG 与 Chalk Python worker 集成 | [researsh/rag-deeptutor.md](researsh/rag-deeptutor.md) | Draft；基于本地源码、依赖和 README，含 LightRAG-only 集成与评估后置说明 |
 | OpenMAIC v1.0.0 与本地参考快照功能对比 | [researsh/openmaic-v1.0.0-vs-local.md](researsh/openmaic-v1.0.0-vs-local.md) | Draft；基于官方 v1.0.0 README/CHANGELOG 与本地 Git 快照 |
+| OpenMAIC v1 Tools、Skills、Pi Agent 与 MCP 对照 | [researsh/openmaic-v1-workbench-skills-pi-agent-research.md](researsh/openmaic-v1-workbench-skills-pi-agent-research.md) | Draft；基于本地正式版本源码、测试与文档 |
 
 ## 4. 更新规则
 
@@ -113,10 +118,10 @@ docs/
 
 以下规则已经接受，但尚未全部由工具强制：
 
-- 质量 CI workflow 已定义，但当前分支尚未在远端完成首次运行；仍无 formatter 门禁和自动 package 依赖方向检查。
+- 质量 CI workflow 已在当前远端 `main` 完整运行通过；仍无 formatter 门禁和自动 package 依赖方向检查。
 - worktree 配置已经参数化，但尚无跨 worktree 端口/路径占用检测和完整应用栈编排。
 - 集成测试会校验、创建并 migrate 专用数据库，但尚不自动重建或销毁测试数据库。
-- Chromium E2E 的 CI job 已定义隔离 Web/API、数据库和对象存储启动流程，但远端运行结果尚未确认；Firefox/WebKit 矩阵暂不属于 V3 门禁。
+- Chromium E2E 的隔离 Web/API、数据库和对象存储流程已在远端 `main` 运行通过；Firefox/WebKit 矩阵暂不属于 V3 门禁。
 - 既有 API route 中仍有 schema、业务编排和 adapter 调用混在同一文件的情况。
 
 这些缺口按各 runbook 的目标状态和实际开发需要逐步收敛。

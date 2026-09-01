@@ -26,6 +26,11 @@
 本规范是全仓规则，不只适用于 Chalkboard V2。V2 合并回 `main` 后，后续 Chat、Chalkboard
 及其他 AI 能力都遵循同一规范。
 
+几何 Agent 当前位于 `agents/geometry-agent/`，作为隔离的 TypeScript 实验包维护自己的
+`prompts/geometry-agent/` 目录和 typed loader；它同样遵循英文运行、中文审阅、registry
+provenance 和双语配对规则。Geometry Agent 的活动 Prompt 为 `stage2.geogebra.system`，来源
+是 `chalk_edu/Chalk/prompt/Geo2Geo/v2.md`，迁移时不得无理由精简其构造语义。
+
 ## 2. 目录与命名
 
 目标结构：

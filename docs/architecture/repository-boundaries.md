@@ -3,14 +3,15 @@
 > 文档状态：Accepted
 > 实施状态：Partial
 > 适用范围：`apps/`、`packages/`、根级测试与运行配置；不含 `agents/`
-> 最后核验：2026-08-26
+> 最后核验：2026-08-31
 
 ## 1. 目标结构
 
 ```text
 apps/
 ├── api/                  # Fastify 后端部署单元和组合根
-└── web/                  # Next.js 前端部署单元
+├── web/                  # Next.js 前端部署单元
+└── rag-sidecar/          # Python LightRAG 内部部署单元；不属于 pnpm workspace package
 
 packages/
 ├── agent-runtime/        # 通用 Agent 执行、MCP、session 与 telemetry 能力
@@ -30,6 +31,7 @@ apps/web  ──HTTP/SSE──> apps/api
 apps/api  ────────────> packages/agent-runtime
 apps/api  ────────────> packages/chalkboard
 apps/web  ────────────> packages/chalkboard 的浏览器入口（需要时）
+apps/api  ──internal HTTP──> apps/rag-sidecar（LightRAG query/index）
 
 packages/chalkboard ──> packages/agent-runtime 的稳定公共接口（仅有真实需要时）
 ```
@@ -41,9 +43,12 @@ packages/* ──X──> apps/*
 packages/agent-runtime ──X──> packages/chalkboard
 apps/web ──X──> Drizzle / Postgres / Fastify / 服务端凭据
 循环 package 依赖
+apps/rag-sidecar ──X──> apps/api 源码（只能使用版本化内部协议）
 ```
 
 `apps/*` 是部署单元和组合根，可以选择具体 adapter。`packages/*` 是可复用模块，只能通过稳定接口接收应用依赖，不能导入应用内部文件。
+
+`apps/rag-sidecar` 是 Python 部署单元而非 TypeScript package。它只实现 LightRAG 的索引与查询 adapter，通过版本化 JSON/HTTP 接口与 `apps/api` 通信，不承载 Chalk 认证、owner 授权、业务状态机或证据账本。
 
 ## 3. 各模块职责
 
@@ -77,6 +82,21 @@ apps/web ──X──> Drizzle / Postgres / Fastify / 服务端凭据
 - 保存 API key 或业务密钥；
 - 复制后端业务规则；
 - 从模型自然语言文本猜测本应结构化的系统状态。
+
+### `apps/rag-sidecar`
+
+负责：
+
+- LightRAG workspace 的索引、增量更新和原生查询；
+- 解析、embedding、图/向量检索与结构化 references；
+- 超时、取消、依赖探测和 provider 错误分类。
+
+不负责：
+
+- Chalk 用户认证、owner 校验、配额和产品权限；
+- 读取 Chalk 数据库或凭据表；
+- 直接写入学生证据账本、掌握度或其他业务数据；
+- 对浏览器或公网暴露接口。
 
 ### `packages/agent-runtime`
 

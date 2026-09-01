@@ -111,9 +111,9 @@ provider 的 `system_prompt_block` 仍会进入 system 的 volatile tail；prefe
 
 ## 3. DeepTutor（HKUDS/DeepTutor）
 
-### 先说明本地目录状态
+### 先说明核验版本
 
-你给出的 `/home/xcodd/code/chalk_/.reference/DeepTutor` 当前为空目录（没有 checkout 内容）。因此以下依据官方仓库固定提交 [`3e82f130422a813cdd73c10b21a44e9325f5821a`](https://github.com/HKUDS/DeepTutor/tree/3e82f130422a813cdd73c10b21a44e9325f5821a) 的源码；不是对空目录的推断。
+本节是 2026-08-27 的历史核验快照，依据官方仓库固定提交 [`3e82f130422a813cdd73c10b21a44e9325f5821a`](https://github.com/HKUDS/DeepTutor/tree/3e82f130422a813cdd73c10b21a44e9325f5821a) 的源码；当时本地参考目录尚未 checkout。当前 `.reference/DeepTutor` 已更新到 v1.6.2（commit `3dc372f551285ea8ffd552ba01cd5dd16c59cb25`），实现细节和 Chalk 集成建议以[最新专篇](2026-08-31-deeptutor-memory-system-research.md)为准。
 
 ### 三层、可审计的文件模型
 
