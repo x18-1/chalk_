@@ -3,14 +3,15 @@
 > 文档状态：Accepted
 > 实施状态：Partial
 > 适用范围：`apps/`、`packages/`、根级测试与运行配置；不含 `agents/`
-> 最后核验：2026-08-26
+> 最后核验：2026-08-31
 
 ## 1. 目标结构
 
 ```text
 apps/
 ├── api/                  # Fastify 后端部署单元和组合根
-└── web/                  # Next.js 前端部署单元
+├── web/                  # Next.js 前端部署单元
+└── rag-sidecar/          # Python LightRAG 内部部署单元；不属于 pnpm workspace package
 
 packages/
 ├── agent-runtime/        # 通用 Agent 执行、MCP、session 与 telemetry 能力
@@ -30,6 +31,7 @@ apps/web  ──HTTP/SSE──> apps/api
 apps/api  ────────────> packages/agent-runtime
 apps/api  ────────────> packages/chalkboard
 apps/web  ────────────> packages/chalkboard 的浏览器入口（需要时）
+apps/api  ──internal HTTP──> apps/rag-sidecar（LightRAG query/index）
 
 packages/chalkboard ──> packages/agent-runtime 的稳定公共接口（仅有真实需要时）
 ```
@@ -41,6 +43,7 @@ packages/* ──X──> apps/*
 packages/agent-runtime ──X──> packages/chalkboard
 apps/web ──X──> Drizzle / Postgres / Fastify / 服务端凭据
 循环 package 依赖
+apps/rag-sidecar ──X──> apps/api 源码（只能使用版本化内部协议）
 ```
 
 `apps/*` 是部署单元和组合根，可以选择具体 adapter。`packages/*` 是可复用模块，只能通过稳定接口接收应用依赖，不能导入应用内部文件。

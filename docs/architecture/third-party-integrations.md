@@ -2,8 +2,8 @@
 
 > 文档状态：Accepted
 > 实施状态：Partial
-> 适用范围：`apps/api`、`apps/web`、`packages/agent-runtime`、`packages/chalkboard`
-> 最后核验：2026-08-22
+> 适用范围：`apps/api`、`apps/web`、`apps/rag-sidecar`、`packages/agent-runtime`、`packages/chalkboard`
+> 最后核验：2026-08-31
 
 ## 1. 总原则
 
@@ -37,6 +37,7 @@ MCP、S3/MinIO、JSONL、telemetry 等属于其他基础设施或运行时集成
 | 能力 | 实现位置 | Chalk 产品职责 |
 |---|---|---|
 | LLM Provider | `apps/api/src/providers/llm/` + `pi-ai` | 装配 Pi 模型目录、用户凭据、自定义 Provider 和模型选择，供 Service 与 Agent Runtime 共用 |
+| LightRAG | `apps/rag-sidecar/`（Python，内部部署单元） | LightRAG 索引、图/向量检索和结构化 references；TypeScript API 负责授权、审计和业务投影 |
 | Agent loop、tools、compaction | `packages/agent-runtime` | 使用 API 注入的 Pi LLM 能力，不管理 Chalk 用户凭据或 Provider 配置 |
 | TTS / ASR / 图片 / 视频 / PDF / Web Search | `apps/api/src/providers/<capability>/` | 对应业务 Service 负责业务编排 |
 | 浏览器原生 TTS / ASR | `apps/web` 或浏览器侧运行时 | 可出现在产品能力配置中，但不能由后端调用 |
@@ -96,6 +97,8 @@ API 必须拥有：
 ## 5. Provider 与其他基础设施的实现
 
 Provider 的接口应表达 Chalk 实际需要的能力，而不是完整复制供应商 SDK。不同 Provider 能力不共用一个 `generate` 接口：Pi LLM 的单次或流式调用、视频的异步任务、TTS 的音频结果和 PDF 的解析结果分别定义自己的输入输出。
+
+LightRAG sidecar 不是 Chalk 业务 Provider，而是独立 Python 运行时 adapter。它只通过版本化内部 HTTP/JSON 提供索引和查询能力，不读取 Chalk 数据库、凭据表或认证上下文；浏览器不得直接访问 sidecar。
 
 Service 通过明确的依赖调用 Provider。供应商 Provider 不创建全局数据库客户端、不读取 Fastify request、不查询用户数据，也不保存 API key。LLM 目录中的 `DrizzleCredentialStore` 是 Pi `CredentialStore` 与 Chalk 数据库之间的内部 adapter，并不负责第三方请求。需要测试时，Service 可以注入受控的 fake Provider，Provider 自身通过 HTTP mock 或协议 fixture 验证供应商请求。
 

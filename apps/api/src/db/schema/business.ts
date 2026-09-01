@@ -42,6 +42,7 @@ export const mcpServers = pgTable('mcp_servers', {
   args: jsonb('args'),
   url: text('url'),
   envEnc: text('env_enc'),
+  headersEnc: text('headers_enc'),
   enabled: boolean('enabled').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -142,6 +143,24 @@ export const skillSettings = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.skillName] })],
 );
 
+export const userSkills = pgTable(
+  'user_skills',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    content: text('content').notNull(),
+    references: jsonb('references'),
+    version: text('version').notNull(),
+    contentHash: text('content_hash').notNull(),
+    enabled: boolean('enabled').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.userId, table.name)],
+);
+
 export const toolSettings = pgTable(
   'tool_settings',
   {
@@ -227,6 +246,54 @@ export const attachments = pgTable('attachments', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
 });
+
+export const knowledgeBases = pgTable(
+  'knowledge_bases',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique('knowledge_bases_id_user_unique').on(table.id, table.userId),
+    index('knowledge_bases_user_updated_idx').on(table.userId, table.updatedAt),
+  ],
+);
+
+export const knowledgeDocuments = pgTable(
+  'knowledge_documents',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    knowledgeBaseId: uuid('knowledge_base_id').notNull(),
+    userId: uuid('user_id').notNull().references(() => authUsers.id, { onDelete: 'cascade' }),
+    filename: text('filename').notNull(),
+    contentType: text('content_type').notNull(),
+    size: integer('size').notNull(),
+    fileKey: text('file_key').notNull().unique(),
+    status: text('status').default('pending').notNull(),
+    error: text('error'),
+    chunkCount: integer('chunk_count'),
+    pageCount: integer('page_count'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    indexedAt: timestamp('indexed_at', { withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.knowledgeBaseId, table.userId],
+      foreignColumns: [knowledgeBases.id, knowledgeBases.userId],
+      name: 'knowledge_documents_owned_kb_fk',
+    }).onDelete('cascade'),
+    index('knowledge_documents_user_kb_updated_idx').on(
+      table.userId,
+      table.knowledgeBaseId,
+      table.updatedAt,
+    ),
+  ],
+);
 
 export const classrooms = pgTable(
   'classrooms',

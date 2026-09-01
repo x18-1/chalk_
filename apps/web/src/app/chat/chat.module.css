@@ -137,6 +137,9 @@
 .composerTools { gap: 5px; }
 .modelPicker { position: relative; }
 .mediaPicker { position: relative; }
+.knowledgeBasePicker { display: inline-flex; width: 142px; height: 29px; padding: 0 7px; align-items: center; gap: 5px; color: var(--chalk-stone); font-size: 11px; cursor: pointer; border: 1px solid transparent; border-radius: 6px; }
+.knowledgeBasePicker:hover, .knowledgeBasePicker:focus-within { color: var(--chalk-ink); background: var(--chalk-paper-soft); border-color: var(--chalk-border-light); }
+.knowledgeBaseSelect { width: 112px; min-width: 0; padding: 0 14px 0 0; overflow: hidden; color: inherit; font: inherit; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; background: transparent; border: 0; outline: 0; }
 .modelButton { max-width: 270px; height: 29px; padding: 0 7px; gap: 5px; color: var(--chalk-stone); font-size: 11px; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 6px; }
 .modelButton > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modelButton > small { flex: none; padding: 1px 4px; color: var(--chalk-clay-hover); font-size: 9px; background: #f7ede7; border-radius: 4px; }
@@ -213,6 +216,19 @@
 .contextEmpty { display: flex; min-height: 160px; padding: 22px 4px; margin-top: 19px; align-items: flex-start; gap: 9px; color: var(--chalk-stone); border-top: 1px solid var(--chalk-border); }
 .contextEmpty svg { flex: none; margin-top: 2px; color: var(--chalk-stone); }
 .contextEmpty p { margin: 0; font-size: 12px; line-height: 1.65; }
+.knowledgeBaseContext { display: flex; padding: 14px 0 16px; margin-top: 19px; flex-direction: column; gap: 4px; border-top: 1px solid var(--chalk-border); border-bottom: 1px solid var(--chalk-border); }
+.knowledgeBaseContext span { color: var(--chalk-stone); font-size: 10px; }
+.knowledgeBaseContext strong { overflow: hidden; color: var(--chalk-ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.knowledgeBaseContext small { color: var(--chalk-stone); font-size: 10px; line-height: 1.55; }
+.referenceList { padding: 16px 0 20px; margin-top: 19px; border-top: 1px solid var(--chalk-border); }
+.referenceListHeader { display: flex; align-items: center; gap: 6px; color: var(--chalk-ink); font-size: 12px; }
+.referenceListHeader svg { color: var(--chalk-clay); }
+.referenceListHeader span { min-width: 18px; padding: 1px 5px; color: var(--chalk-clay-hover); font-size: 10px; text-align: center; background: #f7ede7; border-radius: 999px; }
+.referenceItem { padding: 12px 0; border-bottom: 1px solid var(--chalk-border-light); }
+.referenceItem:last-child { border-bottom: 0; }
+.referenceItem strong { display: block; overflow: hidden; color: var(--chalk-ink); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.referenceItem small { display: block; margin-top: 3px; color: var(--chalk-stone); font-size: 10px; }
+.referenceItem p { display: -webkit-box; margin: 6px 0 0; overflow: hidden; color: var(--chalk-ink-soft); font-size: 11px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
 .contextActions { display: flex; flex-wrap: wrap; gap: 10px; }
 .textAction { gap: 6px; padding: 0; color: var(--chalk-clay-hover); font-size: 11px; font-weight: 600; cursor: pointer; background: transparent; border: 0; }
 .textAction:disabled { color: var(--chalk-stone-light); cursor: not-allowed; }

@@ -19,6 +19,7 @@ export type ChatStreamInput = {
   message: string;
   model?: ModelSelection;
   attachmentIds?: string[];
+  knowledgeBaseId?: string;
 };
 export type ChatStreamEvent = { type: string; data: Record<string, unknown> & { message?: CompletedChatMessage } };
 

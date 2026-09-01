@@ -26,7 +26,6 @@ import {
 } from './modules/uploads/services/upload.service';
 import { registerAdminRoutes } from './modules/admin/routes';
 import { UserAdministrationService } from './modules/admin/services/user-administration.service';
-import { s3UploadObjectStorage } from './storage/s3';
 import { startToolApprovalRecovery } from './agent/approval-recovery';
 import { configureAgentRuntime } from './agent/runtime-manager';
 import { registerMediaRoutes } from './modules/media/routes';
@@ -55,11 +54,17 @@ import {
 } from './modules/classroom-discussions/services/classroom-discussion.service';
 import type { ClassroomDiscussionModel } from './modules/classroom-discussions/services/classroom-discussion.graph';
 import { piClassroomDiscussionModel } from './providers/llm/classroom-discussion-model';
+import { registerKnowledgeBaseRoutes } from './modules/knowledge-bases/routes';
+import { KnowledgeBaseService, type KnowledgeObjectStorage } from './modules/knowledge-bases/services/knowledge-base.service';
+import { createRagSidecarClient, type RagSidecarClient } from './modules/knowledge-bases/rag-sidecar-client';
+import { s3UploadObjectStorage } from './storage/s3';
 
 export type BuildApiOptions = {
   config?: ApiConfig;
   mediaEnvironment?: NodeJS.ProcessEnv;
   objectStorage?: UploadObjectStorage;
+  knowledgeObjectStorage?: KnowledgeObjectStorage;
+  ragSidecarClient?: RagSidecarClient;
   classroomObjectStorage?: ClassroomObjectStorage;
   classroomOutlineModel?: ClassroomGenerationModel;
   classroomMediaGenerator?: import('./modules/classroom-generation/services/classroom-generation.service').ClassroomMediaGenerator;
@@ -120,7 +125,17 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
   const authService = new AuthService(db, config);
   const auth = new AuthModule(authService, config.sessionCookie);
   registerAuthRoutes(app, auth, authService);
+  const knowledgeBases = new KnowledgeBaseService(
+    db,
+    options.knowledgeObjectStorage ?? s3UploadObjectStorage,
+    options.ragSidecarClient ?? createRagSidecarClient({
+      baseUrl: config.ragSidecarUrl,
+      token: config.ragSidecarToken,
+      timeoutMs: config.ragTimeoutMs,
+    }),
+  );
   registerChatRoutes(app, auth, new ChatService(db, {
+    knowledgeBaseQueryer: knowledgeBases,
     onSessionCleanupError(error, sessionId) {
       app.log.warn({ err: error, sessionId }, 'Unable to delete JSONL session');
     },
@@ -139,6 +154,8 @@ export async function buildApi(options: BuildApiOptions = {}): Promise<FastifyIn
     auth,
     new UploadService(db, options.objectStorage ?? s3UploadObjectStorage),
   );
+  registerKnowledgeBaseRoutes(app, auth, knowledgeBases);
+  app.addHook('onClose', async () => knowledgeBases.stopWorker());
   const mediaProviders = new MediaProviderService(db, options.mediaEnvironment);
   registerMediaRoutes(app, auth, mediaProviders);
   registerClassroomRoutes(

@@ -13,6 +13,7 @@ import {
   providerTestSchema,
   skillSettingSchema,
   toolSettingSchema,
+  ragSettingsSchema,
 } from './schemas';
 import type { ProviderConfigurationService } from './services/provider-configuration.service';
 import type { RuntimeConfigurationService } from './services/runtime-configuration.service';
@@ -97,6 +98,16 @@ export function registerConfigurationRoutes(
   app.get('/settings', async (request) => {
     const user = await auth.requireUser(request);
     return providers.getSettings(user.id);
+  });
+
+  app.get('/settings/rag', async (request) => {
+    const user = await auth.requireUser(request);
+    return providers.getRagSettings(user.id);
+  });
+
+  app.put('/settings/rag', async (request) => {
+    const user = await auth.requireUser(request);
+    return providers.updateRagSettings(user.id, ragSettingsSchema.parse(request.body));
   });
 
   app.put('/settings/model', async (request) => {

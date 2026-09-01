@@ -2,7 +2,7 @@
 
 > 文档状态：Accepted
 > 适用范围：主仓库（不含 `agents/` 实验目录）
-> 最后核验：2026-08-28
+> 最后核验：2026-08-31
 
 本文定义 Chalk 文档的分类、权威顺序和维护方式。文档描述与代码不一致时，不能静默选择其中一份：先确认代码的真实行为，再更新相应的权威文档或明确记录偏差。
 
@@ -41,21 +41,24 @@
 | Chalkboard V3 课堂讨论 | [spec/chalkboard-v3-discussion.md](spec/chalkboard-v3-discussion.md) | Accepted；V3 第二个纵向切片 |
 | 课堂讨论 LangGraph 决策 | [adr/0001-langgraph-for-classroom-discussion.md](adr/0001-langgraph-for-classroom-discussion.md) | Accepted |
 | Chalkboard 教学内核与领域插件边界 | [adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md](adr/0002-chalkboard-teaching-kernel-and-domain-plugins.md) | Accepted；保持 `Scene -> Action`，Beat/Checkpoint 暂不引入 |
+| Python LightRAG 在线检索 sidecar | [adr/0003-python-lightrag-retrieval-sidecar.md](adr/0003-python-lightrag-retrieval-sidecar.md) | Accepted；LightRAG-only，Python 仅负责受控内部索引/查询，TS 负责业务与授权 |
 | Chalkboard V3–V6 路线 | [plan/chalkboard-roadmap.md](plan/chalkboard-roadmap.md) | Accepted；V4 可观测性/安全，V5 数学插件，V6 单课学习闭环；均等待主分支 Memory/Tools/Chat 生成 Scene 合并 |
 | 技术选型 | [architecture/tech-stack.md](architecture/tech-stack.md) | Draft；其中 `AGENTS.md` 已确认的约束优先 |
 | 仓库与 package 边界 | [architecture/repository-boundaries.md](architecture/repository-boundaries.md) | Accepted |
 | API 后端分层 | [architecture/backend-layers.md](architecture/backend-layers.md) | Accepted |
 | Prompt 管理 | [architecture/prompts.md](architecture/prompts.md) | Accepted + Documented；新 Prompt 立即遵守，既有内联 Prompt 随所属能力迁移 |
 | 第三方集成边界 | [architecture/third-party-integrations.md](architecture/third-party-integrations.md) | Accepted |
-| Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和上传文本 adapter 已实现，知识库/Web adapter 待后续阶段 |
+| Agent Tools 契约 | [architecture/tools.md](architecture/tools.md) | Draft；基础层、统一 Resource Read facade、Skill Read tool 和当前挂载知识库的 `search_knowledge_base` 已实现，Web adapter 待后续阶段 |
 | Tools 基础能力 | [spec/tools-foundation-spec.md](spec/tools-foundation-spec.md) | Draft；核心 runtime、统一 Read facade 和 MinIO 集成验证已实现，更多资源 adapter 待后续阶段 |
 | Tools 实施计划 | [plan/plan-tools-foundation.md](plan/plan-tools-foundation.md) | Draft；实现中 |
+| RAG MVP 实施计划 | [plan/rag-mvp.md](plan/rag-mvp.md) | Historical；知识库、文档上传、LightRAG sidecar、结构化引用和单机异步索引已完成 |
 | Agent Tools 测试 | [runbooks/tools-testing.md](runbooks/tools-testing.md) | Accepted + Partial；单测、API 集成和 MinIO Read 集成已覆盖，质量 CI 已定义、远端首次执行待确认 |
 | Chalkboard V3 发布验证 | [runbooks/chalkboard-v3-release-validation.md](runbooks/chalkboard-v3-release-validation.md) | Accepted + Partial；确定性、API 集成和 Chromium 门禁已定义，真实 Provider eval 保持人工发布门禁 |
 | Tools → MCP 交接 | [handoff/tools-foundation-to-mcp.md](handoff/tools-foundation-to-mcp.md) | Ready for next phase；记录当前 Tools/Read 状态和 MCP 接手边界 |
 | Chalkboard V3 分支现场 | [handoff/chalkboard-v3.md](handoff/chalkboard-v3.md) | Historical；V3 课堂运行时、渐进式生成、多 Agent 讨论、AI Live Chalkboard 与 Chromium 门禁已完成 |
 | worktree 开发 | [runbooks/worktree-development.md](runbooks/worktree-development.md) | Accepted |
 | 数据库变更 | [runbooks/database-development.md](runbooks/database-development.md) | Accepted |
+| RAG MVP 运行 | [runbooks/rag-mvp.md](runbooks/rag-mvp.md) | Accepted + Partial；sidecar、API/Web 启动、异步索引和当前限制 |
 | Chalkboard V1 OpenMAIC 迁移计划 | [plan/plan-chalkboard-v1.md](plan/plan-chalkboard-v1.md) | Historical |
 | Chalkboard V2 工程迁移计划 | [plan/plan-chalkboard-v2.md](plan/plan-chalkboard-v2.md) | Historical；已通过 GitHub PR #6 合并到 `main` |
 
@@ -92,6 +95,7 @@ docs/
 |---|---|---|
 | Agent 长期记忆（OpenClaw、Hermes、DeepTutor、TencentDB） | [researsh/agent-memory-systems-research.md](researsh/agent-memory-systems-research.md) | Draft；基于固定版本的一手源码/文档 |
 | OpenMAIC v1.0.0 与本地参考快照功能对比 | [researsh/openmaic-v1.0.0-vs-local.md](researsh/openmaic-v1.0.0-vs-local.md) | Draft；基于官方 v1.0.0 README/CHANGELOG 与本地 Git 快照 |
+| DeepTutor PDF 解析与 MinerU 集成 | [research/deeptutor-pdf-parsing.md](research/deeptutor-pdf-parsing.md) | Draft；基于 DeepTutor 固定源码快照 |
 
 ## 4. 更新规则
 

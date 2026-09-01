@@ -24,4 +24,13 @@ describe('loadConfig', () => {
       'SESSION_COOKIE_SECURE must be true in production',
     );
   });
+
+  it('requires the RAG sidecar token outside test environments', () => {
+    expect(() => loadConfig({ NODE_ENV: 'development' })).toThrow(
+      'RAG_SIDECAR_TOKEN must be configured outside test environments',
+    );
+    expect(() => loadConfig({ NODE_ENV: 'production', SESSION_COOKIE_SECURE: 'true' })).toThrow(
+      'RAG_SIDECAR_TOKEN must be configured outside test environments',
+    );
+  });
 });

@@ -21,11 +21,13 @@ export {
   type McpServer,
   type Model,
   type Provider,
+  type RagSettings,
   type Skill,
   type Tool,
   type VideoCapabilitySelection,
 } from './settings';
 export { uploadsApi } from './uploads';
+export { knowledgeBasesApi, knowledgeBaseErrorMessage, type KnowledgeBase, type KnowledgeChunk, type KnowledgeDocument, type RagAnswer, type RagReference } from './knowledge-bases';
 export { mediaApi, type MediaCapability, type MediaProvider, type MediaProviders } from './media';
 export {
   classroomErrorMessage,

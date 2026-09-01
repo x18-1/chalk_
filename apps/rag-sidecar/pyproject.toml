@@ -1,0 +1,27 @@
+[project]
+name = "chalk-rag-sidecar"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
+  "pydantic>=2.10,<3",
+  "lightrag-hku==1.5.7rc2",
+  "openai>=1.68,<2",
+  "numpy>=1.26,<3",
+  "pypdf>=5,<7",
+  "python-docx>=1.1,<2",
+  "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+# Keep the default sidecar small.  MinerU is intentionally an external CLI or
+# hosted API and is therefore not installed here; configure RAG_MINERU_MODE
+# and install the CLI separately when the high-fidelity parser is needed.
+markitdown = ["markitdown[pdf,docx,pptx,xlsx]>=0.0.1a2"]
+
+[tool.setuptools]
+packages = ["chalk_rag_sidecar"]
+
+[project.scripts]
+chalk-rag-sidecar = "chalk_rag_sidecar.main:run"

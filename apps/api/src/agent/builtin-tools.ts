@@ -9,6 +9,9 @@ import {
   type SearchProvider,
 } from './tools/search';
 import { createReadResourceTool, type ResourceReader } from './tools/read/read-resource';
+import { createKnowledgeBaseSearchTool, type KnowledgeBaseQueryer } from './tools/knowledge-base-search';
+
+export type { KnowledgeBaseQueryer } from './tools/knowledge-base-search';
 
 export type BuiltinToolDependencies = {
   conversationTitleUpdater: ConversationTitleUpdater;
@@ -16,6 +19,9 @@ export type BuiltinToolDependencies = {
   readResourceReader?: ResourceReader;
   readCursorSecret?: string;
   readSkillTool?: RuntimeTool;
+  knowledgeBaseQueryer?: KnowledgeBaseQueryer;
+  knowledgeBaseId?: string;
+  ownerId?: string;
 };
 
 export function createBuiltinToolRegistry(dependencies: BuiltinToolDependencies) {
@@ -25,5 +31,12 @@ export function createBuiltinToolRegistry(dependencies: BuiltinToolDependencies)
     tools.unshift(createReadResourceTool(dependencies.readResourceReader, dependencies.readCursorSecret));
   }
   if (dependencies.readSkillTool) tools.unshift(dependencies.readSkillTool);
+  if (dependencies.knowledgeBaseQueryer && dependencies.knowledgeBaseId && dependencies.ownerId) {
+    tools.unshift(createKnowledgeBaseSearchTool(
+      dependencies.knowledgeBaseQueryer,
+      dependencies.ownerId,
+      dependencies.knowledgeBaseId,
+    ));
+  }
   return new ToolRegistry(tools);
 }

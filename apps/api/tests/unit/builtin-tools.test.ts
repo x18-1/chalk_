@@ -9,6 +9,7 @@ describe('Chalk built-in tools', () => {
     });
 
     expect(registry.list().map((tool) => tool.name)).not.toContain('search_learning_resources');
+    expect(registry.list().map((tool) => tool.name)).not.toContain('search_knowledge_base');
     expect(registry.list().map((tool) => tool.name)).not.toContain('read_resource');
   });
 
@@ -107,5 +108,32 @@ describe('Chalk built-in tools', () => {
     await expect(tool!.execute('rename-2', { title: '不应执行' }, undefined))
       .rejects.toThrow('requires approval');
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('registers knowledge-base search with the selected base bound outside model arguments', async () => {
+    const query = vi.fn(async () => ({
+      answer: '相似三角形的对应角相等。',
+      references: [{
+        citationId: 'cite-1', documentId: 'doc-1', documentName: '数学讲义.md', chunkId: 'chunk-1',
+        snippet: '对应角相等。', page: 3,
+      }],
+      metadata: { provider: 'lightrag', mode: 'hybrid', reranked: true, latencyMs: 12 },
+    }));
+    const registry = createBuiltinToolRegistry({
+      conversationTitleUpdater: { update: vi.fn() },
+      knowledgeBaseQueryer: { query },
+      knowledgeBaseId: '00000000-0000-0000-0000-000000000001',
+      ownerId: 'student-1',
+    });
+    const tool = registry.createAgentTools({ context: { ownerId: 'student-1', sessionId: 'session-1' } })
+      .find((candidate) => candidate.name === 'search_knowledge_base');
+
+    await tool!.execute('rag-1', { query: '对应角', topK: 3 }, undefined);
+
+    expect(query).toHaveBeenCalledWith(
+      'student-1',
+      '00000000-0000-0000-0000-000000000001',
+      { query: '对应角', mode: 'hybrid', topK: 3, enableRerank: true },
+    );
   });
 });

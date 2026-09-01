@@ -1,14 +1,14 @@
 # Chalk 技术栈
 
 > 文档状态：Draft
-> 最后核验：2026-08-28
+> 最后核验：2026-08-31
 > 说明：技术方向仍可迭代；`AGENTS.md` 已确认约束和 [Accepted 架构文档](../README.md) 优先。
 > 配套：[功能定义](../spec/functional-spec.md)
 
 ## 1. 总原则
 
-1. **后端全 TypeScript。** 业务、agent、DSL 校验、几何、证据账本、数据访问全部在 TS 一侧，不跨语言边界。
-2. **Python 暂不引入。** 需要 sympy 符号验证、IRT/BKT 校准、检索索引构建时再加，且只作为离线 worker 调用的独立服务，不进请求路径。见第 10 节。
+1. **Chalk 业务后端全 TypeScript。** 认证、业务编排、Agent、DSL 校验、几何、证据账本和数据访问全部在 TS 一侧。LightRAG 是明确的基础设施例外。
+2. **LightRAG 使用独立 Python 在线 retrieval sidecar。** Python 只实现 LightRAG 的索引与原生查询；TypeScript API 先完成授权、配额和审计，再通过受控内部接口调用。见第 10 节和 [ADR 0003](../adr/0003-python-lightrag-retrieval-sidecar.md)。
 3. **确定性引擎决定「能不能过」，LLM 决定「怎么表达」。** 掌握判定、几何校验、结构 lint 全部是确定性代码，LLM 不持有否决权。
 4. **eval 与功能同期建设。** 系统产出质量（讲解、判题、几何构造）不靠人工抽查。
 
@@ -16,7 +16,7 @@
 
 | 层 | 选择 | 说明 |
 |---|---|---|
-| 语言 | **TypeScript 全栈** | DSL 校验器需同时跑在浏览器、agent 侧、服务端，一份代码三处共用 |
+| 语言 | **TypeScript + Python LightRAG sidecar** | Chalk 业务和 DSL 仍为 TypeScript；Python 仅承载 LightRAG 原生索引/查询实现 |
 | Agent 运行时 | **pi-agent-core**；课堂多 Agent 讨论使用 **LangGraph.js** | 见第 3 节与 [ADR 0001](../adr/0001-langgraph-for-classroom-discussion.md) |
 | 前端 | Next.js（App Router）+ React | 只负责页面、浏览器状态和 HTTP/SSE 客户端，不承载业务 API |
 | 后端 API | Fastify + TypeScript | 独立进程和部署单元；认证、业务 API、Agent 装配、SSE、上传和数据库访问集中在此 |
@@ -27,7 +27,7 @@
 | 数学插件的几何渲染 / 动画 | **manim-web** | TypeScript，版本锁定；它是候选数学 Domain Plugin 的渲染能力，不是 Teaching Kernel |
 | 数学插件的几何约束层 | **自建** | 不绑定 manim-web 对象模型；具体插件边界在 V5 规格确定 |
 | 数学排版 | KaTeX | manim-web 内部也用它 |
-| 校验 | **Zod + TypeBox** | Chalk 业务结构、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。业务 schema 是主来源，工具边界通过明确 adapter 对接。将来若引入 Python，由 Zod 生成 JSON Schema → Pydantic |
+| 校验 | **Zod + TypeBox** | Chalk 业务结构、DSL、API 使用 Zod；pi 的 `AgentTool.parameters` 使用 TypeBox。LightRAG sidecar 协议由 Zod 生成 JSON Schema，Python 侧使用对应 Pydantic 模型 |
 | 测试 | Vitest + Playwright + LLM eval | 见第 6 节 |
 | 观测 | pi-telemetry + OpenTelemetry | 见第 5 节 |
 
@@ -55,7 +55,7 @@ LLM tool arguments
 |---|---|
 | fork OpenMAIC | 核心对象不同（它以 `Stage` 为中心，我们以学习者与证据为中心）；Chalk 只对固定参考提交的 Scene/Action 、生成链路和讨论能力做有边界迁移。PPTX/MP4 导出、PBL v2、Partners 等都不需要 |
 | GeoGebra | `evalCommand()` 只返回成功/失败，无结构化错误；宽松解释器可能把错误表达式解释成另一种合法对象 |
-| Python 做主后端 | 跨语言边界会切在最热的调用路径上（学习活动判定 → 讨论室 Agent → 生成 → 写证据）；DSL 校验器会被迫写两遍（Zod + Pydantic）且必须永远等价。**已决定：后端全 TS，后续如需再调整** |
+| Python 做主后端 | 跨语言边界会切入 Chalk 业务主链路；DSL 校验器会被迫写两遍。**不允许 Python 承载 Chalk 业务后端；仅允许 LightRAG 独立 sidecar 例外** |
 
 ## 3. Agent 运行时：pi-agent 与课堂讨论 LangGraph
 
@@ -273,24 +273,22 @@ LLM Provider 统一使用 `@earendil-works/pi-ai`。`apps/api/src/providers/llm/
 4. **学生操作事件的回传契约**：`Draggable` 事件 → 证据账本 + AI 观察输入的数据形状
 5. **pi-telemetry 与教学语义事件的结合方式**：是否足以承载 UI 状态驱动
 
-## 10. Python 的位置（暂不引入）
+## 10. Python 的位置（LightRAG 例外）
 
-**当前决定：后端全 TypeScript，不引入 Python。** 后续如遇实际阻碍再调整。
+Chalk 业务后端仍然全为 TypeScript。首期 RAG 只使用 LightRAG，并允许一个独立的 Python 在线 retrieval sidecar；它不负责 Chalk 认证、owner 授权、业务状态机或证据账本。
 
-### 什么情况下会加回来
+### 调用链
 
-只有以下需求出现，且 TS 生态确实没有可用替代时：
-
-| 需求 | TS 侧是否可行 |
-|---|---|
-| 符号计算验证几何命题 / 代数恒等式（sympy） | 无等价库。这是最可能需要 Python 的一项 |
-| IRT / BKT 难度校准 | 数据量不大时 TS 可写；规模上来后 Python 生态更合适 |
-| 向量检索索引构建 | pgvector 在 Postgres 内即可，第一版用不上 |
-| eval 统计分析 | 可先用 TS，复杂分析再考虑 |
+```text
+Web → TypeScript API
+       ├─ 认证、owner 校验、配额、审计
+       └─ 内部认证调用 Python LightRAG sidecar
+                └─ answer + structured references
+```
 
 ### 引入时必须遵守
 
-1. **只做离线 worker**，通过队列调用，不进请求路径
-2. **接口面窄到不需要共享复杂类型**。例如符号验证只收几何 DSL 片段、只回 `{ valid, errors[] }`；Python 侧不需要认识 Scene/Action 结构
-3. **schema 单一来源**：zod 定义 → 生成 JSON Schema → `datamodel-code-generator` 生成 Pydantic 模型，接入 CI。禁止两边手写同一结构
-4. **证据账本和 DSL 校验永不跨界**，始终留在 TS
+1. **仅限内部接口**：sidecar 不暴露给浏览器或公网；API 使用服务身份、网络策略和超时/取消控制调用它。
+2. **schema 单一来源**：Zod 定义 → 生成 JSON Schema → Pydantic 模型，禁止两边手写同一结构。
+3. **凭据隔离**：Python 不读取 Chalk 凭据表；LLM/embedding 使用受控模型代理或短期凭据。
+4. **证据账本和 DSL 校验永不跨界**，始终留在 TS。

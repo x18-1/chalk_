@@ -211,6 +211,17 @@
 .textButton { min-height: 30px; padding: 0 8px; color: var(--chalk-stone); font-size: 11px; cursor: pointer; background: transparent; border: 0; border-radius: 5px; }
 .textButton:hover { color: var(--chalk-ink); background: var(--chalk-paper-soft); }
 .settingsHint { padding: 8px 0 0; margin: 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.5; }
+.ragPanel { padding: 16px 0 4px; border-top: 1px solid var(--chalk-border-light); }
+.ragPanel .settingsTitle { margin-bottom: 14px; }
+.ragPanel h4 { margin: 0; color: var(--chalk-ink); font-size: 14px; font-weight: 600; }
+.ragPanel .settingsTitle p { margin: 4px 0 0; color: var(--chalk-stone); font-size: 11px; }
+.ragConfigured, .ragUnconfigured { flex: none; color: var(--chalk-success); font-size: 10px; }
+.ragUnconfigured { color: var(--chalk-warning); }
+.ragFacts { display: grid; padding: 0; margin: 0; border-top: 1px solid var(--chalk-border-light); }
+.ragFacts > div { display: grid; padding: 10px 0; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; border-bottom: 1px solid var(--chalk-border-light); }
+.ragFacts dt { color: var(--chalk-stone); font-size: 11px; }
+.ragFacts dd { min-width: 0; margin: 0; overflow: hidden; color: var(--chalk-ink-soft); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.ragSettingsHint { padding: 12px; margin: 18px 0 0; color: var(--chalk-stone); font-size: 11px; line-height: 1.6; background: var(--chalk-canvas); border: 1px solid var(--chalk-border-light); border-radius: 6px; }
 .mediaConfigSection, .mediaModelSection { padding-top: 2px; margin-top: 18px; border-top: 1px solid var(--chalk-border-light); }
 .mediaConfigGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .mediaConfigGrid .settingsField { margin-bottom: 4px; }

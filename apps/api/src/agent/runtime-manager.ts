@@ -33,7 +33,8 @@ import {
   createToolSettingsDal,
 } from '../db/dal';
 import { decrypt } from '../security/credential-encryption';
-import { createBuiltinToolRegistry } from './builtin-tools';
+import { createBuiltinToolRegistry, type KnowledgeBaseQueryer } from './builtin-tools';
+import { knowledgeBaseSearchToolSummary } from './tools/knowledge-base-search';
 import { createUploadedFileResourceAdapterFromDatabase } from './tools/read/uploaded-file-reader';
 import { createMcpResourceAdapter } from './tools/read/mcp-resource-reader';
 import { createResourceReader } from './tools/read/read-resource';
@@ -226,6 +227,7 @@ type RuntimeEntry = {
   approvals: ApprovalBroker;
   mcp: McpManager;
   model: ModelSelection;
+  knowledgeBaseId?: string;
 };
 
 const activeRuntimes = new Map<string, RuntimeEntry>();
@@ -296,7 +298,12 @@ function parseCustomModels(value: unknown): CustomOpenAiModel[] {
   });
 }
 
-function createBuiltinTools(mcp?: McpManager, readSkillTool?: ReturnType<typeof createReadSkillTool>) {
+function createBuiltinTools(
+  userId: string,
+  mcp?: McpManager,
+  readSkillTool?: ReturnType<typeof createReadSkillTool>,
+  knowledgeBase?: { queryer: KnowledgeBaseQueryer; id: string },
+) {
   const conversations = createConversationsDal(getDb());
   const readCursorSecret = process.env.CREDENTIAL_ENCRYPTION_KEY;
   return createBuiltinToolRegistry({
@@ -319,6 +326,9 @@ function createBuiltinTools(mcp?: McpManager, readSkillTool?: ReturnType<typeof 
       }
       : {}),
     ...(readSkillTool ? { readSkillTool } : {}),
+    ...(knowledgeBase
+      ? { knowledgeBaseQueryer: knowledgeBase.queryer, knowledgeBaseId: knowledgeBase.id, ownerId: userId }
+      : {}),
   });
 }
 
@@ -374,6 +384,7 @@ export async function getOrCreateRuntime(
   userId: string,
   conversation: { id: string; sessionId: string; sessionFilePath?: string },
   requestedModel?: ModelSelection,
+  options: { knowledgeBaseId?: string; knowledgeBaseQueryer?: KnowledgeBaseQueryer } = {},
 ) {
   const db = getDb();
   const settings = await createAgentSettingsDal(db).get(userId);
@@ -390,7 +401,8 @@ export async function getOrCreateRuntime(
   if (existing && (!selectedModel ||
     existing.model.providerId === selectedModel.providerId &&
     existing.model.modelId === selectedModel.modelId &&
-    existing.model.thinkingLevel === selectedModel.thinkingLevel)) {
+    existing.model.thinkingLevel === selectedModel.thinkingLevel) &&
+    existing.knowledgeBaseId === options.knowledgeBaseId) {
     return existing;
   }
   if (existing) await closeRuntime(conversation.id);
@@ -433,7 +445,14 @@ export async function getOrCreateRuntime(
   const telemetry = createRuntimeTelemetryContext(runtimeTelemetry);
   const toolErrorChannel = new ToolErrorChannel();
   const toolOverrides = new Map(toolSettings.map((setting) => [setting.toolName, setting]));
-  const registry = createBuiltinTools(mcp, createReadSkillTool(skills, enabledSkillNames));
+  const registry = createBuiltinTools(
+    userId,
+    mcp,
+    createReadSkillTool(skills, enabledSkillNames),
+    options.knowledgeBaseId && options.knowledgeBaseQueryer
+      ? { id: options.knowledgeBaseId, queryer: options.knowledgeBaseQueryer }
+      : undefined,
+  );
   for (const tool of mcp.proxyTools()) registry.register(tool);
 
   const childExecutor = new ForegroundSubagentExecutor({
@@ -543,7 +562,15 @@ export async function getOrCreateRuntime(
     },
     toolErrorChannel,
   });
-  const entry = { ownerId: userId, runtime, session, approvals, mcp, model };
+  const entry = {
+    ownerId: userId,
+    runtime,
+    session,
+    approvals,
+    mcp,
+    model,
+    ...(options.knowledgeBaseId ? { knowledgeBaseId: options.knowledgeBaseId } : {}),
+  };
   activeRuntimes.set(conversation.id, entry);
   return entry;
 }
@@ -604,9 +631,11 @@ export async function listRuntimeTools(userId: string) {
       });
     }
     const { registry: skills, enabledSkillNames } = await loadUserSkills(userId);
-    const registry = createBuiltinTools(mcp, createReadSkillTool(skills, enabledSkillNames));
+    const registry = createBuiltinTools(userId, mcp, createReadSkillTool(skills, enabledSkillNames));
     for (const tool of mcp.proxyTools()) registry.register(tool);
-    return registry.list();
+    // RAG is bound to a mounted knowledge base at chat-runtime creation time,
+    // but remains a user-configurable tool in the global settings catalog.
+    return [...registry.list(), knowledgeBaseSearchToolSummary];
   } finally {
     await mcp.close();
   }

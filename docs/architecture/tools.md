@@ -179,4 +179,4 @@ Skill 使用独立的 `read_skill` 工具，不接受文件路径，只接受已
 
 Read 结果的 `details` 至少包含：资源 ID、文件名、起止行、起止字节、`hasMore`，以及在还有内容时的 opaque continuation cursor。cursor 由服务端签名，并绑定 owner、conversation、资源 ID、资源 snapshot、下一字节位置和过期时间。下一次调用只能把 cursor 原样交回工具，不能由模型修改。
 
-当前 Read 只支持 `upload` 和 `mcp_resource` 的文本内容；MCP 协议的 `resources/read` 没有 byte-range 参数，因此远端单个文本资源先限制为 2 MiB，并以内容 hash 作为 snapshot。PDF、图片、blob 和知识库 chunk/Web 正文需要各自的解码或 Provider adapter，不能把二进制字节直接伪装成文本。后续新增资源类型只增加 adapter，不增加新的 Agent 可见 `read_xxx` 工具。继续读取时如果对象或远端资源 snapshot 发生变化，工具返回 `read_snapshot_changed`，要求重新开始读取。
+当前 Read 只支持 `upload` 和 `mcp_resource` 的文本内容；MCP 协议的 `resources/read` 没有 byte-range 参数，因此远端单个文本资源先限制为 2 MiB，并以内容 hash 作为 snapshot。知识库检索不复用 `read_resource`：Chat 挂载知识库后，API 为该 runtime 闭包注入唯一的 `search_knowledge_base` 工具，工具内部执行 owner 校验并调用 LightRAG sidecar，返回带文档名、页码/段落和 chunk 的结构化引用。PDF、图片、blob 和知识库 chunk/Web 正文的读取仍需要各自的解码或 Provider adapter，不能把二进制字节直接伪装成文本。后续新增资源类型只增加 adapter，不增加新的 Agent 可见 `read_xxx` 工具。继续读取时如果对象或远端资源 snapshot 发生变化，工具返回 `read_snapshot_changed`，要求重新开始读取。

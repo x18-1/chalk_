@@ -16,6 +16,9 @@ const environmentSchema = z.object({
   SESSION_COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
   SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   TOOL_APPROVAL_TIMEOUT_MS: toolApprovalTimeoutSchema,
+  RAG_SIDECAR_URL: z.string().url().default('http://127.0.0.1:8010'),
+  RAG_SIDECAR_TOKEN: z.string().trim().min(1).optional(),
+  RAG_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(30000),
 });
 
 export type ApiConfig = {
@@ -29,6 +32,9 @@ export type ApiConfig = {
     ttlDays: number;
   };
   toolApprovalTimeoutMs: number;
+  ragSidecarUrl: string;
+  ragSidecarToken: string;
+  ragTimeoutMs: number;
 };
 
 export function parseToolApprovalTimeoutMs(
@@ -47,6 +53,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): ApiCon
   if (parsed.NODE_ENV === 'production' && parsed.SESSION_COOKIE_SECURE !== 'true') {
     throw new Error('SESSION_COOKIE_SECURE must be true in production');
   }
+  if (parsed.NODE_ENV !== 'test' && !parsed.RAG_SIDECAR_TOKEN) {
+    throw new Error('RAG_SIDECAR_TOKEN must be configured outside test environments');
+  }
 
   return {
     nodeEnv: parsed.NODE_ENV,
@@ -59,5 +68,9 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): ApiCon
       ttlDays: parsed.SESSION_TTL_DAYS,
     },
     toolApprovalTimeoutMs: parsed.TOOL_APPROVAL_TIMEOUT_MS,
+    ragSidecarUrl: parsed.RAG_SIDECAR_URL,
+    // Tests inject a fake sidecar client and do not make authenticated calls.
+    ragSidecarToken: parsed.RAG_SIDECAR_TOKEN ?? '',
+    ragTimeoutMs: parsed.RAG_TIMEOUT_MS,
   };
 }
