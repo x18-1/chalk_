@@ -706,7 +706,12 @@ export default function ChatPage() {
     const controller = new AbortController();
     runControllersRef.current.set(conversationId, controller);
     try {
-      await chatApi.stream(conversationId, { message: text, model: selectedModel ?? undefined, attachmentIds: attachedFile?.id ? [attachedFile.id] : [] }, ({ type, data }) => {
+      await chatApi.stream(conversationId, {
+        message: text,
+        model: selectedModel ?? undefined,
+        attachmentIds: attachedFile?.id ? [attachedFile.id] : [],
+        knowledgeBaseId: selectedKnowledgeBaseId || undefined,
+      }, ({ type, data }) => {
         if (type === "text_delta") updateConversationMessages(conversationId, (current) => current.map((message) => {
           if (message.id !== tutorId) return message;
           return { ...appendMessageText(message, String(data.delta ?? "")), thinking: undefined };

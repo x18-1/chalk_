@@ -648,7 +648,11 @@ export async function listRuntimeTools(userId: string) {
     const registry = createBuiltinTools(userId);
     for (const tool of createSkillTools(skills, enabledSkillNames)) registry.register(tool);
     for (const tool of createMcpTools({ manager: mcp })) registry.register(tool);
-    return [...registry.list(), SUBAGENT_TOOL_SUMMARY];
+    // The executable RAG tool is bound to a mounted knowledge base at chat
+    // runtime creation time. Still advertise its stable summary here so the
+    // settings catalog can display and persist the user's enabled/disabled
+    // preference before a knowledge base is mounted.
+    return [...registry.list(), knowledgeBaseSearchToolSummary, SUBAGENT_TOOL_SUMMARY];
   } finally {
     await mcp.close();
   }
