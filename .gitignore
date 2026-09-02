@@ -7,6 +7,12 @@
 # Third-party reference repositories
 .reference/
 
+# Local agent and design-tool configuration
+.agents/
+.claude/
+.codex/
+.impeccable/
+
 # Local temporary material
 /temp/
 
