@@ -1,9 +1,0 @@
-[submodule ".reference/DeepTutor"]
-	path = .reference/DeepTutor
-	url = https://github.com/HKUDS/DeepTutor.git
-[submodule ".reference/OpenMAIC"]
-	path = .reference/OpenMAIC
-	url = https://github.com/THU-MAIC/OpenMAIC.git
-[submodule ".reference/python_openmaic/openmaic"]
-	path = .reference/python_openmaic/openmaic
-	url = https://github.com/x18-1/openmaic.git
